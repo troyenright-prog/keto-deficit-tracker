@@ -1,10 +1,9 @@
-name: Test, Version & Deploy
+name: Test, Version and Deploy
 
 on:
   push:
     branches: [master]
 
-# Prevent concurrent deploys
 concurrency:
   group: deploy
   cancel-in-progress: false
@@ -13,13 +12,12 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # needed to push version bump + tag
+      contents: write
 
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          # Use PAT so the version-bump push triggers no new workflow run
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-node@v4
@@ -33,13 +31,14 @@ jobs:
       - name: Run tests
         run: npm test
 
-      - name: Configure git for version bump
+      - name: Configure git
         run: |
-          git config user.name  "github-actions[bot]"
+          git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Bump patch version
-        run: npm version patch -m "chore: release v%s [skip ci]"
+        run: |
+          npm version patch -m "chore: release v%s [skip ci]"
 
       - name: Build
         run: npm run build
@@ -51,5 +50,5 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy dist --project-name keto-deficit-tracker --commit-dirty=true
 
-      - name: Push version tag back to GitHub
+      - name: Push version tag
         run: git push --follow-tags
