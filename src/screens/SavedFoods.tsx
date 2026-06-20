@@ -1,39 +1,132 @@
 import { useState } from 'react';
 import type { FoodItem } from '../types';
 import { calcNetCarbs } from '../lib/nutrition';
+import { FoodForm, type FoodFormValues } from '../components/FoodForm';
+import { nanoid } from '../lib/nanoid';
+import { getStarterFoods } from '../lib/australianFoods';
 
 interface SavedFoodsProps {
   foods: FoodItem[];
+  onSave: (food: FoodItem) => void;
   onDelete: (id: string) => void;
   onAddToLog: (food: FoodItem) => void;
 }
 
-export function SavedFoods({ foods, onDelete, onAddToLog }: SavedFoodsProps) {
+export function SavedFoods({ foods, onSave, onDelete, onAddToLog }: SavedFoodsProps) {
   const [search, setSearch] = useState('');
+  const [editing, setEditing] = useState<FoodItem | null>(null);
+  const [addingNew, setAddingNew] = useState(false);
 
   const filtered = foods.filter((f) =>
     f.name.toLowerCase().includes(search.toLowerCase()),
   );
 
+  function handleEdit(food: FoodItem) {
+    setEditing(food);
+    setAddingNew(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function handleSaveEdit(values: FoodFormValues) {
+    if (!editing) return;
+    onSave({
+      ...editing,
+      ...values,
+      updatedAt: new Date().toISOString(),
+    });
+    setEditing(null);
+  }
+
+  function handleAddNew(values: FoodFormValues) {
+    onSave({
+      id: nanoid(),
+      createdAt: new Date().toISOString(),
+      ...values,
+    });
+    setAddingNew(false);
+  }
+
+  function handleLoadStarter() {
+    if (!confirm('This will add ~28 common Australian keto foods to your library. Continue?')) return;
+    const starters = getStarterFoods();
+    for (const food of starters) {
+      onSave(food);
+    }
+  }
+
+  const editInitial: Partial<FoodFormValues> | undefined = editing
+    ? {
+        name: editing.name,
+        servingSize: editing.servingSize,
+        servingMultiplier: 1,
+        calories: editing.calories,
+        proteinG: editing.proteinG,
+        fatG: editing.fatG,
+        totalCarbsG: editing.totalCarbsG,
+        fibreG: editing.fibreG,
+        sugarAlcoholsG: editing.sugarAlcoholsG,
+        sodiumMg: editing.sodiumMg,
+        potassiumMg: editing.potassiumMg,
+        magnesiumMg: editing.magnesiumMg,
+        calciumMg: editing.calciumMg,
+        ironMg: editing.ironMg,
+        zincMg: editing.zincMg,
+        vitaminDMcg: editing.vitaminDMcg,
+        vitaminB12Mcg: editing.vitaminB12Mcg,
+        omega3G: editing.omega3G,
+        omega6G: editing.omega6G,
+      }
+    : undefined;
+
   return (
     <div className="screen">
       <div className="screen-header">
         <h1>Saved Foods</h1>
+        <button className="btn btn--primary btn--sm" onClick={() => { setAddingNew(true); setEditing(null); }}>
+          + New Food
+        </button>
       </div>
 
+      {(addingNew || editing) && (
+        <div className="inline-form-panel">
+          <div className="inline-form-header">
+            <h2>{editing ? `Edit: ${editing.name}` : 'Add new food'}</h2>
+            <button className="btn btn--ghost btn--sm" onClick={() => { setEditing(null); setAddingNew(false); }}>
+              Cancel
+            </button>
+          </div>
+          <FoodForm
+            initial={editInitial}
+            onSubmit={editing ? handleSaveEdit : handleAddNew}
+            submitLabel={editing ? 'Save changes' : 'Save food'}
+            hideServingMultiplier
+          />
+        </div>
+      )}
+
       {foods.length === 0 ? (
-        <p className="empty-hint">
-          No saved foods yet. Use "Save as food" when adding food to build your library.
-        </p>
+        <div>
+          <p className="empty-hint">
+            No saved foods yet. Add a food above, use "Save as food" when logging, or load the starter library.
+          </p>
+          <button className="btn btn--secondary" onClick={handleLoadStarter}>
+            Load Australian keto starter foods
+          </button>
+        </div>
       ) : (
         <>
-          <input
-            type="search"
-            className="search-input"
-            placeholder="Search saved foods…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+          <div className="search-row">
+            <input
+              type="search"
+              className="search-input"
+              placeholder="Search saved foods…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            <button className="btn btn--ghost btn--sm" onClick={handleLoadStarter}>
+              + Starter foods
+            </button>
+          </div>
 
           {filtered.length === 0 ? (
             <p className="empty-hint">No foods match "{search}".</p>
@@ -62,6 +155,12 @@ export function SavedFoods({ foods, onDelete, onAddToLog }: SavedFoodsProps) {
                         onClick={() => onAddToLog(food)}
                       >
                         Add to today
+                      </button>
+                      <button
+                        className="btn btn--ghost btn--sm"
+                        onClick={() => handleEdit(food)}
+                      >
+                        Edit
                       </button>
                       <button
                         className="btn btn--danger btn--sm"

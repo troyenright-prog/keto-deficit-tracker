@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { ProgressBar } from '../components/ProgressBar';
 import { StatCard } from '../components/StatCard';
 import type { DailyNutritionSummary, NutritionTargets, Recommendation } from '../types';
 import { carbStatus, carbStatusLabel, remainingCalories } from '../lib/nutrition';
+import { buildSmartSuggestions } from '../lib/suggestions';
 
 interface DashboardProps {
   summary: DailyNutritionSummary;
@@ -11,10 +13,13 @@ interface DashboardProps {
 }
 
 export function Dashboard({ summary, targets, recommendations, onAddFood }: DashboardProps) {
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const status = carbStatus(summary, targets);
   const remaining = remainingCalories(summary, targets);
   const statusVariant = status === 'aligned' ? 'success' : status === 'approaching' ? 'warning' : 'danger';
   const carbVariant = status === 'aligned' ? 'success' : status === 'approaching' ? 'warning' : 'danger';
+
+  const suggestions = buildSmartSuggestions(summary, targets);
 
   return (
     <div className="screen">
@@ -115,6 +120,30 @@ export function Dashboard({ summary, targets, recommendations, onAddFood }: Dash
             ))}
           </ul>
         </>
+      )}
+
+      {summary.entryCount > 0 && (
+        <div className="suggestions-section">
+          <button
+            className="btn btn--ghost btn--sm"
+            onClick={() => setShowSuggestions((s) => !s)}
+          >
+            {showSuggestions ? 'Hide' : 'What should I eat?'}
+          </button>
+          {showSuggestions && (
+            suggestions.length === 0 ? (
+              <p className="empty-hint">You are well on track — no specific suggestions right now.</p>
+            ) : (
+              <ul className="recommendations">
+                {suggestions.map((s) => (
+                  <li key={s.id} className={`rec rec--${s.priority}`}>
+                    {s.message}
+                  </li>
+                ))}
+              </ul>
+            )
+          )}
+        </div>
       )}
     </div>
   );

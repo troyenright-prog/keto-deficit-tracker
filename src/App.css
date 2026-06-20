@@ -44,16 +44,23 @@
   border-top: 1px solid var(--gray-200);
   background: var(--white);
   flex-shrink: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
 
+.nav::-webkit-scrollbar { display: none; }
+
 .nav-btn {
-  flex: 1;
-  font-size: 11px;
+  flex: 0 0 auto;
+  min-width: 56px;
+  font-size: 10px;
   font-weight: 500;
   color: var(--gray-500);
-  padding: 4px 2px;
+  padding: 4px 6px;
   transition: color 0.15s, background 0.15s;
   border-radius: 0;
+  white-space: nowrap;
 }
 
 .nav-btn--active {
@@ -602,3 +609,423 @@ input:disabled {
 .checkbox-label input {
   width: auto;
 }
+
+/* ── Suggestions ── */
+.suggestions-section {
+  margin-top: 16px;
+}
+
+/* ── Saved foods extra ── */
+.search-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.search-row .search-input {
+  margin-bottom: 0;
+  flex: 1;
+}
+
+.inline-form-panel {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-bottom: 16px;
+}
+
+.inline-form-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.inline-form-header h2 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+}
+
+/* ── Autocomplete ── */
+.autocomplete-list {
+  background: var(--white);
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.autocomplete-item {
+  width: 100%;
+  text-align: left;
+  padding: 9px 12px;
+  font-size: 13px;
+  color: var(--gray-700);
+  border-bottom: 1px solid var(--gray-100);
+  transition: background 0.1s;
+}
+
+.autocomplete-item:hover {
+  background: var(--blue-bg);
+  color: var(--blue);
+}
+
+.autocomplete-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: var(--gray-700);
+  border-bottom: 1px solid var(--gray-100);
+}
+
+/* ── Templates / Meals ── */
+.template-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.template-list-item {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.template-list-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.template-list-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--gray-900);
+}
+
+.template-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.template-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.template-item-name {
+  flex: 1;
+  font-weight: 500;
+}
+
+.template-item-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.template-totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--gray-700);
+  margin: 8px 0;
+}
+
+.template-totals strong {
+  color: var(--gray-900);
+}
+
+/* ── Qty input ── */
+.qty-input {
+  width: 60px !important;
+  padding: 4px 6px !important;
+  font-size: 13px !important;
+}
+
+/* ── Buttons extra sizes ── */
+.btn--xs {
+  padding: 3px 7px;
+  font-size: 11px;
+}
+
+/* ── dim text ── */
+.dim {
+  font-size: 11px;
+  color: var(--gray-500);
+}
+
+/* ── Recipes ── */
+.ingredient-row {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: 10px;
+  margin-bottom: 8px;
+}
+
+.ingredient-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.ingredient-num {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-500);
+  min-width: 16px;
+}
+
+.ingredient-nutrition {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.form-group--tiny {
+  min-width: 60px;
+  flex: 1;
+  margin-bottom: 0 !important;
+}
+
+.form-group--tiny label {
+  font-size: 10px;
+}
+
+.form-group--tiny input {
+  padding: 4px 6px !important;
+  font-size: 12px !important;
+}
+
+.log-servings-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── Shopping list ── */
+.shopping-add-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.shopping-add-row .search-input {
+  margin-bottom: 0;
+  flex: 1;
+}
+
+.qty-text-input {
+  padding: 8px 10px;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius);
+  font-size: 14px;
+}
+
+.shopping-generate {
+  margin-bottom: 12px;
+}
+
+.generate-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.shopping-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.shopping-list--done {
+  opacity: 0.65;
+}
+
+.shopping-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  font-size: 13px;
+}
+
+.shopping-item--done .shopping-item-name {
+  text-decoration: line-through;
+  color: var(--gray-400);
+}
+
+.shopping-check-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  flex: 1;
+}
+
+.shopping-check-label input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.shopping-item-name {
+  flex: 1;
+}
+
+.shopping-item-qty,
+.shopping-item-source {
+  font-size: 11px;
+  color: var(--gray-500);
+}
+
+/* ── Planner ── */
+.plan-type-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.tab-btn {
+  padding: 6px 14px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gray-600);
+  background: var(--gray-100);
+  border: 1px solid var(--gray-200);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.tab-btn--active {
+  background: var(--blue);
+  color: var(--white);
+  border-color: var(--blue);
+}
+
+.plan-item--converted {
+  opacity: 0.6;
+}
+
+.badge-converted {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  background: var(--green-bg);
+  color: var(--green);
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
+/* ── Weight screen ── */
+.weight-add-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.weight-add-row .weight-input {
+  flex: 1;
+  min-width: 80px;
+}
+
+.weight-entry--full {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.weight-entry-date {
+  font-size: 13px;
+  color: var(--gray-500);
+  min-width: 90px;
+}
+
+.weight-entry-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gray-900);
+  flex: 1;
+}
+
+.weight-input--inline {
+  width: 80px !important;
+  padding: 4px 8px !important;
+  font-size: 13px !important;
+  flex: 0 0 auto !important;
+}
+
+/* ── Backup ── */
+.backup-actions {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.import-msg {
+  font-size: 13px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  margin-top: 8px;
+}
+
+.import-msg--success {
+  background: var(--green-bg);
+  color: var(--green);
+}
+
+.import-msg--error {
+  background: var(--red-bg);
+  color: var(--red);
+}
+
+/* ── Micro toggle ── */
+.micro-toggle {
+  margin-bottom: 8px;
+}
+
+/* ── micro form group ── */
+.form-group--micro {
+  min-width: 80px;
+  flex: 1;
+}
+

@@ -6,17 +6,21 @@ interface NavProps {
 }
 
 const tabs: { id: Screen; label: string }[] = [
-  { id: 'dashboard', label: 'Dashboard' },
-  { id: 'add-food', label: 'Add Food' },
+  { id: 'dashboard', label: 'Home' },
+  { id: 'add-food', label: 'Add' },
   { id: 'daily-log', label: 'Log' },
-  { id: 'weekly', label: 'Weekly' },
-  { id: 'saved-foods', label: 'Saved' },
-  { id: 'profile', label: 'Profile' },
+  { id: 'saved-foods', label: 'Foods' },
+  { id: 'meals', label: 'Meals' },
+  { id: 'recipes', label: 'Recipes' },
+  { id: 'planner', label: 'Plan' },
+  { id: 'shopping', label: 'Shop' },
+  { id: 'weight', label: 'Weight' },
+  { id: 'settings', label: 'Settings' },
 ];
 
 export function Nav({ current, onChange }: NavProps) {
   return (
-    <nav className="nav">
+    <nav className="nav" aria-label="Main navigation">
       {tabs.map((t) => (
         <button
           key={t.id}

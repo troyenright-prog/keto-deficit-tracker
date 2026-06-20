@@ -15,6 +15,14 @@ export interface FoodFormValues {
   sodiumMg: number;
   potassiumMg: number;
   magnesiumMg: number;
+  // Optional micronutrients
+  calciumMg?: number;
+  ironMg?: number;
+  zincMg?: number;
+  vitaminDMcg?: number;
+  vitaminB12Mcg?: number;
+  omega3G?: number;
+  omega6G?: number;
 }
 
 const EMPTY: FoodFormValues = {
@@ -38,6 +46,12 @@ function clampNum(val: string, min = 0): number {
   return Math.max(min, n);
 }
 
+function optNum(val: string): number | undefined {
+  const n = parseFloat(val);
+  if (isNaN(n) || n === 0) return undefined;
+  return Math.max(0, n);
+}
+
 interface FoodFormProps {
   initial?: Partial<FoodFormValues>;
   onSubmit: (values: FoodFormValues) => void;
@@ -47,6 +61,7 @@ interface FoodFormProps {
   showDate?: boolean;
   date?: string;
   onDateChange?: (d: string) => void;
+  hideServingMultiplier?: boolean;
 }
 
 export function FoodForm({
@@ -58,10 +73,12 @@ export function FoodForm({
   showDate = false,
   date,
   onDateChange,
+  hideServingMultiplier = false,
 }: FoodFormProps) {
   const [values, setValues] = useState<FoodFormValues>({ ...EMPTY, ...initial });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [selectedSaved, setSelectedSaved] = useState('');
+  const [showMicro, setShowMicro] = useState(false);
 
   useEffect(() => {
     if (initial) setValues({ ...EMPTY, ...initial });
@@ -69,6 +86,10 @@ export function FoodForm({
 
   function num(key: keyof FoodFormValues, val: string) {
     setValues((v) => ({ ...v, [key]: clampNum(val) }));
+  }
+
+  function micro(key: keyof FoodFormValues, val: string) {
+    setValues((v) => ({ ...v, [key]: optNum(val) }));
   }
 
   function str(key: keyof FoodFormValues, val: string) {
@@ -116,11 +137,20 @@ export function FoodForm({
       sodiumMg: food.sodiumMg,
       potassiumMg: food.potassiumMg,
       magnesiumMg: food.magnesiumMg,
+      calciumMg: food.calciumMg,
+      ironMg: food.ironMg,
+      zincMg: food.zincMg,
+      vitaminDMcg: food.vitaminDMcg,
+      vitaminB12Mcg: food.vitaminB12Mcg,
+      omega3G: food.omega3G,
+      omega6G: food.omega6G,
     });
     setSelectedSaved(id);
   }
 
   const previewNetCarbs = calcNetCarbs(values.totalCarbsG, values.fibreG, values.sugarAlcoholsG);
+  const hasMicro = !!(values.calciumMg || values.ironMg || values.zincMg ||
+    values.vitaminDMcg || values.vitaminB12Mcg || values.omega3G || values.omega6G);
 
   return (
     <form className="food-form" onSubmit={handleSubmit} noValidate>
@@ -163,6 +193,7 @@ export function FoodForm({
           value={values.name}
           onChange={(e) => str('name', e.target.value)}
           placeholder="e.g. Chicken breast"
+          autoComplete="off"
         />
         {errors.name && <span className="form-error">{errors.name}</span>}
       </div>
@@ -178,17 +209,19 @@ export function FoodForm({
             placeholder="e.g. 100g"
           />
         </div>
-        <div className="form-group">
-          <label htmlFor="serving-mult">Servings</label>
-          <input
-            id="serving-mult"
-            type="number"
-            min="0.1"
-            step="0.1"
-            value={values.servingMultiplier}
-            onChange={(e) => num('servingMultiplier', e.target.value)}
-          />
-        </div>
+        {!hideServingMultiplier && (
+          <div className="form-group">
+            <label htmlFor="serving-mult">Servings</label>
+            <input
+              id="serving-mult"
+              type="number"
+              min="0.1"
+              step="0.1"
+              value={values.servingMultiplier}
+              onChange={(e) => num('servingMultiplier', e.target.value)}
+            />
+          </div>
+        )}
       </div>
 
       <div className="form-section-title">Macros</div>
@@ -246,6 +279,56 @@ export function FoodForm({
           <input id="magnesium" type="number" min="0" value={values.magnesiumMg} onChange={(e) => num('magnesiumMg', e.target.value)} />
         </div>
       </div>
+
+      <button
+        type="button"
+        className="btn btn--ghost btn--sm micro-toggle"
+        onClick={() => setShowMicro((s) => !s)}
+      >
+        {showMicro || hasMicro ? 'Hide' : 'Show'} micronutrients
+      </button>
+
+      {(showMicro || hasMicro) && (
+        <>
+          <div className="form-section-title">Micronutrients (optional)</div>
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="calcium">Calcium (mg)</label>
+              <input id="calcium" type="number" min="0" step="0.1" value={values.calciumMg ?? ''} placeholder="0" onChange={(e) => micro('calciumMg', e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label htmlFor="iron">Iron (mg)</label>
+              <input id="iron" type="number" min="0" step="0.1" value={values.ironMg ?? ''} placeholder="0" onChange={(e) => micro('ironMg', e.target.value)} />
+            </div>
+          </div>
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="zinc">Zinc (mg)</label>
+              <input id="zinc" type="number" min="0" step="0.1" value={values.zincMg ?? ''} placeholder="0" onChange={(e) => micro('zincMg', e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label htmlFor="vitd">Vitamin D (mcg)</label>
+              <input id="vitd" type="number" min="0" step="0.1" value={values.vitaminDMcg ?? ''} placeholder="0" onChange={(e) => micro('vitaminDMcg', e.target.value)} />
+            </div>
+          </div>
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="b12">Vitamin B12 (mcg)</label>
+              <input id="b12" type="number" min="0" step="0.1" value={values.vitaminB12Mcg ?? ''} placeholder="0" onChange={(e) => micro('vitaminB12Mcg', e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label htmlFor="omega3">Omega-3 (g)</label>
+              <input id="omega3" type="number" min="0" step="0.01" value={values.omega3G ?? ''} placeholder="0" onChange={(e) => micro('omega3G', e.target.value)} />
+            </div>
+          </div>
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="omega6">Omega-6 (g)</label>
+              <input id="omega6" type="number" min="0" step="0.01" value={values.omega6G ?? ''} placeholder="0" onChange={(e) => micro('omega6G', e.target.value)} />
+            </div>
+          </div>
+        </>
+      )}
 
       <div className="form-actions">
         <button type="submit" className="btn btn--primary">{submitLabel}</button>
