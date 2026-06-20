@@ -30,6 +30,7 @@ import { buildRecommendations } from './lib/recommendations';
 import { templateToLogEntries } from './lib/meal-templates';
 import { recipeToLogEntry } from './lib/recipes';
 import { nanoid } from './lib/nanoid';
+import { duplicateLogEntry } from './lib/quick-add';
 import type {
   FoodLogEntry,
   FoodItem,
@@ -274,7 +275,11 @@ function App() {
         {screen === 'add-food' && (
           <AddFood
             savedFoods={savedFoods}
+            log={foodLog}
+            recipes={recipes}
+            templates={mealTemplates}
             onAdd={handleAddEntry}
+            onAddEntries={handleAddEntries}
             onSaveFood={handleSaveFood}
           />
         )}
@@ -284,6 +289,7 @@ function App() {
             savedFoods={savedFoods}
             onDelete={handleDeleteEntry}
             onEdit={handleEditEntry}
+            onDuplicate={(entry, targetDate) => handleAddEntry(duplicateLogEntry(entry, targetDate))}
             onSaveFood={handleSaveFood}
           />
         )}

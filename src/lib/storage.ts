@@ -6,7 +6,7 @@ import type {
 import { isDateString, localDateString } from './date';
 import { safeNonNegative, safePositive } from './nutrition';
 
-export const CURRENT_VERSION = 2;
+export const CURRENT_VERSION = 3;
 
 const KEYS = {
   version: 'keto_version', profile: 'keto_profile', targets: 'keto_targets',
@@ -97,6 +97,7 @@ function normalizeFood(value: unknown): FoodItem | null {
     id: text(value.id, crypto.randomUUID()), name: text(value.name, 'Unnamed food'),
     servingSize: text(value.servingSize, '1 serving'), ...nutrition(value),
     createdAt: timestamp(value.createdAt), updatedAt: optionalText(value.updatedAt),
+    isFavourite: value.isFavourite === true, isStarter: value.isStarter === true,
   };
 }
 
@@ -137,6 +138,8 @@ function normalizeTemplate(value: unknown): MealTemplate | null {
     id: text(value.id, crypto.randomUUID()), name: text(value.name, 'Unnamed meal'),
     items: Array.isArray(value.items) ? value.items.map(normalizeTemplateItem).filter((item): item is MealTemplateItem => item !== null) : [],
     createdAt: timestamp(value.createdAt), updatedAt: optionalText(value.updatedAt),
+    mealType: value.mealType === 'breakfast' || value.mealType === 'lunch' || value.mealType === 'dinner' || value.mealType === 'snack'
+      ? value.mealType : undefined,
   };
 }
 

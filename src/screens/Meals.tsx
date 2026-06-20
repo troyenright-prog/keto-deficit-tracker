@@ -20,11 +20,13 @@ export function Meals({ templates, savedFoods, onSave, onDelete, onAddToLog }: M
   const [draftItems, setDraftItems] = useState<MealTemplateItem[]>([]);
   const [foodSearch, setFoodSearch] = useState('');
   const [validationError, setValidationError] = useState('');
+  const [draftMealType, setDraftMealType] = useState<MealTemplate['mealType']>(undefined);
 
   function startNew() {
     setDraftName('');
     setDraftItems([]);
     setEditTarget(null);
+    setDraftMealType(undefined);
     setView('edit');
   }
 
@@ -32,6 +34,7 @@ export function Meals({ templates, savedFoods, onSave, onDelete, onAddToLog }: M
     setDraftName(template.name);
     setDraftItems([...template.items]);
     setEditTarget(template);
+    setDraftMealType(template.mealType);
     setView('edit');
   }
 
@@ -66,6 +69,7 @@ export function Meals({ templates, savedFoods, onSave, onDelete, onAddToLog }: M
       items: draftItems,
       createdAt: editTarget?.createdAt ?? new Date().toISOString(),
       updatedAt: editTarget ? new Date().toISOString() : undefined,
+      mealType: draftMealType,
     };
     if (!onSave(template)) return;
     setView('list');
@@ -94,6 +98,17 @@ export function Meals({ templates, savedFoods, onSave, onDelete, onAddToLog }: M
             onChange={(e) => setDraftName(e.target.value)}
             placeholder="e.g. Keto breakfast"
           />
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="meal-type">Meal shortcut (optional)</label>
+          <select id="meal-type" value={draftMealType ?? ''} onChange={(event) => setDraftMealType((event.target.value || undefined) as MealTemplate['mealType'])}>
+            <option value="">No shortcut</option>
+            <option value="breakfast">Breakfast</option>
+            <option value="lunch">Lunch</option>
+            <option value="dinner">Dinner</option>
+            <option value="snack">Snack</option>
+          </select>
         </div>
 
         <div className="form-section-title">Add foods from library</div>
@@ -184,6 +199,7 @@ export function Meals({ templates, savedFoods, onSave, onDelete, onAddToLog }: M
               <li key={t.id} className="template-list-item">
                 <div className="template-list-info">
                   <span className="template-list-name">{t.name}</span>
+                  {t.mealType && <span className="meal-type-badge">{t.mealType}</span>}
                   <span className="saved-food-macros">
                     {Math.round(totals.calories)} kcal · {totals.proteinG.toFixed(1)}g protein ·{' '}
                     {totals.netCarbsG.toFixed(1)}g net carbs · {t.items.length} item{t.items.length !== 1 ? 's' : ''}

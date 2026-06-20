@@ -63,6 +63,8 @@ export interface FoodItem extends Micronutrients {
   magnesiumMg: number;
   createdAt: string;
   updatedAt?: string;
+  isFavourite?: boolean;
+  isStarter?: boolean;
 }
 
 // ── Food log entry ─────────────────────────────────────────────────────────────
@@ -143,6 +145,7 @@ export interface MealTemplate {
   items: MealTemplateItem[];
   createdAt: string;
   updatedAt?: string;
+  mealType?: 'breakfast' | 'lunch' | 'dinner' | 'snack';
 }
 
 // ── Recipes ────────────────────────────────────────────────────────────────────

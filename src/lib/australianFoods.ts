@@ -49,5 +49,17 @@ export function getStarterFoods(): FoodItem[] {
     ...f,
     id: nanoid(),
     createdAt: new Date().toISOString(),
+    isStarter: true,
+    isFavourite: false,
+  }));
+}
+
+export function getStarterFoodOptions(): FoodItem[] {
+  return AUSTRALIAN_STARTER_FOODS.map((food, index) => ({
+    ...food,
+    id: `starter-${index}`,
+    createdAt: '2020-01-01T00:00:00.000Z',
+    isStarter: true,
+    isFavourite: false,
   }));
 }

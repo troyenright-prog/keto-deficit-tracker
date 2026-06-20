@@ -9,10 +9,11 @@ interface DailyLogProps {
   savedFoods: FoodItem[];
   onDelete: (id: string) => void;
   onEdit: (entry: FoodLogEntry) => boolean;
+  onDuplicate: (entry: FoodLogEntry, targetDate?: string) => boolean;
   onSaveFood: (food: FoodItem) => boolean;
 }
 
-export function DailyLog({ log, savedFoods, onDelete, onEdit, onSaveFood }: DailyLogProps) {
+export function DailyLog({ log, savedFoods, onDelete, onEdit, onDuplicate, onSaveFood }: DailyLogProps) {
   const [selectedDate, setSelectedDate] = useState(todayDateString());
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -130,6 +131,9 @@ export function DailyLog({ log, savedFoods, onDelete, onEdit, onSaveFood }: Dail
                       </span>
                     </div>
                     <div className="log-item-actions">
+                      <button className="btn btn--secondary btn--sm" onClick={() => onDuplicate(entry, selectedDate)}>
+                        Duplicate
+                      </button>
                       <button className="btn btn--ghost btn--sm" onClick={() => setEditingId(entry.id)}>
                         Edit
                       </button>

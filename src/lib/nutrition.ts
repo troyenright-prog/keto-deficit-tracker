@@ -108,16 +108,22 @@ export function todayDateString(): string {
   return localDateString();
 }
 
-export function savedFoodToLogEntry(food: FoodItem, date: string): FoodLogEntry {
+export function savedFoodToLogEntry(food: FoodItem, date: string, multiplier = 1): FoodLogEntry {
+  const amount = safePositive(multiplier);
   return {
     id: nanoid(), date, foodItemId: food.id, source: 'saved-food', name: food.name,
-    servingSize: food.servingSize, servingMultiplier: 1, calories: food.calories,
-    proteinG: food.proteinG, fatG: food.fatG, totalCarbsG: food.totalCarbsG,
-    fibreG: food.fibreG, sugarAlcoholsG: food.sugarAlcoholsG, sodiumMg: food.sodiumMg,
-    potassiumMg: food.potassiumMg, magnesiumMg: food.magnesiumMg,
-    calciumMg: food.calciumMg, ironMg: food.ironMg, zincMg: food.zincMg,
-    vitaminDMcg: food.vitaminDMcg, vitaminB12Mcg: food.vitaminB12Mcg,
-    omega3G: food.omega3G, omega6G: food.omega6G, loggedAt: new Date().toISOString(),
+    servingSize: food.servingSize, servingMultiplier: amount, calories: food.calories * amount,
+    proteinG: food.proteinG * amount, fatG: food.fatG * amount, totalCarbsG: food.totalCarbsG * amount,
+    fibreG: food.fibreG * amount, sugarAlcoholsG: food.sugarAlcoholsG * amount, sodiumMg: food.sodiumMg * amount,
+    potassiumMg: food.potassiumMg * amount, magnesiumMg: food.magnesiumMg * amount,
+    calciumMg: food.calciumMg === undefined ? undefined : food.calciumMg * amount,
+    ironMg: food.ironMg === undefined ? undefined : food.ironMg * amount,
+    zincMg: food.zincMg === undefined ? undefined : food.zincMg * amount,
+    vitaminDMcg: food.vitaminDMcg === undefined ? undefined : food.vitaminDMcg * amount,
+    vitaminB12Mcg: food.vitaminB12Mcg === undefined ? undefined : food.vitaminB12Mcg * amount,
+    omega3G: food.omega3G === undefined ? undefined : food.omega3G * amount,
+    omega6G: food.omega6G === undefined ? undefined : food.omega6G * amount,
+    loggedAt: new Date().toISOString(),
   };
 }
 

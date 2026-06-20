@@ -4,6 +4,7 @@ import { calcNetCarbs } from '../lib/nutrition';
 import { FoodForm, type FoodFormValues } from '../components/FoodForm';
 import { nanoid } from '../lib/nanoid';
 import { getStarterFoods } from '../lib/australianFoods';
+import { foodSignature } from '../lib/quick-add';
 
 interface SavedFoodsProps {
   foods: FoodItem[];
@@ -47,12 +48,16 @@ export function SavedFoods({ foods, onSave, onDelete, onAddToLog }: SavedFoodsPr
   }
 
   function handleLoadStarter() {
-    if (!confirm('This will add ~28 common Australian keto foods to your library. Continue?')) return;
-    const starters = getStarterFoods();
+    const existing = new Set(foods.map(foodSignature));
+    const starters = getStarterFoods().filter((food) => !existing.has(foodSignature(food)));
+    if (starters.length === 0) return;
+    if (!confirm(`Add ${starters.length} missing Australian keto starter foods? Existing and edited foods will not be changed.`)) return;
     for (const food of starters) {
       if (!onSave(food)) break;
     }
   }
+
+  const starterMissing = getStarterFoods().filter((food) => !new Set(foods.map(foodSignature)).has(foodSignature(food))).length;
 
   const editInitial: Partial<FoodFormValues> | undefined = editing
     ? {
@@ -110,8 +115,8 @@ export function SavedFoods({ foods, onSave, onDelete, onAddToLog }: SavedFoodsPr
           <p className="empty-hint">
             No saved foods yet. Add a food above, use "Save as food" when logging, or load the starter library.
           </p>
-          <button className="btn btn--secondary" onClick={handleLoadStarter}>
-            Load Australian keto starter foods
+          <button className="btn btn--secondary" onClick={handleLoadStarter} disabled={starterMissing === 0}>
+            {starterMissing === 0 ? 'Starter foods loaded' : `Load ${starterMissing} starter foods`}
           </button>
         </div>
       ) : (
@@ -124,8 +129,8 @@ export function SavedFoods({ foods, onSave, onDelete, onAddToLog }: SavedFoodsPr
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
-            <button className="btn btn--ghost btn--sm" onClick={handleLoadStarter}>
-              + Starter foods
+            <button className="btn btn--ghost btn--sm" onClick={handleLoadStarter} disabled={starterMissing === 0}>
+              {starterMissing === 0 ? 'Starter foods loaded' : `+ ${starterMissing} starter foods`}
             </button>
           </div>
 
@@ -151,6 +156,13 @@ export function SavedFoods({ foods, onSave, onDelete, onAddToLog }: SavedFoodsPr
                       )}
                     </div>
                     <div className="saved-food-actions">
+                      <button
+                        className={`btn btn--sm ${food.isFavourite ? 'btn--favourite' : 'btn--ghost'}`}
+                        aria-label={food.isFavourite ? `Unfavourite ${food.name}` : `Favourite ${food.name}`}
+                        onClick={() => onSave({ ...food, isFavourite: !food.isFavourite, updatedAt: new Date().toISOString() })}
+                      >
+                        {food.isFavourite ? '★ Favourite' : '☆ Favourite'}
+                      </button>
                       <button
                         className="btn btn--secondary btn--sm"
                         onClick={() => onAddToLog(food)}
