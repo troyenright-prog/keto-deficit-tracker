@@ -1,0 +1,604 @@
+/* ── Layout ── */
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  background: var(--white);
+  box-shadow: 0 0 0 1px var(--gray-200);
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--header-height);
+  padding: 0 16px;
+  background: var(--gray-900);
+  color: var(--white);
+  flex-shrink: 0;
+}
+
+.app-title {
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0.5px;
+}
+
+.app-user {
+  font-size: 13px;
+  color: var(--gray-400);
+}
+
+.app-main {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 4px;
+}
+
+/* ── Nav ── */
+.nav {
+  display: flex;
+  height: var(--nav-height);
+  border-top: 1px solid var(--gray-200);
+  background: var(--white);
+  flex-shrink: 0;
+}
+
+.nav-btn {
+  flex: 1;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--gray-500);
+  padding: 4px 2px;
+  transition: color 0.15s, background 0.15s;
+  border-radius: 0;
+}
+
+.nav-btn--active {
+  color: var(--blue);
+  background: var(--blue-bg);
+}
+
+.nav-btn:hover:not(.nav-btn--active) {
+  color: var(--gray-700);
+  background: var(--gray-100);
+}
+
+/* ── Screen ── */
+.screen {
+  padding: 16px;
+}
+
+.screen-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.screen-header h1 {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--gray-900);
+  margin: 0;
+}
+
+.screen-sub {
+  font-size: 12px;
+  color: var(--gray-500);
+}
+
+.section-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--gray-500);
+  margin: 20px 0 10px;
+}
+
+.empty-hint {
+  color: var(--gray-500);
+  font-size: 13px;
+  text-align: center;
+  padding: 32px 0;
+}
+
+/* ── Keto status banner ── */
+.keto-status {
+  text-align: center;
+  padding: 10px 16px;
+  border-radius: var(--radius);
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+.keto-status--success { background: var(--green-bg); color: var(--green); }
+.keto-status--warning { background: var(--amber-bg); color: var(--amber); }
+.keto-status--danger { background: var(--red-bg); color: var(--red); }
+
+/* ── Cards ── */
+.cards-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.cards-grid--4 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.stat-card {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+
+.stat-card--success { border-color: var(--green-light); background: var(--green-bg); }
+.stat-card--warning { border-color: var(--amber); background: var(--amber-bg); }
+.stat-card--danger { border-color: var(--red); background: var(--red-bg); }
+
+.stat-card-label {
+  font-size: 11px;
+  color: var(--gray-500);
+  margin-bottom: 4px;
+}
+
+.stat-card-value {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--gray-900);
+}
+
+.stat-card-sub {
+  font-size: 11px;
+  color: var(--gray-500);
+  margin-top: 3px;
+}
+
+/* ── Progress bars ── */
+.progress-bar-wrap {
+  margin-bottom: 10px;
+}
+
+.progress-bar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.progress-bar-label {
+  font-size: 13px;
+  color: var(--gray-700);
+  font-weight: 500;
+}
+
+.progress-bar-values {
+  font-size: 12px;
+  color: var(--gray-500);
+}
+
+.progress-bar-track {
+  height: 8px;
+  background: var(--gray-200);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.progress-bar-fill--default { background: var(--blue); }
+.progress-bar-fill--success { background: var(--green-light); }
+.progress-bar-fill--warning { background: var(--amber); }
+.progress-bar-fill--danger { background: var(--red); }
+
+/* ── Recommendations ── */
+.recommendations {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rec {
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.rec--info { background: var(--blue-bg); color: var(--blue); }
+.rec--warning { background: var(--amber-bg); color: var(--amber); }
+.rec--success { background: var(--green-bg); color: var(--green); }
+
+/* ── Buttons ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-weight: 500;
+  transition: opacity 0.15s, background 0.15s;
+  cursor: pointer;
+  border: none;
+}
+
+.btn--sm { padding: 5px 10px; font-size: 12px; }
+
+.btn--primary {
+  background: var(--blue);
+  color: var(--white);
+}
+
+.btn--primary:hover { background: #1d4ed8; }
+
+.btn--secondary {
+  background: var(--gray-200);
+  color: var(--gray-700);
+}
+
+.btn--secondary:hover { background: var(--gray-300); }
+
+.btn--ghost {
+  background: transparent;
+  color: var(--blue);
+  border: 1px solid var(--blue);
+}
+
+.btn--danger {
+  background: var(--red-bg);
+  color: var(--red);
+}
+
+.btn--danger:hover { background: #fca5a5; }
+
+/* ── Forms ── */
+.food-form,
+.profile-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.form-group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.form-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--gray-500);
+  margin: 8px 0 8px;
+}
+
+label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--gray-700);
+}
+
+input[type="text"],
+input[type="number"],
+input[type="date"],
+input[type="search"],
+select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius);
+  font-size: 14px;
+  color: var(--gray-900);
+  background: var(--white);
+  transition: border-color 0.15s;
+  appearance: auto;
+}
+
+input:focus, select:focus {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
+}
+
+input:disabled {
+  background: var(--gray-100);
+  color: var(--gray-400);
+  cursor: not-allowed;
+}
+
+.form-error {
+  font-size: 11px;
+  color: var(--red);
+}
+
+.form-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+  align-items: center;
+}
+
+.net-carbs-preview {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--gray-700);
+  margin-bottom: 12px;
+}
+
+.success-toast {
+  background: var(--green-bg);
+  color: var(--green);
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.success-inline {
+  font-size: 13px;
+  color: var(--green);
+  font-weight: 500;
+}
+
+/* ── Daily log ── */
+.date-picker {
+  font-size: 13px;
+  padding: 5px 8px;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius);
+  color: var(--gray-700);
+}
+
+.log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.log-item {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+
+.log-item-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.log-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.log-item-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--gray-900);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.log-item-serving {
+  font-size: 12px;
+  color: var(--gray-500);
+}
+
+.log-item-macros {
+  font-size: 12px;
+  color: var(--gray-700);
+}
+
+.log-item-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.log-item-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── Saved foods ── */
+.search-input {
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.saved-foods-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.saved-food-item {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.saved-food-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.saved-food-name {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.saved-food-serving,
+.saved-food-electrolytes {
+  font-size: 11px;
+  color: var(--gray-500);
+}
+
+.saved-food-macros {
+  font-size: 12px;
+  color: var(--gray-700);
+}
+
+.saved-food-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* ── Weekly table ── */
+.week-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin-bottom: 16px;
+}
+
+.week-table th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--gray-500);
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.week-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--gray-100);
+  color: var(--gray-700);
+}
+
+.week-table__empty td {
+  color: var(--gray-300);
+}
+
+.cell--danger {
+  color: var(--red) !important;
+  font-weight: 600;
+}
+
+/* ── Weight ── */
+.weight-form {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  align-items: flex-end;
+}
+
+.weight-input {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius);
+  font-size: 14px;
+}
+
+.weight-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 12px;
+}
+
+.weight-entry {
+  font-size: 13px;
+  color: var(--gray-500);
+  padding: 4px 0;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+/* ── Profile ── */
+.diet-mode-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.diet-mode-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.diet-mode-option--selected {
+  border-color: var(--blue);
+  background: var(--blue-bg);
+}
+
+.diet-mode-option input[type="radio"] {
+  width: auto;
+  flex-shrink: 0;
+}
+
+.diet-mode-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gray-700);
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--gray-500);
+  cursor: pointer;
+}
+
+.checkbox-label input {
+  width: auto;
+}
