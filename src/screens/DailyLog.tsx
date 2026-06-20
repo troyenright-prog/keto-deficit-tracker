@@ -8,8 +8,8 @@ interface DailyLogProps {
   log: FoodLogEntry[];
   savedFoods: FoodItem[];
   onDelete: (id: string) => void;
-  onEdit: (entry: FoodLogEntry) => void;
-  onSaveFood: (food: FoodItem) => void;
+  onEdit: (entry: FoodLogEntry) => boolean;
+  onSaveFood: (food: FoodItem) => boolean;
 }
 
 export function DailyLog({ log, savedFoods, onDelete, onEdit, onSaveFood }: DailyLogProps) {
@@ -20,7 +20,7 @@ export function DailyLog({ log, savedFoods, onDelete, onEdit, onSaveFood }: Dail
 
   function handleEditSubmit(entry: FoodLogEntry, values: FoodFormValues) {
     const m = values.servingMultiplier;
-    onEdit({
+    const saved = onEdit({
       ...entry,
       name: values.name,
       servingSize: values.servingSize,
@@ -34,8 +34,12 @@ export function DailyLog({ log, savedFoods, onDelete, onEdit, onSaveFood }: Dail
       sodiumMg: values.sodiumMg * m,
       potassiumMg: values.potassiumMg * m,
       magnesiumMg: values.magnesiumMg * m,
+      calciumMg: (values.calciumMg ?? 0) * m, ironMg: (values.ironMg ?? 0) * m,
+      zincMg: (values.zincMg ?? 0) * m, vitaminDMcg: (values.vitaminDMcg ?? 0) * m,
+      vitaminB12Mcg: (values.vitaminB12Mcg ?? 0) * m, omega3G: (values.omega3G ?? 0) * m,
+      omega6G: (values.omega6G ?? 0) * m,
     });
-    setEditingId(null);
+    if (saved) setEditingId(null);
   }
 
   return (
@@ -66,15 +70,22 @@ export function DailyLog({ log, savedFoods, onDelete, onEdit, onSaveFood }: Dail
                         name: entry.name,
                         servingSize: entry.servingSize,
                         servingMultiplier: entry.servingMultiplier,
-                        calories: entry.calories / entry.servingMultiplier,
-                        proteinG: entry.proteinG / entry.servingMultiplier,
-                        fatG: entry.fatG / entry.servingMultiplier,
-                        totalCarbsG: entry.totalCarbsG / entry.servingMultiplier,
-                        fibreG: entry.fibreG / entry.servingMultiplier,
-                        sugarAlcoholsG: entry.sugarAlcoholsG / entry.servingMultiplier,
-                        sodiumMg: entry.sodiumMg / entry.servingMultiplier,
-                        potassiumMg: entry.potassiumMg / entry.servingMultiplier,
-                        magnesiumMg: entry.magnesiumMg / entry.servingMultiplier,
+                        calories: entry.calories / Math.max(entry.servingMultiplier, 1),
+                        proteinG: entry.proteinG / Math.max(entry.servingMultiplier, 1),
+                        fatG: entry.fatG / Math.max(entry.servingMultiplier, 1),
+                        totalCarbsG: entry.totalCarbsG / Math.max(entry.servingMultiplier, 1),
+                        fibreG: entry.fibreG / Math.max(entry.servingMultiplier, 1),
+                        sugarAlcoholsG: entry.sugarAlcoholsG / Math.max(entry.servingMultiplier, 1),
+                        sodiumMg: entry.sodiumMg / Math.max(entry.servingMultiplier, 1),
+                        potassiumMg: entry.potassiumMg / Math.max(entry.servingMultiplier, 1),
+                        magnesiumMg: entry.magnesiumMg / Math.max(entry.servingMultiplier, 1),
+                        calciumMg: (entry.calciumMg ?? 0) / Math.max(entry.servingMultiplier, 1),
+                        ironMg: (entry.ironMg ?? 0) / Math.max(entry.servingMultiplier, 1),
+                        zincMg: (entry.zincMg ?? 0) / Math.max(entry.servingMultiplier, 1),
+                        vitaminDMcg: (entry.vitaminDMcg ?? 0) / Math.max(entry.servingMultiplier, 1),
+                        vitaminB12Mcg: (entry.vitaminB12Mcg ?? 0) / Math.max(entry.servingMultiplier, 1),
+                        omega3G: (entry.omega3G ?? 0) / Math.max(entry.servingMultiplier, 1),
+                        omega6G: (entry.omega6G ?? 0) / Math.max(entry.servingMultiplier, 1),
                       }}
                       onSubmit={(vals) => handleEditSubmit(entry, vals)}
                       submitLabel="Save changes"
@@ -93,6 +104,9 @@ export function DailyLog({ log, savedFoods, onDelete, onEdit, onSaveFood }: Dail
                           sodiumMg: vals.sodiumMg,
                           potassiumMg: vals.potassiumMg,
                           magnesiumMg: vals.magnesiumMg,
+                          calciumMg: vals.calciumMg, ironMg: vals.ironMg, zincMg: vals.zincMg,
+                          vitaminDMcg: vals.vitaminDMcg, vitaminB12Mcg: vals.vitaminB12Mcg,
+                          omega3G: vals.omega3G, omega6G: vals.omega6G,
                           createdAt: new Date().toISOString(),
                         });
                       }}

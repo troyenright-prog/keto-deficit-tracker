@@ -27,6 +27,7 @@ describe('migrateIfNeeded', () => {
     // Simulate data written after first migration
     localStorage.setItem('keto_meal_templates', JSON.stringify([{ id: 'x' }]));
     migrateIfNeeded(); // second run — should be a no-op
-    expect(loadMealTemplates()).toEqual([{ id: 'x' }]);
+    expect(loadMealTemplates()).toHaveLength(1);
+    expect(loadMealTemplates()[0]).toMatchObject({ id: 'x', items: [] });
   });
 });

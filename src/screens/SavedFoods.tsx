@@ -7,7 +7,7 @@ import { getStarterFoods } from '../lib/australianFoods';
 
 interface SavedFoodsProps {
   foods: FoodItem[];
-  onSave: (food: FoodItem) => void;
+  onSave: (food: FoodItem) => boolean;
   onDelete: (id: string) => void;
   onAddToLog: (food: FoodItem) => void;
 }
@@ -29,28 +29,28 @@ export function SavedFoods({ foods, onSave, onDelete, onAddToLog }: SavedFoodsPr
 
   function handleSaveEdit(values: FoodFormValues) {
     if (!editing) return;
-    onSave({
+    const saved = onSave({
       ...editing,
       ...values,
       updatedAt: new Date().toISOString(),
     });
-    setEditing(null);
+    if (saved) setEditing(null);
   }
 
   function handleAddNew(values: FoodFormValues) {
-    onSave({
+    const saved = onSave({
       id: nanoid(),
       createdAt: new Date().toISOString(),
       ...values,
     });
-    setAddingNew(false);
+    if (saved) setAddingNew(false);
   }
 
   function handleLoadStarter() {
     if (!confirm('This will add ~28 common Australian keto foods to your library. Continue?')) return;
     const starters = getStarterFoods();
     for (const food of starters) {
-      onSave(food);
+      if (!onSave(food)) break;
     }
   }
 
@@ -96,6 +96,7 @@ export function SavedFoods({ foods, onSave, onDelete, onAddToLog }: SavedFoodsPr
             </button>
           </div>
           <FoodForm
+            key={editing?.id ?? 'new-food'}
             initial={editInitial}
             onSubmit={editing ? handleSaveEdit : handleAddNew}
             submitLabel={editing ? 'Save changes' : 'Save food'}

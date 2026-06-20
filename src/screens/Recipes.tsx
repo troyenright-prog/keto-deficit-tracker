@@ -5,7 +5,7 @@ import { nanoid } from '../lib/nanoid';
 
 interface RecipesProps {
   recipes: Recipe[];
-  onSave: (recipe: Recipe) => void;
+  onSave: (recipe: Recipe) => boolean;
   onDelete: (id: string) => void;
   onAddToLog: (recipe: Recipe, servings: number) => void;
 }
@@ -14,7 +14,7 @@ type View = 'list' | 'edit';
 
 function num(val: string, min = 0): number {
   const n = parseFloat(val);
-  return isNaN(n) ? 0 : Math.max(min, n);
+  return Number.isFinite(n) ? Math.max(min, n) : 0;
 }
 
 export function Recipes({ recipes, onSave, onDelete, onAddToLog }: RecipesProps) {
@@ -24,6 +24,7 @@ export function Recipes({ recipes, onSave, onDelete, onAddToLog }: RecipesProps)
   const [draftServings, setDraftServings] = useState(4);
   const [draftIngredients, setDraftIngredients] = useState<RecipeIngredient[]>([emptyIngredient()]);
   const [logServings, setLogServings] = useState<Record<string, string>>({});
+  const [validationError, setValidationError] = useState('');
 
   function startNew() {
     setDraftName('');
@@ -66,7 +67,14 @@ export function Recipes({ recipes, onSave, onDelete, onAddToLog }: RecipesProps)
   }
 
   function saveRecipe() {
-    if (!draftName.trim() || draftIngredients.length === 0) return;
+    if (!draftName.trim()) { setValidationError('Recipe name is required.'); return; }
+    if (!Number.isFinite(draftServings) || draftServings <= 0) { setValidationError('Recipe servings must be greater than zero.'); return; }
+    if (draftIngredients.length === 0) { setValidationError('Add at least one ingredient.'); return; }
+    if (draftIngredients.some((ing) => !ing.name.trim())) { setValidationError('Every ingredient needs a name.'); return; }
+    if (draftIngredients.some((ing) => !Number.isFinite(ing.quantity) || ing.quantity <= 0)) {
+      setValidationError('Every ingredient quantity must be greater than zero.'); return;
+    }
+    setValidationError('');
     const recipe: Recipe = {
       id: editTarget?.id ?? nanoid(),
       name: draftName.trim(),
@@ -75,7 +83,7 @@ export function Recipes({ recipes, onSave, onDelete, onAddToLog }: RecipesProps)
       createdAt: editTarget?.createdAt ?? new Date().toISOString(),
       updatedAt: editTarget ? new Date().toISOString() : undefined,
     };
-    onSave(recipe);
+    if (!onSave(recipe)) return;
     setView('list');
   }
 
@@ -196,6 +204,7 @@ export function Recipes({ recipes, onSave, onDelete, onAddToLog }: RecipesProps)
             Save recipe
           </button>
         </div>
+        {validationError && <p className="form-error" role="alert">{validationError}</p>}
       </div>
     );
   }
@@ -239,7 +248,13 @@ export function Recipes({ recipes, onSave, onDelete, onAddToLog }: RecipesProps)
                     <span className="dim">serving{parseFloat(logVal) !== 1 ? 's' : ''}</span>
                     <button
                       className="btn btn--secondary btn--sm"
-                      onClick={() => onAddToLog(r, parseFloat(logVal) || 1)}
+                      onClick={() => {
+                        const servings = parseFloat(logVal);
+                        if (!Number.isFinite(servings) || servings <= 0) {
+                          setValidationError('Servings to log must be greater than zero.'); return;
+                        }
+                        setValidationError(''); onAddToLog(r, servings);
+                      }}
                     >
                       Log today
                     </button>
@@ -257,6 +272,7 @@ export function Recipes({ recipes, onSave, onDelete, onAddToLog }: RecipesProps)
           })}
         </ul>
       )}
+      {validationError && <p className="form-error" role="alert">{validationError}</p>}
     </div>
   );
 }

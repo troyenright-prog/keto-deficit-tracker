@@ -36,7 +36,8 @@ describe('exportAppData / importAppData round-trip', () => {
     localStorage.clear();
     importAppData(bundle);
 
-    expect(loadSavedFoods()).toEqual([{ id: 'f1', name: 'Test food' }]);
+    expect(loadSavedFoods()).toHaveLength(1);
+    expect(loadSavedFoods()[0]).toMatchObject({ id: 'f1', name: 'Test food', calories: 0 });
   });
 
   it('export includes all required keys', () => {

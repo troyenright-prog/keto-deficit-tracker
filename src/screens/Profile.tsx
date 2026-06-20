@@ -16,7 +16,7 @@ export function Profile({ profile, targets, onSaveProfile, onSaveTargets }: Prof
 
   function numTarget(key: keyof NutritionTargets, val: string) {
     const n = parseFloat(val);
-    setTgts((t) => ({ ...t, [key]: isNaN(n) ? 0 : Math.max(0, n) }));
+    setTgts((t) => ({ ...t, [key]: Number.isFinite(n) ? Math.max(0, n) : 0 }));
   }
 
   function handleDietMode(mode: NutritionTargets['dietMode']) {

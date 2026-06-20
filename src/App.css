@@ -37,6 +37,15 @@
   padding-bottom: 4px;
 }
 
+.storage-error {
+  margin: 12px 16px 0;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--red-bg);
+  color: var(--red);
+  font-size: 13px;
+}
+
 /* ── Nav ── */
 .nav {
   display: flex;
@@ -1028,4 +1037,3 @@ input:disabled {
   min-width: 80px;
   flex: 1;
 }
-

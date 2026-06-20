@@ -3,14 +3,25 @@ import type {
   DailyNutritionSummary,
   NutritionTargets,
   CarbStatus,
+  FoodItem,
 } from '../types';
+import { localDateString } from './date';
+import { nanoid } from './nanoid';
+
+export function safeNonNegative(value: unknown, fallback = 0): number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : fallback;
+}
+
+export function safePositive(value: unknown, fallback = 1): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback;
+}
 
 export function calcNetCarbs(
   totalCarbsG: number,
   fibreG: number,
   sugarAlcoholsG: number,
 ): number {
-  const net = totalCarbsG - fibreG - sugarAlcoholsG;
+  const net = safeNonNegative(totalCarbsG) - safeNonNegative(fibreG) - safeNonNegative(sugarAlcoholsG);
   return Math.max(0, net);
 }
 
@@ -19,15 +30,22 @@ export function summariseDay(date: string, entries: FoodLogEntry[]): DailyNutrit
 
   const sum = dayEntries.reduce(
     (acc, e) => ({
-      calories: acc.calories + e.calories,
-      proteinG: acc.proteinG + e.proteinG,
-      fatG: acc.fatG + e.fatG,
-      totalCarbsG: acc.totalCarbsG + e.totalCarbsG,
-      fibreG: acc.fibreG + e.fibreG,
-      sugarAlcoholsG: acc.sugarAlcoholsG + e.sugarAlcoholsG,
-      sodiumMg: acc.sodiumMg + e.sodiumMg,
-      potassiumMg: acc.potassiumMg + e.potassiumMg,
-      magnesiumMg: acc.magnesiumMg + e.magnesiumMg,
+      calories: acc.calories + safeNonNegative(e.calories),
+      proteinG: acc.proteinG + safeNonNegative(e.proteinG),
+      fatG: acc.fatG + safeNonNegative(e.fatG),
+      totalCarbsG: acc.totalCarbsG + safeNonNegative(e.totalCarbsG),
+      fibreG: acc.fibreG + safeNonNegative(e.fibreG),
+      sugarAlcoholsG: acc.sugarAlcoholsG + safeNonNegative(e.sugarAlcoholsG),
+      sodiumMg: acc.sodiumMg + safeNonNegative(e.sodiumMg),
+      potassiumMg: acc.potassiumMg + safeNonNegative(e.potassiumMg),
+      magnesiumMg: acc.magnesiumMg + safeNonNegative(e.magnesiumMg),
+      calciumMg: acc.calciumMg + safeNonNegative(e.calciumMg),
+      ironMg: acc.ironMg + safeNonNegative(e.ironMg),
+      zincMg: acc.zincMg + safeNonNegative(e.zincMg),
+      vitaminDMcg: acc.vitaminDMcg + safeNonNegative(e.vitaminDMcg),
+      vitaminB12Mcg: acc.vitaminB12Mcg + safeNonNegative(e.vitaminB12Mcg),
+      omega3G: acc.omega3G + safeNonNegative(e.omega3G),
+      omega6G: acc.omega6G + safeNonNegative(e.omega6G),
     }),
     {
       calories: 0,
@@ -39,6 +57,13 @@ export function summariseDay(date: string, entries: FoodLogEntry[]): DailyNutrit
       sodiumMg: 0,
       potassiumMg: 0,
       magnesiumMg: 0,
+      calciumMg: 0,
+      ironMg: 0,
+      zincMg: 0,
+      vitaminDMcg: 0,
+      vitaminB12Mcg: 0,
+      omega3G: 0,
+      omega6G: 0,
     },
   );
 
@@ -60,6 +85,7 @@ export function proteinProgress(summary: DailyNutritionSummary, targets: Nutriti
 }
 
 export function carbStatus(summary: DailyNutritionSummary, targets: NutritionTargets): CarbStatus {
+  if (!Number.isFinite(targets.netCarbsG) || targets.netCarbsG <= 0) return 'aligned';
   const ratio = summary.netCarbsG / targets.netCarbsG;
   if (ratio >= 1) return 'exceeded';
   if (ratio >= 0.8) return 'approaching';
@@ -79,7 +105,20 @@ export function netCarbsForEntry(entry: Pick<FoodLogEntry, 'totalCarbsG' | 'fibr
 }
 
 export function todayDateString(): string {
-  return new Date().toISOString().slice(0, 10);
+  return localDateString();
+}
+
+export function savedFoodToLogEntry(food: FoodItem, date: string): FoodLogEntry {
+  return {
+    id: nanoid(), date, foodItemId: food.id, source: 'saved-food', name: food.name,
+    servingSize: food.servingSize, servingMultiplier: 1, calories: food.calories,
+    proteinG: food.proteinG, fatG: food.fatG, totalCarbsG: food.totalCarbsG,
+    fibreG: food.fibreG, sugarAlcoholsG: food.sugarAlcoholsG, sodiumMg: food.sodiumMg,
+    potassiumMg: food.potassiumMg, magnesiumMg: food.magnesiumMg,
+    calciumMg: food.calciumMg, ironMg: food.ironMg, zincMg: food.zincMg,
+    vitaminDMcg: food.vitaminDMcg, vitaminB12Mcg: food.vitaminB12Mcg,
+    omega3G: food.omega3G, omega6G: food.omega6G, loggedAt: new Date().toISOString(),
+  };
 }
 
 export function dietModeDefaultNetCarbs(mode: NutritionTargets['dietMode']): number {

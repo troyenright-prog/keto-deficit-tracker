@@ -8,7 +8,7 @@ import { nanoid } from '../lib/nanoid';
 interface WeightProps {
   entries: WeightEntry[];
   weightUnit: 'kg' | 'lbs';
-  onSave: (entries: WeightEntry[]) => void;
+  onSave: (entries: WeightEntry[]) => boolean;
 }
 
 export function Weight({ entries, weightUnit, onSave }: WeightProps) {
@@ -16,6 +16,7 @@ export function Weight({ entries, weightUnit, onSave }: WeightProps) {
   const [dateInput, setDateInput] = useState(todayDateString());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editWeight, setEditWeight] = useState('');
+  const [validationError, setValidationError] = useState('');
 
   const sorted = useMemo(
     () =>
@@ -35,7 +36,9 @@ export function Weight({ entries, weightUnit, onSave }: WeightProps) {
 
   function addEntry() {
     const w = parseFloat(weightInput);
-    if (isNaN(w) || w <= 0) return;
+    if (!Number.isFinite(w) || w <= 0) { setValidationError('Weight must be a number greater than zero.'); return; }
+    if (!dateInput) { setValidationError('Choose a date.'); return; }
+    setValidationError('');
     const entry: WeightEntry = {
       id: nanoid(),
       date: dateInput,
@@ -43,7 +46,7 @@ export function Weight({ entries, weightUnit, onSave }: WeightProps) {
       unit: weightUnit,
       loggedAt: new Date().toISOString(),
     };
-    onSave([...entries, entry]);
+    if (!onSave([...entries, entry])) return;
     setWeightInput('');
   }
 
@@ -58,8 +61,12 @@ export function Weight({ entries, weightUnit, onSave }: WeightProps) {
 
   function saveEdit(id: string) {
     const w = parseFloat(editWeight);
-    if (!isNaN(w) && w > 0) {
-      onSave(entries.map((e) => e.id === id ? { ...e, weight: w } : e));
+    if (Number.isFinite(w) && w > 0) {
+      if (!onSave(entries.map((e) => e.id === id ? { ...e, weight: w } : e))) return;
+      setValidationError('');
+    } else {
+      setValidationError('Weight must be a number greater than zero.');
+      return;
     }
     setEditingId(null);
   }
@@ -69,6 +76,7 @@ export function Weight({ entries, weightUnit, onSave }: WeightProps) {
       <div className="screen-header">
         <h1>Weight Tracking</h1>
       </div>
+      {validationError && <p className="form-error" role="alert">{validationError}</p>}
 
       <div className="weight-add-row">
         <input

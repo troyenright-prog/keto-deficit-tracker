@@ -1,17 +1,15 @@
 import { useState } from 'react';
 import type { MealPlanEntry, FoodItem, MealTemplate, Recipe } from '../types';
-import { calcNetCarbs, todayDateString } from '../lib/nutrition';
-import { calcTemplateTotals } from '../lib/meal-templates';
-import { calcRecipePerServing } from '../lib/recipes';
-import { nanoid } from '../lib/nanoid';
+import { todayDateString } from '../lib/nutrition';
+import { foodToPlanEntry, recipeToPlanEntry, templateToPlanEntry } from '../lib/planner';
 
 interface PlannerProps {
   plan: MealPlanEntry[];
   savedFoods: FoodItem[];
   templates: MealTemplate[];
   recipes: Recipe[];
-  onSavePlan: (plan: MealPlanEntry[]) => void;
-  onConvertToLog: (entries: MealPlanEntry[]) => void;
+  onSavePlan: (plan: MealPlanEntry[]) => boolean;
+  onConvertToLog: (entries: MealPlanEntry[], nextPlan: MealPlanEntry[]) => boolean;
 }
 
 export function Planner({ plan, savedFoods, templates, recipes, onSavePlan, onConvertToLog }: PlannerProps) {
@@ -23,73 +21,18 @@ export function Planner({ plan, savedFoods, templates, recipes, onSavePlan, onCo
   const dayEntries = plan.filter((e) => e.date === selectedDate);
 
   function addFoodToPlan(food: FoodItem) {
-    const netCarbs = calcNetCarbs(food.totalCarbsG, food.fibreG, food.sugarAlcoholsG);
-    const entry: MealPlanEntry = {
-      id: nanoid(),
-      date: selectedDate,
-      name: food.name,
-      type: 'saved-food',
-      sourceId: food.id,
-      servings: 1,
-      calories: food.calories,
-      proteinG: food.proteinG,
-      fatG: food.fatG,
-      totalCarbsG: food.totalCarbsG,
-      fibreG: food.fibreG,
-      sugarAlcoholsG: food.sugarAlcoholsG,
-      netCarbsG: netCarbs,
-      sodiumMg: food.sodiumMg,
-      potassiumMg: food.potassiumMg,
-      magnesiumMg: food.magnesiumMg,
-      converted: false,
-      createdAt: new Date().toISOString(),
-    };
-    onSavePlan([...plan, entry]);
-    setSearch('');
+    const entry = foodToPlanEntry(food, selectedDate);
+    if (onSavePlan([...plan, entry])) setSearch('');
   }
 
   function addTemplateToPlan(template: MealTemplate) {
-    const totals = calcTemplateTotals(template);
-    const entry: MealPlanEntry = {
-      id: nanoid(),
-      date: selectedDate,
-      name: template.name,
-      type: 'template',
-      sourceId: template.id,
-      servings: 1,
-      ...totals,
-      converted: false,
-      createdAt: new Date().toISOString(),
-    };
-    onSavePlan([...plan, entry]);
-    setSearch('');
+    const entry = templateToPlanEntry(template, selectedDate);
+    if (onSavePlan([...plan, entry])) setSearch('');
   }
 
   function addRecipeToPlan(recipe: Recipe, servings: number) {
-    const ps = calcRecipePerServing(recipe);
-    const s = Math.max(0.1, servings);
-    const entry: MealPlanEntry = {
-      id: nanoid(),
-      date: selectedDate,
-      name: recipe.name,
-      type: 'recipe',
-      sourceId: recipe.id,
-      servings: s,
-      calories: ps.calories * s,
-      proteinG: ps.proteinG * s,
-      fatG: ps.fatG * s,
-      totalCarbsG: ps.totalCarbsG * s,
-      fibreG: ps.fibreG * s,
-      sugarAlcoholsG: ps.sugarAlcoholsG * s,
-      netCarbsG: ps.netCarbsG * s,
-      sodiumMg: ps.sodiumMg * s,
-      potassiumMg: ps.potassiumMg * s,
-      magnesiumMg: ps.magnesiumMg * s,
-      converted: false,
-      createdAt: new Date().toISOString(),
-    };
-    onSavePlan([...plan, entry]);
-    setSearch('');
+    const entry = recipeToPlanEntry(recipe, servings, selectedDate);
+    if (onSavePlan([...plan, entry])) setSearch('');
   }
 
   function removeFromPlan(id: string) {
@@ -99,8 +42,8 @@ export function Planner({ plan, savedFoods, templates, recipes, onSavePlan, onCo
   function convertDayToLog() {
     const toConvert = dayEntries.filter((e) => !e.converted);
     if (toConvert.length === 0) return;
-    onConvertToLog(toConvert);
-    onSavePlan(plan.map((e) => e.date === selectedDate && !e.converted ? { ...e, converted: true } : e));
+    const nextPlan = plan.map((e) => e.date === selectedDate && !e.converted ? { ...e, converted: true } : e);
+    onConvertToLog(toConvert, nextPlan);
   }
 
   const dayTotals = dayEntries.reduce(

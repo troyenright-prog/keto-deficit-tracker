@@ -22,7 +22,7 @@ export interface NutritionTargets {
 
 // ── Core nutrition ─────────────────────────────────────────────────────────────
 
-export interface NutritionTotals {
+export interface NutritionTotals extends Micronutrients {
   calories: number;
   proteinG: number;
   fatG: number;
@@ -93,7 +93,7 @@ export interface FoodLogEntry extends Micronutrients {
 
 // ── Daily summary ──────────────────────────────────────────────────────────────
 
-export interface DailyNutritionSummary {
+export interface DailyNutritionSummary extends Micronutrients {
   date: string;
   calories: number;
   proteinG: number;
@@ -120,7 +120,7 @@ export interface WeightEntry {
 
 // ── Meal templates ─────────────────────────────────────────────────────────────
 
-export interface MealTemplateItem {
+export interface MealTemplateItem extends Micronutrients {
   id: string;
   savedFoodId?: string; // informational only — nutrition is snapshotted
   name: string;
@@ -147,7 +147,7 @@ export interface MealTemplate {
 
 // ── Recipes ────────────────────────────────────────────────────────────────────
 
-export interface RecipeIngredient {
+export interface RecipeIngredient extends Micronutrients {
   id: string;
   name: string;
   servingSize: string;
@@ -188,7 +188,7 @@ export interface ShoppingItem {
 
 export type PlanItemType = 'saved-food' | 'template' | 'recipe';
 
-export interface MealPlanEntry {
+export interface MealPlanEntry extends Micronutrients {
   id: string;
   date: string; // YYYY-MM-DD
   name: string;

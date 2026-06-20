@@ -6,8 +6,8 @@ import { nanoid } from '../lib/nanoid';
 
 interface AddFoodProps {
   savedFoods: FoodItem[];
-  onAdd: (entry: FoodLogEntry) => void;
-  onSaveFood: (food: FoodItem) => void;
+  onAdd: (entry: FoodLogEntry) => boolean;
+  onSaveFood: (food: FoodItem) => boolean;
 }
 
 export function AddFood({ savedFoods, onAdd, onSaveFood }: AddFoodProps) {
@@ -31,9 +31,16 @@ export function AddFood({ savedFoods, onAdd, onSaveFood }: AddFoodProps) {
       sodiumMg: values.sodiumMg * m,
       potassiumMg: values.potassiumMg * m,
       magnesiumMg: values.magnesiumMg * m,
+      calciumMg: values.calciumMg === undefined ? undefined : values.calciumMg * m,
+      ironMg: values.ironMg === undefined ? undefined : values.ironMg * m,
+      zincMg: values.zincMg === undefined ? undefined : values.zincMg * m,
+      vitaminDMcg: values.vitaminDMcg === undefined ? undefined : values.vitaminDMcg * m,
+      vitaminB12Mcg: values.vitaminB12Mcg === undefined ? undefined : values.vitaminB12Mcg * m,
+      omega3G: values.omega3G === undefined ? undefined : values.omega3G * m,
+      omega6G: values.omega6G === undefined ? undefined : values.omega6G * m,
       loggedAt: new Date().toISOString(),
     };
-    onAdd(entry);
+    if (!onAdd(entry)) return;
     setSuccessMsg(`"${values.name}" added to ${date === todayDateString() ? 'today' : date}'s log.`);
     setTimeout(() => setSuccessMsg(''), 3000);
   }
@@ -52,9 +59,12 @@ export function AddFood({ savedFoods, onAdd, onSaveFood }: AddFoodProps) {
       sodiumMg: values.sodiumMg,
       potassiumMg: values.potassiumMg,
       magnesiumMg: values.magnesiumMg,
+      calciumMg: values.calciumMg, ironMg: values.ironMg, zincMg: values.zincMg,
+      vitaminDMcg: values.vitaminDMcg, vitaminB12Mcg: values.vitaminB12Mcg,
+      omega3G: values.omega3G, omega6G: values.omega6G,
       createdAt: new Date().toISOString(),
     };
-    onSaveFood(food);
+    if (!onSaveFood(food)) return;
     setSuccessMsg(`"${values.name}" saved to your food library.`);
     setTimeout(() => setSuccessMsg(''), 3000);
   }

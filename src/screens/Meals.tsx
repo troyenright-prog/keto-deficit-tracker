@@ -6,7 +6,7 @@ import { nanoid } from '../lib/nanoid';
 interface MealsProps {
   templates: MealTemplate[];
   savedFoods: FoodItem[];
-  onSave: (template: MealTemplate) => void;
+  onSave: (template: MealTemplate) => boolean;
   onDelete: (id: string) => void;
   onAddToLog: (template: MealTemplate) => void;
 }
@@ -19,6 +19,7 @@ export function Meals({ templates, savedFoods, onSave, onDelete, onAddToLog }: M
   const [draftName, setDraftName] = useState('');
   const [draftItems, setDraftItems] = useState<MealTemplateItem[]>([]);
   const [foodSearch, setFoodSearch] = useState('');
+  const [validationError, setValidationError] = useState('');
 
   function startNew() {
     setDraftName('');
@@ -53,7 +54,12 @@ export function Meals({ templates, savedFoods, onSave, onDelete, onAddToLog }: M
   }
 
   function saveTemplate() {
-    if (!draftName.trim() || draftItems.length === 0) return;
+    if (!draftName.trim()) { setValidationError('Template name is required.'); return; }
+    if (draftItems.length === 0) { setValidationError('Add at least one food to the template.'); return; }
+    if (draftItems.some((item) => !Number.isFinite(item.quantity) || item.quantity <= 0)) {
+      setValidationError('Every item quantity must be greater than zero.'); return;
+    }
+    setValidationError('');
     const template: MealTemplate = {
       id: editTarget?.id ?? nanoid(),
       name: draftName.trim(),
@@ -61,7 +67,7 @@ export function Meals({ templates, savedFoods, onSave, onDelete, onAddToLog }: M
       createdAt: editTarget?.createdAt ?? new Date().toISOString(),
       updatedAt: editTarget ? new Date().toISOString() : undefined,
     };
-    onSave(template);
+    if (!onSave(template)) return;
     setView('list');
     setFoodSearch('');
   }
@@ -154,6 +160,7 @@ export function Meals({ templates, savedFoods, onSave, onDelete, onAddToLog }: M
             Save template
           </button>
         </div>
+        {validationError && <p className="form-error" role="alert">{validationError}</p>}
       </div>
     );
   }

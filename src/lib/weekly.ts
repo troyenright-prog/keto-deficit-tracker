@@ -1,4 +1,5 @@
 import type { DailyNutritionSummary, NutritionTargets } from '../types';
+import { addLocalDays, isDateString } from './date';
 
 export interface WeeklyStats {
   avgCalories: number;
@@ -58,13 +59,11 @@ export function sevenDayAvgWeight(
   entries: { date: string; weight: number }[],
   referenceDate: string,
 ): number | null {
-  const ref = new Date(referenceDate);
-  const cutoff = new Date(ref);
-  cutoff.setDate(ref.getDate() - 6);
+  if (!isDateString(referenceDate)) return null;
+  const cutoff = addLocalDays(referenceDate, -6);
 
   const relevant = entries.filter((e) => {
-    const d = new Date(e.date);
-    return d >= cutoff && d <= ref;
+    return isDateString(e.date) && e.date >= cutoff && e.date <= referenceDate;
   });
 
   if (relevant.length < 3) return null;
@@ -73,11 +72,8 @@ export function sevenDayAvgWeight(
 
 export function last7Days(referenceDate: string): string[] {
   const dates: string[] = [];
-  const ref = new Date(referenceDate);
   for (let i = 6; i >= 0; i--) {
-    const d = new Date(ref);
-    d.setDate(ref.getDate() - i);
-    dates.push(d.toISOString().slice(0, 10));
+    dates.push(addLocalDays(referenceDate, -i));
   }
   return dates;
 }

@@ -9,6 +9,7 @@ const tabs: { id: Screen; label: string }[] = [
   { id: 'dashboard', label: 'Home' },
   { id: 'add-food', label: 'Add' },
   { id: 'daily-log', label: 'Log' },
+  { id: 'weekly', label: 'Week' },
   { id: 'saved-foods', label: 'Foods' },
   { id: 'meals', label: 'Meals' },
   { id: 'recipes', label: 'Recipes' },

@@ -109,6 +109,23 @@ export function Dashboard({ summary, targets, recommendations, onAddFood }: Dash
         variant={summary.magnesiumMg >= targets.magnesiumMg ? 'success' : 'default'}
       />
 
+      {((summary.calciumMg ?? 0) > 0 || (summary.ironMg ?? 0) > 0 || (summary.zincMg ?? 0) > 0 ||
+        (summary.vitaminDMcg ?? 0) > 0 || (summary.vitaminB12Mcg ?? 0) > 0 ||
+        (summary.omega3G ?? 0) > 0 || (summary.omega6G ?? 0) > 0) && (
+        <>
+          <div className="section-title">Optional micronutrients logged</div>
+          <div className="template-totals">
+            {(summary.calciumMg ?? 0) > 0 && <span>Calcium {summary.calciumMg!.toFixed(1)}mg</span>}
+            {(summary.ironMg ?? 0) > 0 && <span>Iron {summary.ironMg!.toFixed(1)}mg</span>}
+            {(summary.zincMg ?? 0) > 0 && <span>Zinc {summary.zincMg!.toFixed(1)}mg</span>}
+            {(summary.vitaminDMcg ?? 0) > 0 && <span>Vitamin D {summary.vitaminDMcg!.toFixed(1)}mcg</span>}
+            {(summary.vitaminB12Mcg ?? 0) > 0 && <span>B12 {summary.vitaminB12Mcg!.toFixed(1)}mcg</span>}
+            {(summary.omega3G ?? 0) > 0 && <span>Omega-3 {summary.omega3G!.toFixed(2)}g</span>}
+            {(summary.omega6G ?? 0) > 0 && <span>Omega-6 {summary.omega6G!.toFixed(2)}g</span>}
+          </div>
+        </>
+      )}
+
       {recommendations.length > 0 && (
         <>
           <div className="section-title">Recommendations</div>

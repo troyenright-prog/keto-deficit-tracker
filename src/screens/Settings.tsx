@@ -2,12 +2,13 @@ import { useRef, useState } from 'react';
 import type { UserProfile, NutritionTargets } from '../types';
 import { dietModeDefaultNetCarbs } from '../lib/nutrition';
 import { exportAppData, validateAppBundle, importAppData } from '../lib/storage';
+import { localDateString } from '../lib/date';
 
 interface SettingsProps {
   profile: UserProfile;
   targets: NutritionTargets;
-  onSaveProfile: (p: UserProfile) => void;
-  onSaveTargets: (t: NutritionTargets) => void;
+  onSaveProfile: (p: UserProfile) => boolean;
+  onSaveTargets: (t: NutritionTargets) => boolean;
   onImportComplete: () => void;
 }
 
@@ -16,11 +17,12 @@ export function Settings({ profile, targets, onSaveProfile, onSaveTargets, onImp
   const [tgts, setTgts] = useState<NutritionTargets>(targets);
   const [saved, setSaved] = useState(false);
   const [importMsg, setImportMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [validationError, setValidationError] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
   function numTarget(key: keyof NutritionTargets, val: string) {
     const n = parseFloat(val);
-    setTgts((t) => ({ ...t, [key]: isNaN(n) ? 0 : Math.max(0, n) }));
+    setTgts((t) => ({ ...t, [key]: Number.isFinite(n) ? Math.max(0, n) : 0 }));
   }
 
   function handleDietMode(mode: NutritionTargets['dietMode']) {
@@ -42,8 +44,15 @@ export function Settings({ profile, targets, onSaveProfile, onSaveTargets, onImp
 
   function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    onSaveProfile(prof);
-    onSaveTargets(tgts);
+    const invalidTarget = Object.entries(tgts).find(([key, value]) => key !== 'manualNetCarbs' && key !== 'dietMode' && (typeof value !== 'number' || !Number.isFinite(value) || value <= 0));
+    if (invalidTarget) {
+      setValidationError('All nutrition and electrolyte targets must be greater than zero.');
+      return;
+    }
+    setValidationError('');
+    const profileSaved = onSaveProfile(prof);
+    const targetsSaved = onSaveTargets(tgts);
+    if (!profileSaved || !targetsSaved) return;
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   }
@@ -55,7 +64,7 @@ export function Settings({ profile, targets, onSaveProfile, onSaveTargets, onImp
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `keto-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `keto-backup-${localDateString()}.json`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -72,7 +81,10 @@ export function Settings({ profile, targets, onSaveProfile, onSaveTargets, onImp
           return;
         }
         if (!confirm('This will replace ALL your current data. Continue?')) return;
-        importAppData(parsed);
+        if (!importAppData(parsed)) {
+          setImportMsg({ type: 'error', text: 'Import could not be saved. Your existing data was restored.' });
+          return;
+        }
         setImportMsg({ type: 'success', text: 'Import successful! Reloading data…' });
         setTimeout(() => {
           onImportComplete();
@@ -200,6 +212,7 @@ export function Settings({ profile, targets, onSaveProfile, onSaveTargets, onImp
           <button type="submit" className="btn btn--primary">Save settings</button>
           {saved && <span className="success-inline">Saved!</span>}
         </div>
+        {validationError && <p className="form-error" role="alert">{validationError}</p>}
       </form>
 
       <div className="section-title">Backup &amp; Restore</div>

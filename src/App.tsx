@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import './App.css';
 import { Nav } from './components/Nav';
 import { Dashboard } from './screens/Dashboard';
@@ -22,9 +22,10 @@ import {
   loadRecipes, saveRecipes,
   loadShoppingList, saveShoppingList,
   loadMealPlan, saveMealPlan,
+  saveFoodLogAndMealPlan,
   migrateIfNeeded,
 } from './lib/storage';
-import { summariseDay, todayDateString } from './lib/nutrition';
+import { savedFoodToLogEntry, summariseDay, todayDateString } from './lib/nutrition';
 import { buildRecommendations } from './lib/recommendations';
 import { templateToLogEntries } from './lib/meal-templates';
 import { recipeToLogEntry } from './lib/recipes';
@@ -82,6 +83,32 @@ function App() {
   const [recipes, setRecipes] = useState<Recipe[]>(loadRecipes);
   const [shoppingList, setShoppingList] = useState<ShoppingItem[]>(loadShoppingList);
   const [mealPlan, setMealPlan] = useState<MealPlanEntry[]>(loadMealPlan);
+  const [storageError, setStorageError] = useState('');
+  const profileRef = useRef(profile);
+  const targetsRef = useRef(targets);
+  const foodLogRef = useRef(foodLog);
+  const savedFoodsRef = useRef(savedFoods);
+  const weightEntriesRef = useRef(weightEntries);
+  const mealTemplatesRef = useRef(mealTemplates);
+  const recipesRef = useRef(recipes);
+  const shoppingListRef = useRef(shoppingList);
+  const mealPlanRef = useRef(mealPlan);
+
+  const persist = useCallback(<T,>(
+    next: T,
+    ref: { current: T },
+    setter: (value: T) => void,
+    save: (value: T) => boolean,
+  ): boolean => {
+    if (!save(next)) {
+      setStorageError('Your changes could not be saved. Check browser storage space or privacy settings, then try again.');
+      return false;
+    }
+    ref.current = next;
+    setter(next);
+    setStorageError('');
+    return true;
+  }, []);
 
   const today = todayDateString();
   const todaySummary = summariseDay(today, foodLog);
@@ -89,128 +116,94 @@ function App() {
 
   // ── Food log ───────────────────────────────────────────────────────────────
 
-  const handleAddEntry = useCallback((entry: FoodLogEntry) => {
-    setFoodLog((prev) => { const next = [...prev, entry]; saveFoodLog(next); return next; });
-  }, []);
+  const handleAddEntry = useCallback((entry: FoodLogEntry) =>
+    persist([...foodLogRef.current, entry], foodLogRef, setFoodLog, saveFoodLog), [persist]);
 
-  const handleAddEntries = useCallback((entries: FoodLogEntry[]) => {
-    setFoodLog((prev) => { const next = [...prev, ...entries]; saveFoodLog(next); return next; });
-  }, []);
+  const handleAddEntries = useCallback((entries: FoodLogEntry[]) =>
+    persist([...foodLogRef.current, ...entries], foodLogRef, setFoodLog, saveFoodLog), [persist]);
 
-  const handleDeleteEntry = useCallback((id: string) => {
-    setFoodLog((prev) => { const next = prev.filter((e) => e.id !== id); saveFoodLog(next); return next; });
-  }, []);
+  const handleDeleteEntry = useCallback((id: string) =>
+    persist(foodLogRef.current.filter((e) => e.id !== id), foodLogRef, setFoodLog, saveFoodLog), [persist]);
 
-  const handleEditEntry = useCallback((updated: FoodLogEntry) => {
-    setFoodLog((prev) => { const next = prev.map((e) => (e.id === updated.id ? updated : e)); saveFoodLog(next); return next; });
-  }, []);
+  const handleEditEntry = useCallback((updated: FoodLogEntry) =>
+    persist(foodLogRef.current.map((e) => e.id === updated.id ? updated : e), foodLogRef, setFoodLog, saveFoodLog), [persist]);
 
   // ── Saved foods ────────────────────────────────────────────────────────────
 
   const handleSaveFood = useCallback((food: FoodItem) => {
-    setSavedFoods((prev) => {
-      const exists = prev.findIndex((f) => f.id === food.id);
-      const next = exists >= 0 ? prev.map((f) => f.id === food.id ? food : f) : [...prev, food];
-      saveSavedFoods(next);
-      return next;
-    });
-  }, []);
+    const current = savedFoodsRef.current;
+    const exists = current.findIndex((f) => f.id === food.id);
+    const next = exists >= 0 ? current.map((f) => f.id === food.id ? food : f) : [...current, food];
+    return persist(next, savedFoodsRef, setSavedFoods, saveSavedFoods);
+  }, [persist]);
 
   const handleDeleteSavedFood = useCallback((id: string) => {
-    setSavedFoods((prev) => { const next = prev.filter((f) => f.id !== id); saveSavedFoods(next); return next; });
-  }, []);
+    return persist(savedFoodsRef.current.filter((f) => f.id !== id), savedFoodsRef, setSavedFoods, saveSavedFoods);
+  }, [persist]);
 
   const handleAddSavedFoodToLog = useCallback((food: FoodItem) => {
-    const entry: FoodLogEntry = {
-      id: nanoid(),
-      date: today,
-      foodItemId: food.id,
-      source: 'saved-food',
-      name: food.name,
-      servingSize: food.servingSize,
-      servingMultiplier: 1,
-      calories: food.calories,
-      proteinG: food.proteinG,
-      fatG: food.fatG,
-      totalCarbsG: food.totalCarbsG,
-      fibreG: food.fibreG,
-      sugarAlcoholsG: food.sugarAlcoholsG,
-      sodiumMg: food.sodiumMg,
-      potassiumMg: food.potassiumMg,
-      magnesiumMg: food.magnesiumMg,
-      loggedAt: new Date().toISOString(),
-    };
-    handleAddEntry(entry);
-    setScreen('dashboard');
+    const entry = savedFoodToLogEntry(food, today);
+    if (handleAddEntry(entry)) setScreen('dashboard');
   }, [today, handleAddEntry]);
 
   // ── Profile / targets ──────────────────────────────────────────────────────
 
-  const handleSaveProfile = useCallback((p: UserProfile) => { setProfile(p); saveProfile(p); }, []);
-  const handleSaveTargets = useCallback((t: NutritionTargets) => { setTargets(t); saveTargets(t); }, []);
+  const handleSaveProfile = useCallback((p: UserProfile) => persist(p, profileRef, setProfile, saveProfile), [persist]);
+  const handleSaveTargets = useCallback((t: NutritionTargets) => persist(t, targetsRef, setTargets, saveTargets), [persist]);
 
   // ── Weight ─────────────────────────────────────────────────────────────────
 
   const handleSaveWeightEntries = useCallback((entries: WeightEntry[]) => {
-    setWeightEntries(entries);
-    saveWeightEntries(entries);
-  }, []);
+    return persist(entries, weightEntriesRef, setWeightEntries, saveWeightEntries);
+  }, [persist]);
 
   // ── Meal templates ─────────────────────────────────────────────────────────
 
   const handleSaveTemplate = useCallback((template: MealTemplate) => {
-    setMealTemplates((prev) => {
-      const exists = prev.findIndex((t) => t.id === template.id);
-      const next = exists >= 0 ? prev.map((t) => t.id === template.id ? template : t) : [...prev, template];
-      saveMealTemplates(next);
-      return next;
-    });
-  }, []);
+    const current = mealTemplatesRef.current;
+    const exists = current.findIndex((t) => t.id === template.id);
+    const next = exists >= 0 ? current.map((t) => t.id === template.id ? template : t) : [...current, template];
+    return persist(next, mealTemplatesRef, setMealTemplates, saveMealTemplates);
+  }, [persist]);
 
   const handleDeleteTemplate = useCallback((id: string) => {
-    setMealTemplates((prev) => { const next = prev.filter((t) => t.id !== id); saveMealTemplates(next); return next; });
-  }, []);
+    return persist(mealTemplatesRef.current.filter((t) => t.id !== id), mealTemplatesRef, setMealTemplates, saveMealTemplates);
+  }, [persist]);
 
   const handleAddTemplateToLog = useCallback((template: MealTemplate) => {
-    handleAddEntries(templateToLogEntries(template, today));
-    setScreen('dashboard');
+    if (handleAddEntries(templateToLogEntries(template, today))) setScreen('dashboard');
   }, [today, handleAddEntries]);
 
   // ── Recipes ────────────────────────────────────────────────────────────────
 
   const handleSaveRecipe = useCallback((recipe: Recipe) => {
-    setRecipes((prev) => {
-      const exists = prev.findIndex((r) => r.id === recipe.id);
-      const next = exists >= 0 ? prev.map((r) => r.id === recipe.id ? recipe : r) : [...prev, recipe];
-      saveRecipes(next);
-      return next;
-    });
-  }, []);
+    const current = recipesRef.current;
+    const exists = current.findIndex((r) => r.id === recipe.id);
+    const next = exists >= 0 ? current.map((r) => r.id === recipe.id ? recipe : r) : [...current, recipe];
+    return persist(next, recipesRef, setRecipes, saveRecipes);
+  }, [persist]);
 
   const handleDeleteRecipe = useCallback((id: string) => {
-    setRecipes((prev) => { const next = prev.filter((r) => r.id !== id); saveRecipes(next); return next; });
-  }, []);
+    return persist(recipesRef.current.filter((r) => r.id !== id), recipesRef, setRecipes, saveRecipes);
+  }, [persist]);
 
   const handleAddRecipeToLog = useCallback((recipe: Recipe, servings: number) => {
-    handleAddEntry(recipeToLogEntry(recipe, servings, today));
-    setScreen('dashboard');
+    if (handleAddEntry(recipeToLogEntry(recipe, servings, today))) setScreen('dashboard');
   }, [today, handleAddEntry]);
 
   // ── Shopping list ──────────────────────────────────────────────────────────
 
   const handleSaveShoppingList = useCallback((items: ShoppingItem[]) => {
-    setShoppingList(items);
-    saveShoppingList(items);
-  }, []);
+    return persist(items, shoppingListRef, setShoppingList, saveShoppingList);
+  }, [persist]);
 
   // ── Meal plan ──────────────────────────────────────────────────────────────
 
   const handleSaveMealPlan = useCallback((plan: MealPlanEntry[]) => {
-    setMealPlan(plan);
-    saveMealPlan(plan);
-  }, []);
+    return persist(plan, mealPlanRef, setMealPlan, saveMealPlan);
+  }, [persist]);
 
-  const handleConvertPlanToLog = useCallback((entries: MealPlanEntry[]) => {
+  const handleConvertPlanToLog = useCallback((entries: MealPlanEntry[], nextPlan: MealPlanEntry[]) => {
     const logEntries: FoodLogEntry[] = entries.map((e) => ({
       id: nanoid(),
       date: e.date,
@@ -227,10 +220,20 @@ function App() {
       sodiumMg: e.sodiumMg,
       potassiumMg: e.potassiumMg,
       magnesiumMg: e.magnesiumMg,
+      calciumMg: e.calciumMg, ironMg: e.ironMg, zincMg: e.zincMg,
+      vitaminDMcg: e.vitaminDMcg, vitaminB12Mcg: e.vitaminB12Mcg,
+      omega3G: e.omega3G, omega6G: e.omega6G,
       loggedAt: new Date().toISOString(),
     }));
-    handleAddEntries(logEntries);
-  }, [handleAddEntries]);
+    const nextLog = [...foodLogRef.current, ...logEntries];
+    if (!saveFoodLogAndMealPlan(nextLog, nextPlan)) {
+      setStorageError('The planned meals could not be logged. Nothing was changed; check browser storage and try again.');
+      return false;
+    }
+    foodLogRef.current = nextLog; mealPlanRef.current = nextPlan;
+    setFoodLog(nextLog); setMealPlan(nextPlan); setStorageError('');
+    return true;
+  }, []);
 
   // ── Import complete ────────────────────────────────────────────────────────
 
@@ -245,6 +248,10 @@ function App() {
     setRecipes(data.recipes);
     setShoppingList(data.shoppingList);
     setMealPlan(data.mealPlan);
+    profileRef.current = data.profile; targetsRef.current = data.targets; foodLogRef.current = data.foodLog;
+    savedFoodsRef.current = data.savedFoods; weightEntriesRef.current = data.weightEntries;
+    mealTemplatesRef.current = data.mealTemplates; recipesRef.current = data.recipes;
+    shoppingListRef.current = data.shoppingList; mealPlanRef.current = data.mealPlan;
   }, []);
 
   return (
@@ -255,6 +262,7 @@ function App() {
       </header>
 
       <main className="app-main">
+        {storageError && <div className="storage-error" role="alert">{storageError}</div>}
         {screen === 'dashboard' && (
           <Dashboard
             summary={todaySummary}

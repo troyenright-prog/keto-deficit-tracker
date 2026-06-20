@@ -50,6 +50,11 @@ describe('calcNetCarbs', () => {
   it('handles only sugar alcohols', () => {
     expect(calcNetCarbs(10, 0, 4)).toBe(6);
   });
+
+  it('normalises negative and non-finite inputs to a finite non-negative result', () => {
+    expect(calcNetCarbs(Infinity, Number.NaN, -2)).toBe(0);
+    expect(calcNetCarbs(-10, 0, 0)).toBe(0);
+  });
 });
 
 describe('summariseDay', () => {

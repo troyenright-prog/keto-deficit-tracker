@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import type { FoodItem } from '../types';
 import { calcNetCarbs, todayDateString } from '../lib/nutrition';
 
@@ -42,13 +42,13 @@ const EMPTY: FoodFormValues = {
 
 function clampNum(val: string, min = 0): number {
   const n = parseFloat(val);
-  if (isNaN(n)) return 0;
+  if (!Number.isFinite(n)) return 0;
   return Math.max(min, n);
 }
 
 function optNum(val: string): number | undefined {
   const n = parseFloat(val);
-  if (isNaN(n) || n === 0) return undefined;
+  if (!Number.isFinite(n) || n === 0) return undefined;
   return Math.max(0, n);
 }
 
@@ -80,10 +80,6 @@ export function FoodForm({
   const [selectedSaved, setSelectedSaved] = useState('');
   const [showMicro, setShowMicro] = useState(false);
 
-  useEffect(() => {
-    if (initial) setValues({ ...EMPTY, ...initial });
-  }, []);
-
   function num(key: keyof FoodFormValues, val: string) {
     setValues((v) => ({ ...v, [key]: clampNum(val) }));
   }
@@ -99,6 +95,8 @@ export function FoodForm({
   function validate(): boolean {
     const e: Record<string, string> = {};
     if (!values.name.trim()) e.name = 'Name is required';
+    if (!Number.isFinite(values.servingMultiplier) || values.servingMultiplier <= 0)
+      e.servingMultiplier = 'Servings must be greater than zero';
     if (values.fibreG > values.totalCarbsG)
       e.fibreG = 'Fibre cannot exceed total carbs';
     if (values.sugarAlcoholsG > values.totalCarbsG)
@@ -220,6 +218,7 @@ export function FoodForm({
               value={values.servingMultiplier}
               onChange={(e) => num('servingMultiplier', e.target.value)}
             />
+            {errors.servingMultiplier && <span className="form-error">{errors.servingMultiplier}</span>}
           </div>
         )}
       </div>

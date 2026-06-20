@@ -1,221 +1,283 @@
 import type {
-  UserProfile,
-  NutritionTargets,
-  FoodLogEntry,
-  FoodItem,
-  WeightEntry,
-  MealTemplate,
-  Recipe,
-  ShoppingItem,
-  MealPlanEntry,
-  AppStateBundle,
+  UserProfile, NutritionTargets, FoodLogEntry, FoodItem, WeightEntry,
+  MealTemplate, MealTemplateItem, Recipe, RecipeIngredient, ShoppingItem,
+  MealPlanEntry, AppStateBundle, Micronutrients,
 } from '../types';
+import { isDateString, localDateString } from './date';
+import { safeNonNegative, safePositive } from './nutrition';
 
-// ── Version ────────────────────────────────────────────────────────────────────
-const CURRENT_VERSION = 2;
+export const CURRENT_VERSION = 2;
 
 const KEYS = {
-  version: 'keto_version',
-  profile: 'keto_profile',
-  targets: 'keto_targets',
-  foodLog: 'keto_food_log',
-  savedFoods: 'keto_saved_foods',
-  weightEntries: 'keto_weight_entries',
-  mealTemplates: 'keto_meal_templates',
-  recipes: 'keto_recipes',
-  shoppingList: 'keto_shopping_list',
+  version: 'keto_version', profile: 'keto_profile', targets: 'keto_targets',
+  foodLog: 'keto_food_log', savedFoods: 'keto_saved_foods', weightEntries: 'keto_weight_entries',
+  mealTemplates: 'keto_meal_templates', recipes: 'keto_recipes', shoppingList: 'keto_shopping_list',
   mealPlan: 'keto_meal_plan',
 } as const;
 
-function safeRead<T>(key: string, fallback: T): T {
+type UnknownRecord = Record<string, unknown>;
+const isRecord = (value: unknown): value is UnknownRecord => typeof value === 'object' && value !== null && !Array.isArray(value);
+const text = (value: unknown, fallback = '') => typeof value === 'string' ? value : fallback;
+const optionalText = (value: unknown) => typeof value === 'string' ? value : undefined;
+const date = (value: unknown) => isDateString(value) ? value : localDateString();
+const timestamp = (value: unknown) => typeof value === 'string' && Number.isFinite(Date.parse(value)) ? value : new Date().toISOString();
+
+function safeRead(key: string): unknown {
   try {
     const raw = localStorage.getItem(key);
-    if (!raw) return fallback;
-    return JSON.parse(raw) as T;
+    return raw ? JSON.parse(raw) : undefined;
   } catch {
-    return fallback;
+    return undefined;
   }
 }
 
-function safeWrite(key: string, value: unknown): void {
+function safeWrite(key: string, value: unknown): boolean {
   try {
     localStorage.setItem(key, JSON.stringify(value));
+    return true;
   } catch {
-    // localStorage may be unavailable (private mode, quota exceeded)
+    return false;
   }
 }
 
-// ── Migration ──────────────────────────────────────────────────────────────────
-
-export function migrateIfNeeded(): void {
-  const v = safeRead<number>(KEYS.version, 0);
-  if (v >= CURRENT_VERSION) return;
-
-  // v0 → v2: MVP data already present in individual keys; just add defaults
-  // for any missing new keys so they start as empty arrays.
-  if (!localStorage.getItem(KEYS.mealTemplates)) safeWrite(KEYS.mealTemplates, []);
-  if (!localStorage.getItem(KEYS.recipes)) safeWrite(KEYS.recipes, []);
-  if (!localStorage.getItem(KEYS.shoppingList)) safeWrite(KEYS.shoppingList, []);
-  if (!localStorage.getItem(KEYS.mealPlan)) safeWrite(KEYS.mealPlan, []);
-
-  safeWrite(KEYS.version, CURRENT_VERSION);
-}
-
-// ── Defaults ───────────────────────────────────────────────────────────────────
-
 export const DEFAULT_TARGETS: NutritionTargets = {
-  calories: 1800,
-  proteinG: 120,
-  netCarbsG: 20,
-  fatG: 140,
-  sodiumMg: 2300,
-  potassiumMg: 3500,
-  magnesiumMg: 400,
-  dietMode: 'strict-keto',
-  manualNetCarbs: false,
+  calories: 1800, proteinG: 120, netCarbsG: 20, fatG: 140,
+  sodiumMg: 2300, potassiumMg: 3500, magnesiumMg: 400,
+  dietMode: 'strict-keto', manualNetCarbs: false,
 };
 
 export const DEFAULT_PROFILE: UserProfile = {
-  name: '',
-  weightUnit: 'kg',
-  createdAt: new Date().toISOString(),
+  name: '', weightUnit: 'kg', createdAt: new Date().toISOString(),
 };
 
-// ── Profile ────────────────────────────────────────────────────────────────────
-
-export function loadProfile(): UserProfile {
-  return safeRead<UserProfile>(KEYS.profile, DEFAULT_PROFILE);
+function micros(record: UnknownRecord): Micronutrients {
+  const result: Micronutrients = {};
+  for (const key of ['calciumMg', 'ironMg', 'zincMg', 'vitaminDMcg', 'vitaminB12Mcg', 'omega3G', 'omega6G'] as const) {
+    if (typeof record[key] === 'number' && Number.isFinite(record[key]) && record[key] >= 0) result[key] = record[key];
+  }
+  return result;
 }
 
-export function saveProfile(profile: UserProfile): void {
-  safeWrite(KEYS.profile, profile);
-}
-
-// ── Targets ────────────────────────────────────────────────────────────────────
-
-export function loadTargets(): NutritionTargets {
-  return safeRead<NutritionTargets>(KEYS.targets, DEFAULT_TARGETS);
-}
-
-export function saveTargets(targets: NutritionTargets): void {
-  safeWrite(KEYS.targets, targets);
-}
-
-// ── Food log ───────────────────────────────────────────────────────────────────
-
-export function loadFoodLog(): FoodLogEntry[] {
-  return safeRead<FoodLogEntry[]>(KEYS.foodLog, []);
-}
-
-export function saveFoodLog(log: FoodLogEntry[]): void {
-  safeWrite(KEYS.foodLog, log);
-}
-
-// ── Saved foods ────────────────────────────────────────────────────────────────
-
-export function loadSavedFoods(): FoodItem[] {
-  return safeRead<FoodItem[]>(KEYS.savedFoods, []);
-}
-
-export function saveSavedFoods(foods: FoodItem[]): void {
-  safeWrite(KEYS.savedFoods, foods);
-}
-
-// ── Weight ─────────────────────────────────────────────────────────────────────
-
-export function loadWeightEntries(): WeightEntry[] {
-  return safeRead<WeightEntry[]>(KEYS.weightEntries, []);
-}
-
-export function saveWeightEntries(entries: WeightEntry[]): void {
-  safeWrite(KEYS.weightEntries, entries);
-}
-
-// ── Meal templates ─────────────────────────────────────────────────────────────
-
-export function loadMealTemplates(): MealTemplate[] {
-  return safeRead<MealTemplate[]>(KEYS.mealTemplates, []);
-}
-
-export function saveMealTemplates(templates: MealTemplate[]): void {
-  safeWrite(KEYS.mealTemplates, templates);
-}
-
-// ── Recipes ────────────────────────────────────────────────────────────────────
-
-export function loadRecipes(): Recipe[] {
-  return safeRead<Recipe[]>(KEYS.recipes, []);
-}
-
-export function saveRecipes(recipes: Recipe[]): void {
-  safeWrite(KEYS.recipes, recipes);
-}
-
-// ── Shopping list ──────────────────────────────────────────────────────────────
-
-export function loadShoppingList(): ShoppingItem[] {
-  return safeRead<ShoppingItem[]>(KEYS.shoppingList, []);
-}
-
-export function saveShoppingList(items: ShoppingItem[]): void {
-  safeWrite(KEYS.shoppingList, items);
-}
-
-// ── Meal plan ──────────────────────────────────────────────────────────────────
-
-export function loadMealPlan(): MealPlanEntry[] {
-  return safeRead<MealPlanEntry[]>(KEYS.mealPlan, []);
-}
-
-export function saveMealPlan(plan: MealPlanEntry[]): void {
-  safeWrite(KEYS.mealPlan, plan);
-}
-
-// ── Import / export ────────────────────────────────────────────────────────────
-
-export function exportAppData(): AppStateBundle {
+function nutrition(record: UnknownRecord) {
   return {
-    version: CURRENT_VERSION,
-    exportedAt: new Date().toISOString(),
-    profile: loadProfile(),
-    targets: loadTargets(),
-    foodLog: loadFoodLog(),
-    savedFoods: loadSavedFoods(),
-    weightEntries: loadWeightEntries(),
-    mealTemplates: loadMealTemplates(),
-    recipes: loadRecipes(),
-    shoppingList: loadShoppingList(),
-    mealPlan: loadMealPlan(),
+    calories: safeNonNegative(record.calories), proteinG: safeNonNegative(record.proteinG),
+    fatG: safeNonNegative(record.fatG), totalCarbsG: safeNonNegative(record.totalCarbsG),
+    fibreG: safeNonNegative(record.fibreG), sugarAlcoholsG: safeNonNegative(record.sugarAlcoholsG),
+    sodiumMg: safeNonNegative(record.sodiumMg), potassiumMg: safeNonNegative(record.potassiumMg),
+    magnesiumMg: safeNonNegative(record.magnesiumMg), ...micros(record),
   };
 }
 
-export function validateAppBundle(data: unknown): data is AppStateBundle {
-  if (typeof data !== 'object' || data === null) return false;
-  const d = data as Record<string, unknown>;
-  return (
-    typeof d.version === 'number' &&
-    typeof d.exportedAt === 'string' &&
-    typeof d.profile === 'object' &&
-    typeof d.targets === 'object' &&
-    Array.isArray(d.foodLog) &&
-    Array.isArray(d.savedFoods) &&
-    Array.isArray(d.weightEntries) &&
-    Array.isArray(d.mealTemplates) &&
-    Array.isArray(d.recipes) &&
-    Array.isArray(d.shoppingList) &&
-    Array.isArray(d.mealPlan)
-  );
+function normalizeProfile(value: unknown): UserProfile {
+  if (!isRecord(value)) return { ...DEFAULT_PROFILE };
+  return {
+    name: text(value.name), weightUnit: value.weightUnit === 'lbs' ? 'lbs' : 'kg',
+    createdAt: timestamp(value.createdAt),
+  };
 }
 
-export function importAppData(bundle: AppStateBundle): void {
-  saveProfile(bundle.profile);
-  saveTargets(bundle.targets);
-  saveFoodLog(bundle.foodLog);
-  saveSavedFoods(bundle.savedFoods);
-  saveWeightEntries(bundle.weightEntries);
-  saveMealTemplates(bundle.mealTemplates);
-  saveRecipes(bundle.recipes);
-  saveShoppingList(bundle.shoppingList);
-  saveMealPlan(bundle.mealPlan);
-  safeWrite(KEYS.version, CURRENT_VERSION);
+function normalizeTargets(value: unknown): NutritionTargets {
+  if (!isRecord(value)) return { ...DEFAULT_TARGETS };
+  const mode = value.dietMode === 'lazy-keto' || value.dietMode === 'high-protein-keto' ? value.dietMode : 'strict-keto';
+  return {
+    calories: safePositive(value.calories, DEFAULT_TARGETS.calories),
+    proteinG: safePositive(value.proteinG, DEFAULT_TARGETS.proteinG),
+    netCarbsG: safePositive(value.netCarbsG, DEFAULT_TARGETS.netCarbsG),
+    fatG: safePositive(value.fatG, DEFAULT_TARGETS.fatG),
+    sodiumMg: safePositive(value.sodiumMg, DEFAULT_TARGETS.sodiumMg),
+    potassiumMg: safePositive(value.potassiumMg, DEFAULT_TARGETS.potassiumMg),
+    magnesiumMg: safePositive(value.magnesiumMg, DEFAULT_TARGETS.magnesiumMg),
+    dietMode: mode, manualNetCarbs: value.manualNetCarbs === true,
+  };
+}
+
+function normalizeFood(value: unknown): FoodItem | null {
+  if (!isRecord(value)) return null;
+  return {
+    id: text(value.id, crypto.randomUUID()), name: text(value.name, 'Unnamed food'),
+    servingSize: text(value.servingSize, '1 serving'), ...nutrition(value),
+    createdAt: timestamp(value.createdAt), updatedAt: optionalText(value.updatedAt),
+  };
+}
+
+function normalizeLogEntry(value: unknown): FoodLogEntry | null {
+  if (!isRecord(value)) return null;
+  const sources = ['manual', 'saved-food', 'template', 'recipe', 'plan'];
+  return {
+    id: text(value.id, crypto.randomUUID()), date: date(value.date),
+    foodItemId: optionalText(value.foodItemId), templateId: optionalText(value.templateId), recipeId: optionalText(value.recipeId),
+    source: typeof value.source === 'string' && sources.includes(value.source) ? value.source as FoodLogEntry['source'] : 'manual',
+    name: text(value.name, 'Unnamed food'), servingSize: text(value.servingSize, '1 serving'),
+    servingMultiplier: safePositive(value.servingMultiplier), ...nutrition(value), loggedAt: timestamp(value.loggedAt),
+  };
+}
+
+function normalizeWeight(value: unknown): WeightEntry | null {
+  if (!isRecord(value)) return null;
+  const weight = safePositive(value.weight, 0);
+  if (weight === 0) return null;
+  return {
+    id: text(value.id, crypto.randomUUID()), date: date(value.date), weight,
+    unit: value.unit === 'lbs' ? 'lbs' : 'kg', loggedAt: timestamp(value.loggedAt),
+  };
+}
+
+function normalizeTemplateItem(value: unknown): MealTemplateItem | null {
+  if (!isRecord(value)) return null;
+  return {
+    id: text(value.id, crypto.randomUUID()), savedFoodId: optionalText(value.savedFoodId),
+    name: text(value.name, 'Unnamed food'), servingSize: text(value.servingSize, '1 serving'),
+    quantity: safePositive(value.quantity), ...nutrition(value),
+  };
+}
+
+function normalizeTemplate(value: unknown): MealTemplate | null {
+  if (!isRecord(value)) return null;
+  return {
+    id: text(value.id, crypto.randomUUID()), name: text(value.name, 'Unnamed meal'),
+    items: Array.isArray(value.items) ? value.items.map(normalizeTemplateItem).filter((item): item is MealTemplateItem => item !== null) : [],
+    createdAt: timestamp(value.createdAt), updatedAt: optionalText(value.updatedAt),
+  };
+}
+
+function normalizeIngredient(value: unknown): RecipeIngredient | null {
+  if (!isRecord(value)) return null;
+  return {
+    id: text(value.id, crypto.randomUUID()), name: text(value.name, 'Unnamed ingredient'),
+    servingSize: text(value.servingSize, '1 serving'), quantity: safePositive(value.quantity), ...nutrition(value),
+  };
+}
+
+function normalizeRecipe(value: unknown): Recipe | null {
+  if (!isRecord(value)) return null;
+  return {
+    id: text(value.id, crypto.randomUUID()), name: text(value.name, 'Unnamed recipe'), servings: safePositive(value.servings),
+    ingredients: Array.isArray(value.ingredients) ? value.ingredients.map(normalizeIngredient).filter((item): item is RecipeIngredient => item !== null) : [],
+    createdAt: timestamp(value.createdAt), updatedAt: optionalText(value.updatedAt),
+  };
+}
+
+function normalizeShoppingItem(value: unknown): ShoppingItem | null {
+  if (!isRecord(value)) return null;
+  const source = value.source === 'template' || value.source === 'recipe' ? value.source : 'manual';
+  return {
+    id: text(value.id, crypto.randomUUID()), name: text(value.name, 'Unnamed item'), quantity: optionalText(value.quantity),
+    completed: value.completed === true, source, sourceId: optionalText(value.sourceId), createdAt: timestamp(value.createdAt),
+  };
+}
+
+function normalizePlanEntry(value: unknown): MealPlanEntry | null {
+  if (!isRecord(value)) return null;
+  const type = value.type === 'template' || value.type === 'recipe' ? value.type : 'saved-food';
+  return {
+    id: text(value.id, crypto.randomUUID()), date: date(value.date), name: text(value.name, 'Unnamed meal'),
+    type, sourceId: text(value.sourceId), servings: safePositive(value.servings), ...nutrition(value),
+    netCarbsG: safeNonNegative(value.netCarbsG), converted: value.converted === true, createdAt: timestamp(value.createdAt),
+  };
+}
+
+function normalizeArray<T>(value: unknown, normalize: (item: unknown) => T | null): T[] {
+  return Array.isArray(value) ? value.map(normalize).filter((item): item is T => item !== null) : [];
+}
+
+export function migrateIfNeeded(): void {
+  const version = safeNonNegative(safeRead(KEYS.version));
+  if (version >= CURRENT_VERSION) return;
+  try {
+    for (const key of [KEYS.mealTemplates, KEYS.recipes, KEYS.shoppingList, KEYS.mealPlan]) {
+      if (localStorage.getItem(key) === null && !safeWrite(key, [])) return;
+    }
+    safeWrite(KEYS.version, CURRENT_VERSION);
+  } catch {
+    // Loading still falls back to normalised defaults when storage is unavailable.
+  }
+}
+
+export const loadProfile = () => normalizeProfile(safeRead(KEYS.profile));
+export const saveProfile = (value: UserProfile) => safeWrite(KEYS.profile, value);
+export const loadTargets = () => normalizeTargets(safeRead(KEYS.targets));
+export const saveTargets = (value: NutritionTargets) => safeWrite(KEYS.targets, value);
+export const loadFoodLog = () => normalizeArray(safeRead(KEYS.foodLog), normalizeLogEntry);
+export const saveFoodLog = (value: FoodLogEntry[]) => safeWrite(KEYS.foodLog, value);
+export const loadSavedFoods = () => normalizeArray(safeRead(KEYS.savedFoods), normalizeFood);
+export const saveSavedFoods = (value: FoodItem[]) => safeWrite(KEYS.savedFoods, value);
+export const loadWeightEntries = () => normalizeArray(safeRead(KEYS.weightEntries), normalizeWeight);
+export const saveWeightEntries = (value: WeightEntry[]) => safeWrite(KEYS.weightEntries, value);
+export const loadMealTemplates = () => normalizeArray(safeRead(KEYS.mealTemplates), normalizeTemplate);
+export const saveMealTemplates = (value: MealTemplate[]) => safeWrite(KEYS.mealTemplates, value);
+export const loadRecipes = () => normalizeArray(safeRead(KEYS.recipes), normalizeRecipe);
+export const saveRecipes = (value: Recipe[]) => safeWrite(KEYS.recipes, value);
+export const loadShoppingList = () => normalizeArray(safeRead(KEYS.shoppingList), normalizeShoppingItem);
+export const saveShoppingList = (value: ShoppingItem[]) => safeWrite(KEYS.shoppingList, value);
+export const loadMealPlan = () => normalizeArray(safeRead(KEYS.mealPlan), normalizePlanEntry);
+export const saveMealPlan = (value: MealPlanEntry[]) => safeWrite(KEYS.mealPlan, value);
+
+function writeAtomically(writes: [string, unknown][]): boolean {
+  const previous = new Map<string, string | null>();
+  try {
+    for (const [key] of writes) previous.set(key, localStorage.getItem(key));
+    for (const [key, item] of writes) localStorage.setItem(key, JSON.stringify(item));
+    return true;
+  } catch {
+    try {
+      for (const [key, oldValue] of previous) {
+        if (oldValue === null) localStorage.removeItem(key);
+        else localStorage.setItem(key, oldValue);
+      }
+    } catch {
+      // Best-effort rollback; callers are still told the operation failed.
+    }
+    return false;
+  }
+}
+
+export function saveFoodLogAndMealPlan(log: FoodLogEntry[], plan: MealPlanEntry[]): boolean {
+  return writeAtomically([[KEYS.foodLog, log], [KEYS.mealPlan, plan]]);
+}
+
+export function exportAppData(): AppStateBundle {
+  return {
+    version: CURRENT_VERSION, exportedAt: new Date().toISOString(), profile: loadProfile(), targets: loadTargets(),
+    foodLog: loadFoodLog(), savedFoods: loadSavedFoods(), weightEntries: loadWeightEntries(),
+    mealTemplates: loadMealTemplates(), recipes: loadRecipes(), shoppingList: loadShoppingList(), mealPlan: loadMealPlan(),
+  };
+}
+
+function hasInvalidNumber(value: unknown): boolean {
+  if (typeof value === 'number') return !Number.isFinite(value) || value < 0;
+  if (Array.isArray(value)) return value.some(hasInvalidNumber);
+  if (isRecord(value)) return Object.values(value).some(hasInvalidNumber);
+  return false;
+}
+
+export function normalizeAppBundle(value: unknown): AppStateBundle | null {
+  if (!isRecord(value) || typeof value.version !== 'number' || !Number.isInteger(value.version) || value.version < 0 || value.version > CURRENT_VERSION) return null;
+  if (typeof value.exportedAt !== 'string' || !isRecord(value.profile) || !isRecord(value.targets) || hasInvalidNumber(value)) return null;
+  for (const key of ['foodLog', 'savedFoods', 'weightEntries', 'mealTemplates', 'recipes', 'shoppingList', 'mealPlan']) {
+    if (!Array.isArray(value[key])) return null;
+    if (value[key].some((item: unknown) => !isRecord(item))) return null;
+  }
+  return {
+    version: CURRENT_VERSION, exportedAt: timestamp(value.exportedAt), profile: normalizeProfile(value.profile), targets: normalizeTargets(value.targets),
+    foodLog: normalizeArray(value.foodLog, normalizeLogEntry), savedFoods: normalizeArray(value.savedFoods, normalizeFood),
+    weightEntries: normalizeArray(value.weightEntries, normalizeWeight), mealTemplates: normalizeArray(value.mealTemplates, normalizeTemplate),
+    recipes: normalizeArray(value.recipes, normalizeRecipe), shoppingList: normalizeArray(value.shoppingList, normalizeShoppingItem),
+    mealPlan: normalizeArray(value.mealPlan, normalizePlanEntry),
+  };
+}
+
+export function validateAppBundle(value: unknown): value is AppStateBundle {
+  return normalizeAppBundle(value) !== null;
+}
+
+export function importAppData(value: unknown): boolean {
+  const bundle = normalizeAppBundle(value);
+  if (!bundle) return false;
+  const writes: [string, unknown][] = [
+    [KEYS.profile, bundle.profile], [KEYS.targets, bundle.targets], [KEYS.foodLog, bundle.foodLog],
+    [KEYS.savedFoods, bundle.savedFoods], [KEYS.weightEntries, bundle.weightEntries],
+    [KEYS.mealTemplates, bundle.mealTemplates], [KEYS.recipes, bundle.recipes],
+    [KEYS.shoppingList, bundle.shoppingList], [KEYS.mealPlan, bundle.mealPlan], [KEYS.version, CURRENT_VERSION],
+  ];
+  return writeAtomically(writes);
 }

@@ -11,14 +11,15 @@ interface SuggestionContext {
 }
 
 function ctx(summary: DailyNutritionSummary, targets: NutritionTargets): SuggestionContext {
+  const ratio = (value: number, target: number) => Number.isFinite(target) && target > 0 ? value / target : 0;
   return {
     remainingCal: targets.calories - summary.calories,
     proteinGap: targets.proteinG - summary.proteinG,
     netCarbsLeft: targets.netCarbsG - summary.netCarbsG,
-    carbRatio: summary.netCarbsG / targets.netCarbsG,
-    sodiumRatio: summary.sodiumMg / targets.sodiumMg,
-    potassiumRatio: summary.potassiumMg / targets.potassiumMg,
-    magnesiumRatio: summary.magnesiumMg / targets.magnesiumMg,
+    carbRatio: ratio(summary.netCarbsG, targets.netCarbsG),
+    sodiumRatio: ratio(summary.sodiumMg, targets.sodiumMg),
+    potassiumRatio: ratio(summary.potassiumMg, targets.potassiumMg),
+    magnesiumRatio: ratio(summary.magnesiumMg, targets.magnesiumMg),
   };
 }
 
@@ -35,7 +36,7 @@ export function buildRecommendations(
   if (summary.calories > targets.calories) {
     recs.push({ id: 'calories-exceeded', priority: 'warning',
       message: 'Return to target tomorrow and check your logging accuracy.' });
-  } else if (c.remainingCal > 200 && c.proteinGap / targets.proteinG > 0.3) {
+  } else if (c.remainingCal > 200 && targets.proteinG > 0 && c.proteinGap / targets.proteinG > 0.3) {
     recs.push({ id: 'protein-low', priority: 'info',
       message: 'Prioritise lean protein in your next meal.' });
   }
