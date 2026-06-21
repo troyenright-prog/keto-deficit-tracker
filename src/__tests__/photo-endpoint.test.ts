@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { handleAnalyzeFoodPhoto } from '../../functions/api/analyze-food-photo';
 
 function requestWith(file?: Blob, filename = 'food.png'): Request {
@@ -25,5 +25,16 @@ describe('photo analysis endpoint validation', () => {
     const response = await handleAnalyzeFoodPhoto(requestWith(new Blob(['image'], { type: 'image/png' })), {}, fetcher);
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toMatchObject({ error: expect.stringContaining('OPENAI_API_KEY') });
+  });
+
+  it('maps provider quota failures to a safe actionable error', async () => {
+    const fetcher = vi.fn(async () => new Response('{}', { status: 429 })) as unknown as typeof fetch;
+    const response = await handleAnalyzeFoodPhoto(
+      requestWith(new Blob(['image'], { type: 'image/png' })),
+      { OPENAI_API_KEY: 'server-only-test-key' },
+      fetcher,
+    );
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toMatchObject({ error: expect.stringContaining('quota') });
   });
 });

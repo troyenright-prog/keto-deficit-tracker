@@ -146,7 +146,18 @@ export async function handleAnalyzeFoodPhoto(
         },
       }),
     });
-    if (!aiResponse.ok) return json({ error: 'The AI provider could not analyse this photo. Try again later.' }, 502);
+    if (!aiResponse.ok) {
+      if (aiResponse.status === 401 || aiResponse.status === 403) {
+        return json({ error: 'The configured OpenAI API key was rejected or lacks model access.' }, 502);
+      }
+      if (aiResponse.status === 429) {
+        return json({ error: 'The OpenAI account is rate-limited or has no available quota. Check billing and usage limits.' }, 502);
+      }
+      if (aiResponse.status === 400 || aiResponse.status === 404) {
+        return json({ error: 'The configured vision model or structured request was rejected. Check OPENAI_FOOD_VISION_MODEL.' }, 502);
+      }
+      return json({ error: 'The AI provider could not analyse this photo. Try again later.' }, 502);
+    }
     const raw = await aiResponse.json() as Record<string, unknown>;
     const text = outputText(raw);
     if (!text) return json({ error: 'The AI provider returned no usable estimate.' }, 502);
