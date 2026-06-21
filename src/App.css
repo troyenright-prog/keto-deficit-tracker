@@ -1153,3 +1153,37 @@ input:disabled {
   .log-item-row { flex-direction: column; }
   .log-item-actions { width: 100%; flex-wrap: wrap; }
 }
+
+/* ── Photo food estimate ── */
+.estimate-warning {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 11px 12px;
+  border: 1px solid var(--amber);
+  border-radius: var(--radius);
+  background: var(--amber-bg);
+  color: var(--gray-700);
+  font-size: 12px;
+}
+
+.privacy-note { margin: 10px 0 14px; color: var(--gray-500); font-size: 11px; }
+.photo-upload-panel { display: flex; flex-direction: column; gap: 10px; }
+.photo-upload-button input { display: none; }
+.photo-preview { width: 100%; max-height: 280px; object-fit: contain; border-radius: var(--radius); background: var(--gray-100); }
+.photo-review { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
+.confidence-card { display: flex; align-items: center; gap: 6px; padding: 9px 10px; border-radius: var(--radius); background: var(--green-bg); color: var(--green); font-size: 12px; }
+.confidence-card--low { flex-direction: column; align-items: flex-start; background: var(--amber-bg); color: var(--amber); }
+.photo-nutrition-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 10px; }
+.identified-foods { display: flex; flex-direction: column; gap: 6px; }
+.identified-foods li { display: flex; justify-content: space-between; gap: 10px; padding: 8px 10px; border: 1px solid var(--gray-200); border-radius: var(--radius); background: var(--gray-50); font-size: 12px; }
+.identified-foods span { color: var(--gray-500); text-align: right; }
+.estimate-notes { padding: 10px 12px; border-radius: var(--radius); background: var(--blue-bg); color: var(--gray-700); font-size: 12px; }
+.estimate-notes ul { margin: 5px 0 0 18px; list-style: disc; }
+.estimate-notes--warning { background: var(--amber-bg); }
+
+@media (max-width: 600px) {
+  .photo-nutrition-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .identified-foods li { flex-direction: column; }
+  .identified-foods span { text-align: left; }
+}

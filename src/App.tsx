@@ -12,6 +12,7 @@ import { Planner } from './screens/Planner';
 import { Shopping } from './screens/Shopping';
 import { Weight } from './screens/Weight';
 import { Settings } from './screens/Settings';
+import { PhotoEstimate } from './screens/PhotoEstimate';
 import {
   loadProfile, saveProfile,
   loadTargets, saveTargets,
@@ -57,7 +58,8 @@ export type Screen =
   | 'planner'
   | 'shopping'
   | 'weight'
-  | 'settings';
+  | 'settings'
+  | 'photo-estimate';
 
 function reloadAll() {
   return {
@@ -283,6 +285,7 @@ function App() {
             onSaveFood={handleSaveFood}
           />
         )}
+        {screen === 'photo-estimate' && <PhotoEstimate onAdd={handleAddEntry} />}
         {screen === 'daily-log' && (
           <DailyLog
             log={foodLog}

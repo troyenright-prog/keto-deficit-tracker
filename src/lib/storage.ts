@@ -103,13 +103,16 @@ function normalizeFood(value: unknown): FoodItem | null {
 
 function normalizeLogEntry(value: unknown): FoodLogEntry | null {
   if (!isRecord(value)) return null;
-  const sources = ['manual', 'saved-food', 'template', 'recipe', 'plan'];
+  const sources = ['manual', 'saved-food', 'template', 'recipe', 'plan', 'photo-estimate'];
   return {
     id: text(value.id, crypto.randomUUID()), date: date(value.date),
     foodItemId: optionalText(value.foodItemId), templateId: optionalText(value.templateId), recipeId: optionalText(value.recipeId),
     source: typeof value.source === 'string' && sources.includes(value.source) ? value.source as FoodLogEntry['source'] : 'manual',
     name: text(value.name, 'Unnamed food'), servingSize: text(value.servingSize, '1 serving'),
     servingMultiplier: safePositive(value.servingMultiplier), ...nutrition(value), loggedAt: timestamp(value.loggedAt),
+    sourceType: value.sourceType === 'photo-estimate' ? 'photo-estimate' : undefined,
+    confidence: typeof value.confidence === 'number' && Number.isFinite(value.confidence) && value.confidence >= 0 && value.confidence <= 1 ? value.confidence : undefined,
+    assumptions: Array.isArray(value.assumptions) ? value.assumptions.filter((item): item is string => typeof item === 'string') : undefined,
   };
 }
 

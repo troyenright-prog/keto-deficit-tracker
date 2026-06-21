@@ -1,73 +1,75 @@
-# React + TypeScript + Vite
+# Keto Deficit Tracker
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A React, TypeScript, and Vite progressive web app for keto nutrition, meal planning, weight tracking, and local-first food logging.
 
-Currently, two official plugins are available:
+## Development
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```sh
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Release validation:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```sh
+npm run build
+npm run lint
+npm test
 ```
+
+## Photo Food Estimate
+
+The Photo Food Estimate screen accepts a camera photo or uploaded image, sends it to a server-side Cloudflare Pages Function, and returns an editable nutrition estimate. The user must review and explicitly confirm the estimate before it becomes a normal historical food-log snapshot.
+
+Important limitations:
+
+- Photo estimates are approximate. Hidden oils, sauces, ingredients, and portion sizes can materially change nutrition.
+- The original image is held only in temporary browser state for preview and upload; it is not stored in localStorage.
+- The image is sent to the configured OpenAI API account for analysis.
+- The API key is read only by the Pages Function and is never included in the Vite client bundle.
+
+### Environment variables
+
+Required server-side variable:
+
+```text
+OPENAI_API_KEY
+```
+
+Optional server-side model override:
+
+```text
+OPENAI_FOOD_VISION_MODEL
+```
+
+If no model override is supplied, the function uses `gpt-4.1-mini`. The configured model must support image input and structured JSON output.
+
+Do not place either variable in a `VITE_` variable or commit it to the repository. Vite-prefixed variables are exposed to browser code.
+
+### Local Pages Function development
+
+Create an uncommitted `.dev.vars` file:
+
+```text
+OPENAI_API_KEY=your_server_key
+OPENAI_FOOD_VISION_MODEL=gpt-4.1-mini
+```
+
+Then build and run the site through Wrangler so `/api/analyze-food-photo` is available:
+
+```sh
+npm run build
+npx wrangler pages dev dist
+```
+
+Running only `npm run dev` serves the React client but does not provide the Cloudflare Pages Function.
+
+### Cloudflare Pages deployment
+
+In the Cloudflare Pages project, add `OPENAI_API_KEY` as an encrypted secret under Settings → Variables and Secrets. Optionally add `OPENAI_FOOD_VISION_MODEL` as a server-side variable. Redeploy after changing either value.
+
+The endpoint rejects missing, unsupported, or oversized images; uses an analysis timeout; validates all returned fields; rejects negative/non-finite nutrition; and clamps net carbohydrates to zero.
+
+## Data
+
+User profile, targets, food logs, saved foods, recipes, plans, and other app state are stored locally in versioned browser storage. Backup import/export uses the same normalized app-state structure. Images are not part of backups.

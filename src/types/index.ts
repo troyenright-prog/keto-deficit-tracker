@@ -69,7 +69,7 @@ export interface FoodItem extends Micronutrients {
 
 // ── Food log entry ─────────────────────────────────────────────────────────────
 
-export type LogSource = 'manual' | 'saved-food' | 'template' | 'recipe' | 'plan';
+export type LogSource = 'manual' | 'saved-food' | 'template' | 'recipe' | 'plan' | 'photo-estimate';
 
 export interface FoodLogEntry extends Micronutrients {
   id: string;
@@ -91,6 +91,9 @@ export interface FoodLogEntry extends Micronutrients {
   potassiumMg: number;
   magnesiumMg: number;
   loggedAt: string;
+  sourceType?: 'photo-estimate';
+  confidence?: number;
+  assumptions?: string[];
 }
 
 // ── Daily summary ──────────────────────────────────────────────────────────────
