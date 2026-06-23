@@ -70,6 +70,8 @@ export interface FoodItem extends Micronutrients {
 
 // ── Food log entry ─────────────────────────────────────────────────────────────
 
+export type MealSlot = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+
 export type LogSource = 'manual' | 'saved-food' | 'template' | 'recipe' | 'plan' | 'barcode';
 
 export interface FoodLogEntry extends Micronutrients {
@@ -80,6 +82,7 @@ export interface FoodLogEntry extends Micronutrients {
   templateId?: string;
   recipeId?: string;
   source?: LogSource;
+  meal?: MealSlot;
   name: string;
   servingSize: string;
   servingMultiplier: number;

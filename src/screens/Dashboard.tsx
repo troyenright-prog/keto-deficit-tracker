@@ -1,18 +1,20 @@
 import { useState } from 'react';
 import { ProgressBar } from '../components/ProgressBar';
 import { StatCard } from '../components/StatCard';
-import type { DailyNutritionSummary, NutritionTargets, Recommendation } from '../types';
-import { carbStatus, carbStatusLabel, remainingCalories } from '../lib/nutrition';
+import type { DailyNutritionSummary, FoodLogEntry, NutritionTargets, Recommendation } from '../types';
+import { calcNetCarbs, carbStatus, carbStatusLabel, remainingCalories } from '../lib/nutrition';
+import { entryMeal, MEAL_SLOTS } from '../lib/meals';
 import { buildSmartSuggestions } from '../lib/suggestions';
 
 interface DashboardProps {
   summary: DailyNutritionSummary;
+  entries: FoodLogEntry[];
   targets: NutritionTargets;
   recommendations: Recommendation[];
   onAddFood: () => void;
 }
 
-export function Dashboard({ summary, targets, recommendations, onAddFood }: DashboardProps) {
+export function Dashboard({ summary, entries, targets, recommendations, onAddFood }: DashboardProps) {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const status = carbStatus(summary, targets);
   const remaining = remainingCalories(summary, targets);
@@ -20,6 +22,15 @@ export function Dashboard({ summary, targets, recommendations, onAddFood }: Dash
   const carbVariant = status === 'aligned' ? 'success' : status === 'approaching' ? 'warning' : 'danger';
 
   const suggestions = buildSmartSuggestions(summary, targets);
+  const mealSummaries = MEAL_SLOTS.map((slot) => {
+    const mealEntries = entries.filter((entry) => entryMeal(entry) === slot.id);
+    return {
+      ...slot,
+      count: mealEntries.length,
+      calories: mealEntries.reduce((sum, entry) => sum + entry.calories, 0),
+      netCarbsG: mealEntries.reduce((sum, entry) => sum + calcNetCarbs(entry.totalCarbsG, entry.fibreG, entry.sugarAlcoholsG), 0),
+    };
+  });
 
   return (
     <div className="screen">
@@ -84,6 +95,21 @@ export function Dashboard({ summary, targets, recommendations, onAddFood }: Dash
         decimals={1}
         variant={summary.fatG >= targets.fatG ? 'success' : 'default'}
       />
+
+      {summary.entryCount > 0 && (
+        <>
+          <div className="section-title">Meals today</div>
+          <div className="meal-summary-grid">
+            {mealSummaries.map((meal) => (
+              <div key={meal.id} className={`meal-summary-card${meal.count === 0 ? ' meal-summary-card--empty' : ''}`}>
+                <strong>{meal.label}</strong>
+                <span>{meal.count === 0 ? 'No entries' : `${Math.round(meal.calories)} kcal`}</span>
+                {meal.count > 0 && <small>{meal.netCarbsG.toFixed(1)}g net carbs</small>}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       <div className="section-title">Electrolytes</div>
 

@@ -1,4 +1,4 @@
-import type { MealTemplate, MealTemplateItem, FoodLogEntry, NutritionTotals } from '../types';
+import type { MealSlot, MealTemplate, MealTemplateItem, FoodLogEntry, NutritionTotals } from '../types';
 import { calcNetCarbs } from './nutrition';
 import { nanoid } from './nanoid';
 
@@ -46,6 +46,7 @@ export function templateToLogEntries(
   template: MealTemplate,
   date: string,
   multiplier = 1,
+  meal?: MealSlot,
 ): FoodLogEntry[] {
   const amount = Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 1;
   return template.items.map((item) => ({
@@ -53,6 +54,7 @@ export function templateToLogEntries(
     date,
     templateId: template.id,
     source: 'template' as const,
+    meal,
     name: `${template.name} — ${item.name}`,
     servingSize: item.servingSize,
     servingMultiplier: item.quantity * amount,

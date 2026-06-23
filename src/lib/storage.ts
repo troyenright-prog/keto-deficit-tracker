@@ -4,6 +4,7 @@ import type {
   MealPlanEntry, AppStateBundle, Micronutrients,
 } from '../types';
 import { isDateString, localDateString } from './date';
+import { isMealSlot } from './meals';
 import { safeNonNegative, safePositive } from './nutrition';
 
 export const CURRENT_VERSION = 3;
@@ -109,6 +110,7 @@ function normalizeLogEntry(value: unknown): FoodLogEntry | null {
     barcode: optionalText(value.barcode),
     foodItemId: optionalText(value.foodItemId), templateId: optionalText(value.templateId), recipeId: optionalText(value.recipeId),
     source: typeof value.source === 'string' && sources.includes(value.source) ? value.source as FoodLogEntry['source'] : 'manual',
+    meal: isMealSlot(value.meal) ? value.meal : undefined,
     name: text(value.name, 'Unnamed food'), servingSize: text(value.servingSize, '1 serving'),
     servingMultiplier: safePositive(value.servingMultiplier), ...nutrition(value), loggedAt: timestamp(value.loggedAt),
   };

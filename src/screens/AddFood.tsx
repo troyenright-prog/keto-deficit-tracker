@@ -7,6 +7,7 @@ import { nanoid } from '../lib/nanoid';
 import { recipeToLogEntry } from '../lib/recipes';
 import { templateToLogEntries } from '../lib/meal-templates';
 import { getStarterFoodOptions } from '../lib/australianFoods';
+import { inferMealSlot, MEAL_SLOTS } from '../lib/meals';
 import {
   buildQuickAddGroups, copyLogEntries, recentFoodsFromLog, type QuickAddItem,
 } from '../lib/quick-add';
@@ -25,6 +26,7 @@ const QUICK_AMOUNTS = [0.5, 1, 1.5, 2];
 
 export function AddFood({ savedFoods, log, recipes, templates, onAdd, onAddEntries, onSaveFood }: AddFoodProps) {
   const [date, setDate] = useState(todayDateString());
+  const [meal, setMeal] = useState(inferMealSlot());
   const [successMsg, setSuccessMsg] = useState('');
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<QuickAddItem | null>(null);
@@ -59,11 +61,11 @@ export function AddFood({ savedFoods, log, recipes, templates, onAdd, onAddEntri
     if (amount === null) return;
     let entries: FoodLogEntry[];
     if (selected.kind === 'recipe') {
-      entries = [recipeToLogEntry(selected.recipe, amount, date)];
+      entries = [recipeToLogEntry(selected.recipe, amount, date, meal)];
     } else if (selected.kind === 'template') {
-      entries = templateToLogEntries(selected.template, date, amount);
+      entries = templateToLogEntries(selected.template, date, amount, meal);
     } else {
-      const entry = savedFoodToLogEntry(selected.food, date, amount);
+      const entry = savedFoodToLogEntry(selected.food, date, amount, meal);
       if (selected.kind === 'recent' || selected.kind === 'starter') {
         delete entry.foodItemId;
         entry.source = 'manual';
@@ -86,6 +88,7 @@ export function AddFood({ savedFoods, log, recipes, templates, onAdd, onAddEntri
     const m = values.servingMultiplier;
     const entry: FoodLogEntry = {
       id: nanoid(), date, name: values.name, servingSize: values.servingSize, servingMultiplier: m,
+      meal,
       calories: values.calories * m, proteinG: values.proteinG * m, fatG: values.fatG * m,
       totalCarbsG: values.totalCarbsG * m, fibreG: values.fibreG * m,
       sugarAlcoholsG: values.sugarAlcoholsG * m, sodiumMg: values.sodiumMg * m,
@@ -124,6 +127,13 @@ export function AddFood({ savedFoods, log, recipes, templates, onAdd, onAddEntri
       <div className="form-group">
         <label htmlFor="quick-date">Add to date</label>
         <input id="quick-date" type="date" value={date} max={todayDateString()} onChange={(event) => { setDate(event.target.value); setSelected(null); }} />
+      </div>
+
+      <div className="form-group">
+        <label htmlFor="quick-meal">Meal</label>
+        <select id="quick-meal" value={meal} onChange={(event) => setMeal(event.target.value as typeof meal)}>
+          {MEAL_SLOTS.map((slot) => <option key={slot.id} value={slot.id}>{slot.label}</option>)}
+        </select>
       </div>
 
       <div className="section-title">Quick add</div>

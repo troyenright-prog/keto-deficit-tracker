@@ -1,4 +1,4 @@
-import type { FoodItem, FoodLogEntry, Micronutrients } from '../types';
+import type { FoodItem, FoodLogEntry, MealSlot, Micronutrients } from '../types';
 import { safeNonNegative, safePositive } from './nutrition';
 import { nanoid } from './nanoid';
 
@@ -136,12 +136,13 @@ export async function lookupBarcodeFood(barcode: string, fetcher: typeof fetch =
   return food;
 }
 
-export function barcodeFoodToLogEntry(food: BarcodeFood, date: string, multiplier = 1): FoodLogEntry {
+export function barcodeFoodToLogEntry(food: BarcodeFood, date: string, multiplier = 1, meal?: MealSlot): FoodLogEntry {
   const amount = safePositive(multiplier);
   return {
     id: nanoid(),
     date,
     source: 'barcode',
+    meal,
     barcode: food.barcode,
     name: food.brand ? `${food.name} (${food.brand})` : food.name,
     servingSize: food.servingSize,

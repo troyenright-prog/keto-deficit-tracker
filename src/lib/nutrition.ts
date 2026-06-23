@@ -4,6 +4,7 @@ import type {
   NutritionTargets,
   CarbStatus,
   FoodItem,
+  MealSlot,
 } from '../types';
 import { localDateString } from './date';
 import { nanoid } from './nanoid';
@@ -108,10 +109,10 @@ export function todayDateString(): string {
   return localDateString();
 }
 
-export function savedFoodToLogEntry(food: FoodItem, date: string, multiplier = 1): FoodLogEntry {
+export function savedFoodToLogEntry(food: FoodItem, date: string, multiplier = 1, meal?: MealSlot): FoodLogEntry {
   const amount = safePositive(multiplier);
   return {
-    id: nanoid(), date, foodItemId: food.id, source: 'saved-food', name: food.name,
+    id: nanoid(), date, foodItemId: food.id, source: 'saved-food', meal, name: food.name,
     servingSize: food.servingSize, servingMultiplier: amount, calories: food.calories * amount,
     proteinG: food.proteinG * amount, fatG: food.fatG * amount, totalCarbsG: food.totalCarbsG * amount,
     fibreG: food.fibreG * amount, sugarAlcoholsG: food.sugarAlcoholsG * amount, sodiumMg: food.sodiumMg * amount,

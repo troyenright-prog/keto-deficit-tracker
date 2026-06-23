@@ -31,6 +31,7 @@ import { buildRecommendations } from './lib/recommendations';
 import { templateToLogEntries } from './lib/meal-templates';
 import { recipeToLogEntry } from './lib/recipes';
 import { nanoid } from './lib/nanoid';
+import { inferMealSlot } from './lib/meals';
 import { duplicateLogEntry } from './lib/quick-add';
 import type {
   FoodLogEntry,
@@ -145,7 +146,7 @@ function App() {
   }, [persist]);
 
   const handleAddSavedFoodToLog = useCallback((food: FoodItem) => {
-    const entry = savedFoodToLogEntry(food, today);
+    const entry = savedFoodToLogEntry(food, today, 1, inferMealSlot());
     if (handleAddEntry(entry)) setScreen('dashboard');
   }, [today, handleAddEntry]);
 
@@ -174,7 +175,7 @@ function App() {
   }, [persist]);
 
   const handleAddTemplateToLog = useCallback((template: MealTemplate) => {
-    if (handleAddEntries(templateToLogEntries(template, today))) setScreen('dashboard');
+    if (handleAddEntries(templateToLogEntries(template, today, 1, template.mealType ?? inferMealSlot()))) setScreen('dashboard');
   }, [today, handleAddEntries]);
 
   // ── Recipes ────────────────────────────────────────────────────────────────
@@ -191,7 +192,7 @@ function App() {
   }, [persist]);
 
   const handleAddRecipeToLog = useCallback((recipe: Recipe, servings: number) => {
-    if (handleAddEntry(recipeToLogEntry(recipe, servings, today))) setScreen('dashboard');
+    if (handleAddEntry(recipeToLogEntry(recipe, servings, today, inferMealSlot()))) setScreen('dashboard');
   }, [today, handleAddEntry]);
 
   // ── Shopping list ──────────────────────────────────────────────────────────
@@ -269,6 +270,7 @@ function App() {
         {screen === 'dashboard' && (
           <Dashboard
             summary={todaySummary}
+            entries={foodLog.filter((entry) => entry.date === today)}
             targets={targets}
             recommendations={recommendations}
             onAddFood={() => setScreen('add-food')}

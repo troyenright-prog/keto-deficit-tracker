@@ -1,4 +1,4 @@
-import type { Recipe, RecipeIngredient, FoodLogEntry, NutritionTotals } from '../types';
+import type { MealSlot, Recipe, RecipeIngredient, FoodLogEntry, NutritionTotals } from '../types';
 import { calcNetCarbs } from './nutrition';
 import { nanoid } from './nanoid';
 
@@ -66,6 +66,7 @@ export function recipeToLogEntry(
   recipe: Recipe,
   servings: number,
   date: string,
+  meal?: MealSlot,
 ): FoodLogEntry {
   const perServing = calcRecipePerServing(recipe);
   const n = Math.max(0.1, servings);
@@ -74,6 +75,7 @@ export function recipeToLogEntry(
     date,
     recipeId: recipe.id,
     source: 'recipe' as const,
+    meal,
     name: servings === 1 ? recipe.name : `${recipe.name} (${servings} servings)`,
     servingSize: `1 of ${recipe.servings} servings`,
     servingMultiplier: n,

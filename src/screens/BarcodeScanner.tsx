@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FoodItem, FoodLogEntry } from '../types';
 import { barcodeFoodToLogEntry, barcodeFoodToSavedFood, lookupBarcodeFood, normalizeBarcode, type BarcodeFood } from '../lib/barcode';
+import { inferMealSlot, MEAL_SLOTS } from '../lib/meals';
 import { calcNetCarbs, todayDateString } from '../lib/nutrition';
 
 interface BarcodeScannerProps {
@@ -17,6 +18,7 @@ const canUseBarcodeDetector = (): boolean => typeof window !== 'undefined' && 'B
 export function BarcodeScanner({ onAdd, onSaveFood }: BarcodeScannerProps) {
   const [barcode, setBarcode] = useState('');
   const [date, setDate] = useState(todayDateString());
+  const [meal, setMeal] = useState(inferMealSlot());
   const [servings, setServings] = useState('1');
   const [food, setFood] = useState<BarcodeFood | null>(null);
   const [error, setError] = useState('');
@@ -111,7 +113,7 @@ export function BarcodeScanner({ onAdd, onSaveFood }: BarcodeScannerProps) {
     if (!food) return;
     const amount = validServings();
     if (amount === null) return;
-    const entry = barcodeFoodToLogEntry(food, date, amount);
+    const entry = barcodeFoodToLogEntry(food, date, amount, meal);
     if (!onAdd(entry)) return;
     setSuccess(`“${entry.name}” added to ${date === todayDateString() ? 'today' : date}.`);
     setError('');
@@ -173,6 +175,15 @@ export function BarcodeScanner({ onAdd, onSaveFood }: BarcodeScannerProps) {
               <label htmlFor="barcode-date">Log date</label>
               <input id="barcode-date" type="date" value={date} max={todayDateString()} onChange={(event) => setDate(event.target.value)} />
             </div>
+            <div className="form-group">
+              <label htmlFor="barcode-meal">Meal</label>
+              <select id="barcode-meal" value={meal} onChange={(event) => setMeal(event.target.value as typeof meal)}>
+                {MEAL_SLOTS.map((slot) => <option key={slot.id} value={slot.id}>{slot.label}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="form-row">
             <div className="form-group">
               <label htmlFor="barcode-servings">Servings</label>
               <input id="barcode-servings" type="number" min="0.1" step="0.1" value={servings} onChange={(event) => setServings(event.target.value)} />
