@@ -5,29 +5,36 @@
 }
 
 :root {
-  --green: #16a34a;
-  --green-light: #22c55e;
-  --green-bg: #dcfce7;
-  --amber: #d97706;
+  --green: #047857;
+  --green-light: #10b981;
+  --green-bg: #d1fae5;
+  --amber: #b45309;
   --amber-bg: #fef3c7;
   --red: #dc2626;
   --red-bg: #fee2e2;
   --blue: #2563eb;
+  --blue-dark: #1e3a8a;
   --blue-bg: #dbeafe;
-  --gray-50: #f9fafb;
-  --gray-100: #f3f4f6;
-  --gray-200: #e5e7eb;
-  --gray-300: #d1d5db;
-  --gray-400: #9ca3af;
-  --gray-500: #6b7280;
-  --gray-700: #374151;
-  --gray-900: #111827;
+  --teal: #0f766e;
+  --teal-bg: #ccfbf1;
+  --purple: #7c3aed;
+  --purple-bg: #ede9fe;
+  --gray-50: #f8fafc;
+  --gray-100: #f1f5f9;
+  --gray-200: #e2e8f0;
+  --gray-300: #cbd5e1;
+  --gray-400: #94a3b8;
+  --gray-500: #64748b;
+  --gray-700: #334155;
+  --gray-900: #0f172a;
   --white: #ffffff;
-  --radius: 8px;
-  --shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
+  --radius: 14px;
+  --radius-lg: 22px;
+  --shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+  --shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.06), 0 1px 8px rgba(15, 23, 42, 0.04);
   --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --nav-height: 88px;
-  --header-height: 48px;
+  --nav-height: 76px;
+  --header-height: 58px;
 }
 
 html, body, #root {
@@ -39,7 +46,9 @@ body {
   font-size: 14px;
   line-height: 1.5;
   color: var(--gray-900);
-  background: var(--gray-100);
+  background:
+    radial-gradient(circle at top left, rgba(20, 184, 166, 0.18), transparent 34%),
+    linear-gradient(135deg, #f8fafc 0%, #e0f2fe 48%, #f8fafc 100%);
   -webkit-font-smoothing: antialiased;
 }
 

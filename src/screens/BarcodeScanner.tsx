@@ -190,7 +190,7 @@ export function BarcodeScanner({ onAdd, onSaveFood }: BarcodeScannerProps) {
             </div>
           </div>
 
-          <div className="photo-nutrition-grid">
+          <div className="nutrition-grid">
             <div className="stat-card"><div className="stat-card-label">Calories</div><div className="stat-card-value">{Math.round(food.calories)}</div></div>
             <div className="stat-card"><div className="stat-card-label">Protein</div><div className="stat-card-value">{food.proteinG.toFixed(1)}g</div></div>
             <div className="stat-card"><div className="stat-card-label">Fat</div><div className="stat-card-value">{food.fatG.toFixed(1)}g</div></div>
