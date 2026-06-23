@@ -17,45 +17,32 @@ npm run lint
 npm test
 ```
 
-## Photo Food Estimate
+## Barcode scanning
 
-The Photo Food Estimate screen accepts a camera photo or uploaded image, sends it to a server-side Cloudflare Pages Function, and returns an editable nutrition estimate. The user must review and explicitly confirm the estimate before it becomes a normal historical food-log snapshot.
+The Scan screen supports packaged-food lookup by barcode. When the browser supports the native BarcodeDetector API, users can scan with the device camera. Every browser can still use manual barcode entry.
+
+Barcode lookup uses a Cloudflare Pages Function at `/api/lookup-barcode`, which queries Open Food Facts and returns normalized nutrition for review before logging. Logged entries and saved foods are copied as snapshots, so future changes in the external database do not alter historical logs.
 
 Important limitations:
 
-- Photo estimates are approximate. Hidden oils, sauces, ingredients, and portion sizes can materially change nutrition.
-- The original image is held only in temporary browser state for preview and upload; it is not stored in localStorage.
-- The image is sent to the configured OpenAI API account for analysis.
-- The API key is read only by the Pages Function and is never included in the Vite client bundle.
+- Open Food Facts data is crowd-sourced and can be incomplete or wrong.
+- Some browsers do not expose camera barcode scanning; manual barcode entry is the fallback.
+- Lookup requests are subject to Open Food Facts rate limits.
+- The app does not upload or store camera frames; the camera preview is only used locally to detect a barcode.
 
 ### Environment variables
 
-Required server-side variable:
+Optional server-side variable:
 
 ```text
-OPENAI_API_KEY
+OPEN_FOOD_FACTS_USER_AGENT
 ```
 
-Optional server-side model override:
-
-```text
-OPENAI_FOOD_VISION_MODEL
-```
-
-If no model override is supplied, the function uses `gpt-4.1-mini`. The configured model must support image input and structured JSON output.
-
-Do not place either variable in a `VITE_` variable or commit it to the repository. Vite-prefixed variables are exposed to browser code.
+If supplied, use a descriptive value in the form `AppName/Version (contact or URL)`. Do not put it in a `VITE_` variable.
 
 ### Local Pages Function development
 
-Create an uncommitted `.dev.vars` file:
-
-```text
-OPENAI_API_KEY=your_server_key
-OPENAI_FOOD_VISION_MODEL=gpt-4.1-mini
-```
-
-Then build and run the site through Wrangler so `/api/analyze-food-photo` is available:
+Build and run the site through Wrangler so `/api/lookup-barcode` is available:
 
 ```sh
 npm run build
@@ -66,10 +53,8 @@ Running only `npm run dev` serves the React client but does not provide the Clou
 
 ### Cloudflare Pages deployment
 
-In the Cloudflare Pages project, add `OPENAI_API_KEY` as an encrypted secret under Settings → Variables and Secrets. Optionally add `OPENAI_FOOD_VISION_MODEL` as a server-side variable. Redeploy after changing either value.
-
-The endpoint rejects missing, unsupported, or oversized images; uses an analysis timeout; validates all returned fields; rejects negative/non-finite nutrition; and clamps net carbohydrates to zero.
+No secret is required. Optionally add `OPEN_FOOD_FACTS_USER_AGENT` under Settings → Variables and Secrets if you want to override the default app identifier.
 
 ## Data
 
-User profile, targets, food logs, saved foods, recipes, plans, and other app state are stored locally in versioned browser storage. Backup import/export uses the same normalized app-state structure. Images are not part of backups.
+User profile, targets, food logs, saved foods, recipes, plans, and other app state are stored locally in versioned browser storage. Backup import/export uses the same normalized app-state structure. Barcode metadata is optional and included only with saved-food/log snapshots.

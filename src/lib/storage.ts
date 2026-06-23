@@ -95,7 +95,7 @@ function normalizeFood(value: unknown): FoodItem | null {
   if (!isRecord(value)) return null;
   return {
     id: text(value.id, crypto.randomUUID()), name: text(value.name, 'Unnamed food'),
-    servingSize: text(value.servingSize, '1 serving'), ...nutrition(value),
+    barcode: optionalText(value.barcode), servingSize: text(value.servingSize, '1 serving'), ...nutrition(value),
     createdAt: timestamp(value.createdAt), updatedAt: optionalText(value.updatedAt),
     isFavourite: value.isFavourite === true, isStarter: value.isStarter === true,
   };
@@ -103,16 +103,14 @@ function normalizeFood(value: unknown): FoodItem | null {
 
 function normalizeLogEntry(value: unknown): FoodLogEntry | null {
   if (!isRecord(value)) return null;
-  const sources = ['manual', 'saved-food', 'template', 'recipe', 'plan', 'photo-estimate'];
+  const sources = ['manual', 'saved-food', 'template', 'recipe', 'plan', 'barcode'];
   return {
     id: text(value.id, crypto.randomUUID()), date: date(value.date),
+    barcode: optionalText(value.barcode),
     foodItemId: optionalText(value.foodItemId), templateId: optionalText(value.templateId), recipeId: optionalText(value.recipeId),
     source: typeof value.source === 'string' && sources.includes(value.source) ? value.source as FoodLogEntry['source'] : 'manual',
     name: text(value.name, 'Unnamed food'), servingSize: text(value.servingSize, '1 serving'),
     servingMultiplier: safePositive(value.servingMultiplier), ...nutrition(value), loggedAt: timestamp(value.loggedAt),
-    sourceType: value.sourceType === 'photo-estimate' ? 'photo-estimate' : undefined,
-    confidence: typeof value.confidence === 'number' && Number.isFinite(value.confidence) && value.confidence >= 0 && value.confidence <= 1 ? value.confidence : undefined,
-    assumptions: Array.isArray(value.assumptions) ? value.assumptions.filter((item): item is string => typeof item === 'string') : undefined,
   };
 }
 

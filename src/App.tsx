@@ -12,7 +12,7 @@ import { Planner } from './screens/Planner';
 import { Shopping } from './screens/Shopping';
 import { Weight } from './screens/Weight';
 import { Settings } from './screens/Settings';
-import { PhotoEstimate } from './screens/PhotoEstimate';
+import { BarcodeScanner } from './screens/BarcodeScanner';
 import {
   loadProfile, saveProfile,
   loadTargets, saveTargets,
@@ -59,7 +59,7 @@ export type Screen =
   | 'shopping'
   | 'weight'
   | 'settings'
-  | 'photo-estimate';
+  | 'barcode';
 
 function reloadAll() {
   return {
@@ -285,7 +285,7 @@ function App() {
             onSaveFood={handleSaveFood}
           />
         )}
-        {screen === 'photo-estimate' && <PhotoEstimate onAdd={handleAddEntry} />}
+        {screen === 'barcode' && <BarcodeScanner onAdd={handleAddEntry} onSaveFood={handleSaveFood} />}
         {screen === 'daily-log' && (
           <DailyLog
             log={foodLog}
