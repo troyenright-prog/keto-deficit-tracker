@@ -68,6 +68,31 @@ export interface FoodItem extends Micronutrients {
   isStarter?: boolean;
 }
 
+export type FoodDatabaseSource = 'manual' | 'barcode' | 'openFoodFacts' | 'recipe' | 'template';
+
+export interface FoodDatabaseItem extends Micronutrients {
+  id: string;
+  barcode?: string;
+  name: string;
+  brand?: string;
+  source: FoodDatabaseSource;
+  servingSize: string;
+  calories: number;
+  proteinG: number;
+  fatG: number;
+  totalCarbsG: number;
+  fibreG: number;
+  sugarAlcoholsG: number;
+  netCarbsG: number;
+  sodiumMg: number;
+  potassiumMg: number;
+  magnesiumMg: number;
+  verified?: boolean;
+  userEdited?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ── Food log entry ─────────────────────────────────────────────────────────────
 
 export type MealSlot = 'breakfast' | 'lunch' | 'dinner' | 'snack';
@@ -239,6 +264,7 @@ export interface AppStateBundle {
   targets: NutritionTargets;
   foodLog: FoodLogEntry[];
   savedFoods: FoodItem[];
+  foodDatabase: FoodDatabaseItem[];
   weightEntries: WeightEntry[];
   mealTemplates: MealTemplate[];
   recipes: Recipe[];

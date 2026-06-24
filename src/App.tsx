@@ -18,6 +18,7 @@ import {
   loadTargets, saveTargets,
   loadFoodLog, saveFoodLog,
   loadSavedFoods, saveSavedFoods,
+  loadFoodDatabase, saveFoodDatabase,
   loadWeightEntries, saveWeightEntries,
   loadMealTemplates, saveMealTemplates,
   loadRecipes, saveRecipes,
@@ -33,9 +34,11 @@ import { recipeToLogEntry } from './lib/recipes';
 import { nanoid } from './lib/nanoid';
 import { inferMealSlot } from './lib/meals';
 import { duplicateLogEntry } from './lib/quick-add';
+import { savedFoodToFoodDatabaseItem, upsertFoodDatabaseItem } from './lib/food-database';
 import type {
   FoodLogEntry,
   FoodItem,
+  FoodDatabaseItem,
   UserProfile,
   NutritionTargets,
   WeightEntry,
@@ -68,6 +71,7 @@ function reloadAll() {
     targets: loadTargets(),
     foodLog: loadFoodLog(),
     savedFoods: loadSavedFoods(),
+    foodDatabase: loadFoodDatabase(),
     weightEntries: loadWeightEntries(),
     mealTemplates: loadMealTemplates(),
     recipes: loadRecipes(),
@@ -82,6 +86,7 @@ function App() {
   const [targets, setTargets] = useState<NutritionTargets>(loadTargets);
   const [foodLog, setFoodLog] = useState<FoodLogEntry[]>(loadFoodLog);
   const [savedFoods, setSavedFoods] = useState<FoodItem[]>(loadSavedFoods);
+  const [foodDatabase, setFoodDatabase] = useState<FoodDatabaseItem[]>(loadFoodDatabase);
   const [weightEntries, setWeightEntries] = useState<WeightEntry[]>(loadWeightEntries);
   const [mealTemplates, setMealTemplates] = useState<MealTemplate[]>(loadMealTemplates);
   const [recipes, setRecipes] = useState<Recipe[]>(loadRecipes);
@@ -92,6 +97,7 @@ function App() {
   const targetsRef = useRef(targets);
   const foodLogRef = useRef(foodLog);
   const savedFoodsRef = useRef(savedFoods);
+  const foodDatabaseRef = useRef(foodDatabase);
   const weightEntriesRef = useRef(weightEntries);
   const mealTemplatesRef = useRef(mealTemplates);
   const recipesRef = useRef(recipes);
@@ -138,7 +144,17 @@ function App() {
     const current = savedFoodsRef.current;
     const exists = current.findIndex((f) => f.id === food.id);
     const next = exists >= 0 ? current.map((f) => f.id === food.id ? food : f) : [...current, food];
-    return persist(next, savedFoodsRef, setSavedFoods, saveSavedFoods);
+    if (!persist(next, savedFoodsRef, setSavedFoods, saveSavedFoods)) return false;
+    const existingDbFood = food.barcode
+      ? foodDatabaseRef.current.find((item) => item.barcode === food.barcode)
+      : foodDatabaseRef.current.find((item) => item.name === food.name && item.servingSize === food.servingSize);
+    const nextDatabase = upsertFoodDatabaseItem(foodDatabaseRef.current, savedFoodToFoodDatabaseItem(food, existingDbFood));
+    return persist(nextDatabase, foodDatabaseRef, setFoodDatabase, saveFoodDatabase);
+  }, [persist]);
+
+  const handleSaveFoodDatabaseItem = useCallback((item: FoodDatabaseItem) => {
+    const nextDatabase = upsertFoodDatabaseItem(foodDatabaseRef.current, item);
+    return persist(nextDatabase, foodDatabaseRef, setFoodDatabase, saveFoodDatabase);
   }, [persist]);
 
   const handleDeleteSavedFood = useCallback((id: string) => {
@@ -247,13 +263,14 @@ function App() {
     setTargets(data.targets);
     setFoodLog(data.foodLog);
     setSavedFoods(data.savedFoods);
+    setFoodDatabase(data.foodDatabase);
     setWeightEntries(data.weightEntries);
     setMealTemplates(data.mealTemplates);
     setRecipes(data.recipes);
     setShoppingList(data.shoppingList);
     setMealPlan(data.mealPlan);
     profileRef.current = data.profile; targetsRef.current = data.targets; foodLogRef.current = data.foodLog;
-    savedFoodsRef.current = data.savedFoods; weightEntriesRef.current = data.weightEntries;
+    savedFoodsRef.current = data.savedFoods; foodDatabaseRef.current = data.foodDatabase; weightEntriesRef.current = data.weightEntries;
     mealTemplatesRef.current = data.mealTemplates; recipesRef.current = data.recipes;
     shoppingListRef.current = data.shoppingList; mealPlanRef.current = data.mealPlan;
   }, []);
@@ -279,6 +296,7 @@ function App() {
         {screen === 'add-food' && (
           <AddFood
             savedFoods={savedFoods}
+            foodDatabase={foodDatabase}
             log={foodLog}
             recipes={recipes}
             templates={mealTemplates}
@@ -287,7 +305,14 @@ function App() {
             onSaveFood={handleSaveFood}
           />
         )}
-        {screen === 'barcode' && <BarcodeScanner onAdd={handleAddEntry} onSaveFood={handleSaveFood} />}
+        {screen === 'barcode' && (
+          <BarcodeScanner
+            foodDatabase={foodDatabase}
+            onAdd={handleAddEntry}
+            onSaveFood={handleSaveFood}
+            onSaveFoodDatabaseItem={handleSaveFoodDatabaseItem}
+          />
+        )}
         {screen === 'daily-log' && (
           <DailyLog
             log={foodLog}

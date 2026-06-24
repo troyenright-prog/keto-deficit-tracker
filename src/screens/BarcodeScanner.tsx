@@ -1,26 +1,40 @@
 import { useEffect, useRef, useState } from 'react';
-import type { FoodItem, FoodLogEntry } from '../types';
+import type { FoodDatabaseItem, FoodItem, FoodLogEntry } from '../types';
 import { barcodeFoodToLogEntry, barcodeFoodToSavedFood, lookupBarcodeFood, normalizeBarcode, type BarcodeFood } from '../lib/barcode';
+import { barcodeFoodToFoodDatabaseItem, findFoodDatabaseByBarcode, foodDatabaseItemToBarcodeFood } from '../lib/food-database';
 import { inferMealSlot, MEAL_SLOTS } from '../lib/meals';
 import { calcNetCarbs, todayDateString } from '../lib/nutrition';
 
 interface BarcodeScannerProps {
+  foodDatabase: FoodDatabaseItem[];
   onAdd: (entry: FoodLogEntry) => boolean;
   onSaveFood: (food: FoodItem) => boolean;
+  onSaveFoodDatabaseItem: (food: FoodDatabaseItem) => boolean;
 }
 
 type BarcodeDetectorCtor = new (options?: { formats?: string[] }) => {
   detect: (source: CanvasImageSource) => Promise<Array<{ rawValue?: string }>>;
 };
 
+type FoodOrigin = 'local' | 'openFoodFacts' | 'manual' | 'corrected';
+
+const originLabels: Record<FoodOrigin, string> = {
+  local: 'Local database',
+  openFoodFacts: 'Open Food Facts',
+  manual: 'Manually created food',
+  corrected: 'User-corrected food',
+};
+
 const canUseBarcodeDetector = (): boolean => typeof window !== 'undefined' && 'BarcodeDetector' in window;
 
-export function BarcodeScanner({ onAdd, onSaveFood }: BarcodeScannerProps) {
+export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodDatabaseItem }: BarcodeScannerProps) {
   const [barcode, setBarcode] = useState('');
   const [date, setDate] = useState(todayDateString());
   const [meal, setMeal] = useState(inferMealSlot());
   const [servings, setServings] = useState('1');
   const [food, setFood] = useState<BarcodeFood | null>(null);
+  const [origin, setOrigin] = useState<FoodOrigin | null>(null);
+  const [editing, setEditing] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
@@ -43,11 +57,26 @@ export function BarcodeScanner({ onAdd, onSaveFood }: BarcodeScannerProps) {
     const normalized = normalizeBarcode(raw);
     setBarcode(normalized);
     setFood(null);
+    setOrigin(null);
+    setEditing(false);
     setSuccess('');
     if (!normalized) { setError('Enter or scan a valid barcode.'); return; }
-    setLoading(true); setError('');
+
+    const local = findFoodDatabaseByBarcode(foodDatabase, normalized);
+    if (local) {
+      setFood(foodDatabaseItemToBarcodeFood(local));
+      setOrigin(local.userEdited ? 'corrected' : 'local');
+      setError('');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
     try {
-      setFood(await lookupBarcodeFood(normalized));
+      const remoteFood = await lookupBarcodeFood(normalized);
+      setFood(remoteFood);
+      setOrigin('openFoodFacts');
+      onSaveFoodDatabaseItem(barcodeFoodToFoodDatabaseItem(remoteFood));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Barcode lookup failed.');
     } finally {
@@ -58,7 +87,11 @@ export function BarcodeScanner({ onAdd, onSaveFood }: BarcodeScannerProps) {
   async function startCamera() {
     if (!scannerSupported) { setError('Camera barcode scanning is not supported in this browser. Enter the barcode number instead.'); return; }
     if (!navigator.mediaDevices?.getUserMedia) { setError('Camera access is not available. Enter the barcode number instead.'); return; }
-    setError(''); setSuccess(''); setFood(null); setScanning(true); stopRef.current = false;
+    setError('');
+    setSuccess('');
+    setFood(null);
+    setScanning(true);
+    stopRef.current = false;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
       streamRef.current = stream;
@@ -109,20 +142,61 @@ export function BarcodeScanner({ onAdd, onSaveFood }: BarcodeScannerProps) {
     return value;
   }
 
+  function updateFood<K extends keyof BarcodeFood>(key: K, value: BarcodeFood[K]) {
+    setFood((current) => current ? { ...current, [key]: value } : current);
+    setOrigin('corrected');
+  }
+
+  function updateFoodNumber(key: keyof BarcodeFood, value: string) {
+    const next = Number(value);
+    updateFood(key, (Number.isFinite(next) && next >= 0 ? next : 0) as never);
+  }
+
+  function persistReviewedFood(userEdited = origin === 'corrected' || origin === 'manual') {
+    if (!food) return false;
+    const existing = findFoodDatabaseByBarcode(foodDatabase, food.barcode);
+    return onSaveFoodDatabaseItem(barcodeFoodToFoodDatabaseItem(food, existing, userEdited));
+  }
+
   function addToLog() {
     if (!food) return;
     const amount = validServings();
     if (amount === null) return;
+    if (!persistReviewedFood()) return;
     const entry = barcodeFoodToLogEntry(food, date, amount, meal);
     if (!onAdd(entry)) return;
-    setSuccess(`“${entry.name}” added to ${date === todayDateString() ? 'today' : date}.`);
+    setSuccess(`"${entry.name}" added to ${date === todayDateString() ? 'today' : date}.`);
     setError('');
   }
 
   function saveFood() {
     if (!food) return;
+    if (!persistReviewedFood()) return;
     if (!onSaveFood(barcodeFoodToSavedFood(food))) return;
-    setSuccess(`“${food.name}” saved to your food library.`);
+    setSuccess(`"${food.name}" saved to your food library.`);
+    setError('');
+  }
+
+  function startManualFood() {
+    const normalized = normalizeBarcode(barcode);
+    if (!normalized) { setError('Enter a barcode before creating a food.'); return; }
+    setFood({
+      barcode: normalized,
+      name: '',
+      servingSize: '1 serving',
+      dataBasis: 'serving',
+      calories: 0,
+      proteinG: 0,
+      fatG: 0,
+      totalCarbsG: 0,
+      fibreG: 0,
+      sugarAlcoholsG: 0,
+      sodiumMg: 0,
+      potassiumMg: 0,
+      magnesiumMg: 0,
+    });
+    setOrigin('manual');
+    setEditing(true);
     setError('');
   }
 
@@ -131,7 +205,7 @@ export function BarcodeScanner({ onAdd, onSaveFood }: BarcodeScannerProps) {
       <div className="screen-header"><h1>Barcode</h1></div>
       <div className="estimate-warning" role="note">
         <strong>Packaged-food lookup</strong>
-        <span>Scan a barcode or type the number. Review labels before logging — crowd-sourced nutrition can be incomplete.</span>
+        <span>Scan a barcode or type the number. Review labels before logging - crowd-sourced nutrition can be incomplete.</span>
       </div>
       {success && <div className="success-toast">{success}</div>}
       {error && <div className="import-msg import-msg--error" role="alert">{error}</div>}
@@ -157,18 +231,65 @@ export function BarcodeScanner({ onAdd, onSaveFood }: BarcodeScannerProps) {
           />
         </div>
         <button className="btn btn--primary" onClick={() => lookup()} disabled={loading || !barcode}>
-          {loading ? 'Looking up…' : 'Look up barcode'}
+          {loading ? 'Looking up...' : 'Look up barcode'}
         </button>
+        {error && barcode && (
+          <button className="btn btn--secondary" onClick={startManualFood}>
+            Create food for this barcode
+          </button>
+        )}
       </div>
 
       {food && (
         <div className="barcode-review">
           <div className="section-title">Review before logging</div>
+          {origin && <span className="source-pill">{originLabels[origin]}</span>}
           <div className="barcode-product-card">
-            <strong>{food.name}</strong>
+            <strong>{food.name || 'New barcode food'}</strong>
             {food.brand && <span>{food.brand}</span>}
-            <small>{food.servingSize} · {food.dataBasis === '100g' ? 'nutrition per 100g' : 'nutrition per serving'} · {food.barcode}</small>
+            <small>{food.servingSize} - {food.dataBasis === '100g' ? 'nutrition per 100g' : 'nutrition per serving'} - {food.barcode}</small>
           </div>
+
+          <button className="btn btn--ghost btn--sm" onClick={() => setEditing((value) => !value)}>
+            {editing ? 'Hide edits' : 'Edit nutrition'}
+          </button>
+
+          {editing && (
+            <div className="barcode-edit-grid">
+              <div className="form-group">
+                <label htmlFor="barcode-food-name">Food name</label>
+                <input id="barcode-food-name" value={food.name} onChange={(event) => updateFood('name', event.target.value)} />
+              </div>
+              <div className="form-group">
+                <label htmlFor="barcode-food-brand">Brand</label>
+                <input id="barcode-food-brand" value={food.brand ?? ''} onChange={(event) => updateFood('brand', event.target.value || undefined)} />
+              </div>
+              <div className="form-group">
+                <label htmlFor="barcode-serving-size">Serving size</label>
+                <input id="barcode-serving-size" value={food.servingSize} onChange={(event) => updateFood('servingSize', event.target.value)} />
+              </div>
+              <div className="form-group">
+                <label htmlFor="barcode-calories">Calories</label>
+                <input id="barcode-calories" type="number" min="0" value={food.calories} onChange={(event) => updateFoodNumber('calories', event.target.value)} />
+              </div>
+              <div className="form-group">
+                <label htmlFor="barcode-protein">Protein (g)</label>
+                <input id="barcode-protein" type="number" min="0" step="0.1" value={food.proteinG} onChange={(event) => updateFoodNumber('proteinG', event.target.value)} />
+              </div>
+              <div className="form-group">
+                <label htmlFor="barcode-fat">Fat (g)</label>
+                <input id="barcode-fat" type="number" min="0" step="0.1" value={food.fatG} onChange={(event) => updateFoodNumber('fatG', event.target.value)} />
+              </div>
+              <div className="form-group">
+                <label htmlFor="barcode-carbs">Total carbs (g)</label>
+                <input id="barcode-carbs" type="number" min="0" step="0.1" value={food.totalCarbsG} onChange={(event) => updateFoodNumber('totalCarbsG', event.target.value)} />
+              </div>
+              <div className="form-group">
+                <label htmlFor="barcode-fibre">Fibre (g)</label>
+                <input id="barcode-fibre" type="number" min="0" step="0.1" value={food.fibreG} onChange={(event) => updateFoodNumber('fibreG', event.target.value)} />
+              </div>
+            </div>
+          )}
 
           <div className="form-row">
             <div className="form-group">
@@ -200,10 +321,10 @@ export function BarcodeScanner({ onAdd, onSaveFood }: BarcodeScannerProps) {
           </div>
 
           <div className="form-actions">
-            <button className="btn btn--primary" onClick={addToLog}>Add to log</button>
-            <button className="btn btn--secondary" onClick={saveFood}>Save food</button>
+            <button className="btn btn--primary" onClick={addToLog} disabled={!food.name.trim()}>Add to log</button>
+            <button className="btn btn--secondary" onClick={saveFood} disabled={!food.name.trim()}>Save food</button>
           </div>
-          <p className="privacy-note">Data from Open Food Facts. Values are copied into your log so future database edits will not change history.</p>
+          <p className="privacy-note">Values are copied into your log so future database edits will not change history.</p>
         </div>
       )}
     </div>

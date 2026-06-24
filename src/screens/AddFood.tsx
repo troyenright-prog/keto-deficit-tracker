@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { FoodForm, type FoodFormValues } from '../components/FoodForm';
-import type { FoodItem, FoodLogEntry, MealTemplate, Recipe } from '../types';
+import type { FoodDatabaseItem, FoodItem, FoodLogEntry, MealTemplate, Recipe } from '../types';
 import { savedFoodToLogEntry, todayDateString } from '../lib/nutrition';
 import { addLocalDays } from '../lib/date';
 import { nanoid } from '../lib/nanoid';
@@ -14,6 +14,7 @@ import {
 
 interface AddFoodProps {
   savedFoods: FoodItem[];
+  foodDatabase: FoodDatabaseItem[];
   log: FoodLogEntry[];
   recipes: Recipe[];
   templates: MealTemplate[];
@@ -24,7 +25,7 @@ interface AddFoodProps {
 
 const QUICK_AMOUNTS = [0.5, 1, 1.5, 2];
 
-export function AddFood({ savedFoods, log, recipes, templates, onAdd, onAddEntries, onSaveFood }: AddFoodProps) {
+export function AddFood({ savedFoods, foodDatabase, log, recipes, templates, onAdd, onAddEntries, onSaveFood }: AddFoodProps) {
   const [date, setDate] = useState(todayDateString());
   const [meal, setMeal] = useState(inferMealSlot());
   const [successMsg, setSuccessMsg] = useState('');
@@ -35,8 +36,8 @@ export function AddFood({ savedFoods, log, recipes, templates, onAdd, onAddEntri
 
   const recentFoods = useMemo(() => recentFoodsFromLog(log), [log]);
   const groups = useMemo(() => buildQuickAddGroups({
-    query, savedFoods, recentFoods, recipes, templates, starterFoods: getStarterFoodOptions(),
-  }), [query, savedFoods, recentFoods, recipes, templates]);
+    query, savedFoods, foodDatabase, recentFoods, recipes, templates, starterFoods: getStarterFoodOptions(),
+  }), [query, savedFoods, foodDatabase, recentFoods, recipes, templates]);
   const previousDate = addLocalDays(date, -1);
   const previousEntries = log.filter((entry) => entry.date === previousDate);
 
@@ -69,11 +70,13 @@ export function AddFood({ savedFoods, log, recipes, templates, onAdd, onAddEntri
       if (selected.kind === 'recent' || selected.kind === 'starter') {
         delete entry.foodItemId;
         entry.source = 'manual';
+      } else if (selected.kind === 'database' && selected.food.barcode) {
+        entry.source = 'barcode';
       }
       entries = [entry];
     }
     if (!onAddEntries(entries)) return;
-    showSuccess(`“${selected.name}” added to ${date === todayDateString() ? 'today' : date}.`);
+    showSuccess(`"${selected.name}" added to ${date === todayDateString() ? 'today' : date}.`);
     setSelected(null);
     setMultiplier('1');
     setQuery('');
@@ -102,7 +105,7 @@ export function AddFood({ savedFoods, log, recipes, templates, onAdd, onAddEntri
       omega6G: values.omega6G === undefined ? undefined : values.omega6G * m,
       loggedAt: new Date().toISOString(),
     };
-    if (onAdd(entry)) showSuccess(`“${values.name}” added to ${date === todayDateString() ? 'today' : date}.`);
+    if (onAdd(entry)) showSuccess(`"${values.name}" added to ${date === todayDateString() ? 'today' : date}.`);
   }
 
   function handleSaveFood(values: FoodFormValues) {
@@ -116,7 +119,7 @@ export function AddFood({ savedFoods, log, recipes, templates, onAdd, onAddEntri
       omega3G: values.omega3G, omega6G: values.omega6G,
       createdAt: new Date().toISOString(), isFavourite: false,
     };
-    if (onSaveFood(food)) showSuccess(`“${values.name}” saved to your food library.`);
+    if (onSaveFood(food)) showSuccess(`"${values.name}" saved to your food library.`);
   }
 
   return (
@@ -138,7 +141,7 @@ export function AddFood({ savedFoods, log, recipes, templates, onAdd, onAddEntri
 
       <div className="section-title">Quick add</div>
       <input
-        type="search" className="search-input" placeholder="Search foods, recipes and meals…"
+        type="search" className="search-input" placeholder="Search foods, recipes and meals..."
         value={query} onChange={(event) => { setQuery(event.target.value); setSelected(null); }}
       />
 
@@ -170,7 +173,7 @@ export function AddFood({ savedFoods, log, recipes, templates, onAdd, onAddEntri
           <div className="serving-options">
             {QUICK_AMOUNTS.map((amount) => (
               <button key={amount} className={`serving-chip${multiplier === String(amount) ? ' serving-chip--active' : ''}`} onClick={() => { setMultiplier(String(amount)); setQuickError(''); }}>
-                {amount}×
+                {amount}x
               </button>
             ))}
             <input aria-label="Custom serving multiplier" type="number" min="0.1" step="0.1" value={multiplier} onChange={(event) => setMultiplier(event.target.value)} />
@@ -183,7 +186,7 @@ export function AddFood({ savedFoods, log, recipes, templates, onAdd, onAddEntri
       {previousEntries.length > 0 && (
         <div className="copy-panel">
           <div className="copy-panel-header">
-            <div><strong>Copy from {previousDate}</strong><div className="dim">Reuse yesterday’s nutrition snapshots</div></div>
+            <div><strong>Copy from {previousDate}</strong><div className="dim">Reuse yesterday's nutrition snapshots</div></div>
             <button className="btn btn--secondary btn--sm" onClick={() => copyEntries(previousEntries)}>Copy all</button>
           </div>
           <ul>

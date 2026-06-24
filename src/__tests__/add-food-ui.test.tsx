@@ -19,9 +19,9 @@ const recent: FoodLogEntry = {
 describe('Add Food quick logging', () => {
   it('quick-adds a favourite with the selected serving quantity', () => {
     const onAddEntries = vi.fn(() => true);
-    render(<AddFood savedFoods={[favourite]} log={[recent]} recipes={[]} templates={[]} onAdd={vi.fn(() => true)} onAddEntries={onAddEntries} onSaveFood={vi.fn(() => true)} />);
+    render(<AddFood savedFoods={[favourite]} foodDatabase={[]} log={[recent]} recipes={[]} templates={[]} onAdd={vi.fn(() => true)} onAddEntries={onAddEntries} onSaveFood={vi.fn(() => true)} />);
     fireEvent.click(screen.getByRole('button', { name: /Favourite Eggs/ }));
-    fireEvent.click(screen.getByRole('button', { name: '1.5×' }));
+    fireEvent.click(screen.getByRole('button', { name: '1.5x' }));
     fireEvent.click(screen.getByRole('button', { name: /Add to today/ }));
     expect(onAddEntries).toHaveBeenCalledWith([
       expect.objectContaining({ name: 'Favourite Eggs', servingMultiplier: 1.5, calories: 210 }),
@@ -30,7 +30,7 @@ describe('Add Food quick logging', () => {
 
   it('quick-adds a recent historical snapshot independently of saved foods', () => {
     const onAddEntries = vi.fn(() => true);
-    render(<AddFood savedFoods={[]} log={[recent]} recipes={[]} templates={[]} onAdd={vi.fn(() => true)} onAddEntries={onAddEntries} onSaveFood={vi.fn(() => true)} />);
+    render(<AddFood savedFoods={[]} foodDatabase={[]} log={[recent]} recipes={[]} templates={[]} onAdd={vi.fn(() => true)} onAddEntries={onAddEntries} onSaveFood={vi.fn(() => true)} />);
     fireEvent.click(screen.getByRole('button', { name: /Recent Salmon/ }));
     fireEvent.click(screen.getByRole('button', { name: /Add to today/ }));
     expect(onAddEntries).toHaveBeenCalledWith([

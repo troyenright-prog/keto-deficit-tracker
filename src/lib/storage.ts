@@ -1,19 +1,20 @@
 import type {
   UserProfile, NutritionTargets, FoodLogEntry, FoodItem, WeightEntry,
   MealTemplate, MealTemplateItem, Recipe, RecipeIngredient, ShoppingItem,
-  MealPlanEntry, AppStateBundle, Micronutrients,
+  MealPlanEntry, AppStateBundle, Micronutrients, FoodDatabaseItem, FoodDatabaseSource,
 } from '../types';
 import { isDateString, localDateString } from './date';
+import { dedupeFoodDatabase } from './food-database';
 import { isMealSlot } from './meals';
-import { safeNonNegative, safePositive } from './nutrition';
+import { calcNetCarbs, safeNonNegative, safePositive } from './nutrition';
 
-export const CURRENT_VERSION = 3;
+export const CURRENT_VERSION = 4;
 
 const KEYS = {
   version: 'keto_version', profile: 'keto_profile', targets: 'keto_targets',
   foodLog: 'keto_food_log', savedFoods: 'keto_saved_foods', weightEntries: 'keto_weight_entries',
   mealTemplates: 'keto_meal_templates', recipes: 'keto_recipes', shoppingList: 'keto_shopping_list',
-  mealPlan: 'keto_meal_plan',
+  mealPlan: 'keto_meal_plan', foodDatabase: 'keto_food_database',
 } as const;
 
 type UnknownRecord = Record<string, unknown>;
@@ -99,6 +100,39 @@ function normalizeFood(value: unknown): FoodItem | null {
     barcode: optionalText(value.barcode), servingSize: text(value.servingSize, '1 serving'), ...nutrition(value),
     createdAt: timestamp(value.createdAt), updatedAt: optionalText(value.updatedAt),
     isFavourite: value.isFavourite === true, isStarter: value.isStarter === true,
+  };
+}
+
+function normalizeFoodDatabaseItem(value: unknown): FoodDatabaseItem | null {
+  if (!isRecord(value)) return null;
+  const source: FoodDatabaseSource = value.source === 'openFoodFacts' || value.source === 'recipe' || value.source === 'template' || value.source === 'barcode'
+    ? value.source : 'manual';
+  const totalCarbsG = safeNonNegative(value.totalCarbsG);
+  const fibreG = safeNonNegative(value.fibreG);
+  const sugarAlcoholsG = safeNonNegative(value.sugarAlcoholsG);
+  const createdAt = timestamp(value.createdAt);
+  return {
+    id: text(value.id, crypto.randomUUID()),
+    barcode: optionalText(value.barcode),
+    name: text(value.name, 'Unnamed food'),
+    brand: optionalText(value.brand),
+    source,
+    servingSize: text(value.servingSize, '1 serving'),
+    calories: safeNonNegative(value.calories),
+    proteinG: safeNonNegative(value.proteinG),
+    fatG: safeNonNegative(value.fatG),
+    totalCarbsG,
+    fibreG,
+    sugarAlcoholsG,
+    netCarbsG: safeNonNegative(value.netCarbsG) || calcNetCarbs(totalCarbsG, fibreG, sugarAlcoholsG),
+    sodiumMg: safeNonNegative(value.sodiumMg),
+    potassiumMg: safeNonNegative(value.potassiumMg),
+    magnesiumMg: safeNonNegative(value.magnesiumMg),
+    ...micros(value),
+    verified: value.verified === true,
+    userEdited: value.userEdited === true,
+    createdAt,
+    updatedAt: timestamp(value.updatedAt ?? createdAt),
   };
 }
 
@@ -190,7 +224,7 @@ export function migrateIfNeeded(): void {
   const version = safeNonNegative(safeRead(KEYS.version));
   if (version >= CURRENT_VERSION) return;
   try {
-    for (const key of [KEYS.mealTemplates, KEYS.recipes, KEYS.shoppingList, KEYS.mealPlan]) {
+    for (const key of [KEYS.mealTemplates, KEYS.recipes, KEYS.shoppingList, KEYS.mealPlan, KEYS.foodDatabase]) {
       if (localStorage.getItem(key) === null && !safeWrite(key, [])) return;
     }
     safeWrite(KEYS.version, CURRENT_VERSION);
@@ -207,6 +241,8 @@ export const loadFoodLog = () => normalizeArray(safeRead(KEYS.foodLog), normaliz
 export const saveFoodLog = (value: FoodLogEntry[]) => safeWrite(KEYS.foodLog, value);
 export const loadSavedFoods = () => normalizeArray(safeRead(KEYS.savedFoods), normalizeFood);
 export const saveSavedFoods = (value: FoodItem[]) => safeWrite(KEYS.savedFoods, value);
+export const loadFoodDatabase = () => dedupeFoodDatabase(normalizeArray(safeRead(KEYS.foodDatabase), normalizeFoodDatabaseItem));
+export const saveFoodDatabase = (value: FoodDatabaseItem[]) => safeWrite(KEYS.foodDatabase, dedupeFoodDatabase(value));
 export const loadWeightEntries = () => normalizeArray(safeRead(KEYS.weightEntries), normalizeWeight);
 export const saveWeightEntries = (value: WeightEntry[]) => safeWrite(KEYS.weightEntries, value);
 export const loadMealTemplates = () => normalizeArray(safeRead(KEYS.mealTemplates), normalizeTemplate);
@@ -245,6 +281,7 @@ export function exportAppData(): AppStateBundle {
   return {
     version: CURRENT_VERSION, exportedAt: new Date().toISOString(), profile: loadProfile(), targets: loadTargets(),
     foodLog: loadFoodLog(), savedFoods: loadSavedFoods(), weightEntries: loadWeightEntries(),
+    foodDatabase: loadFoodDatabase(),
     mealTemplates: loadMealTemplates(), recipes: loadRecipes(), shoppingList: loadShoppingList(), mealPlan: loadMealPlan(),
   };
 }
@@ -263,9 +300,12 @@ export function normalizeAppBundle(value: unknown): AppStateBundle | null {
     if (!Array.isArray(value[key])) return null;
     if (value[key].some((item: unknown) => !isRecord(item))) return null;
   }
+  const foodDatabaseValue = value.foodDatabase === undefined ? [] : value.foodDatabase;
+  if (!Array.isArray(foodDatabaseValue) || foodDatabaseValue.some((item: unknown) => !isRecord(item))) return null;
   return {
     version: CURRENT_VERSION, exportedAt: timestamp(value.exportedAt), profile: normalizeProfile(value.profile), targets: normalizeTargets(value.targets),
     foodLog: normalizeArray(value.foodLog, normalizeLogEntry), savedFoods: normalizeArray(value.savedFoods, normalizeFood),
+    foodDatabase: dedupeFoodDatabase(normalizeArray(foodDatabaseValue, normalizeFoodDatabaseItem)),
     weightEntries: normalizeArray(value.weightEntries, normalizeWeight), mealTemplates: normalizeArray(value.mealTemplates, normalizeTemplate),
     recipes: normalizeArray(value.recipes, normalizeRecipe), shoppingList: normalizeArray(value.shoppingList, normalizeShoppingItem),
     mealPlan: normalizeArray(value.mealPlan, normalizePlanEntry),
@@ -281,7 +321,7 @@ export function importAppData(value: unknown): boolean {
   if (!bundle) return false;
   const writes: [string, unknown][] = [
     [KEYS.profile, bundle.profile], [KEYS.targets, bundle.targets], [KEYS.foodLog, bundle.foodLog],
-    [KEYS.savedFoods, bundle.savedFoods], [KEYS.weightEntries, bundle.weightEntries],
+    [KEYS.savedFoods, bundle.savedFoods], [KEYS.foodDatabase, bundle.foodDatabase], [KEYS.weightEntries, bundle.weightEntries],
     [KEYS.mealTemplates, bundle.mealTemplates], [KEYS.recipes, bundle.recipes],
     [KEYS.shoppingList, bundle.shoppingList], [KEYS.mealPlan, bundle.mealPlan], [KEYS.version, CURRENT_VERSION],
   ];
