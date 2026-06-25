@@ -1450,6 +1450,286 @@ input:disabled {
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
 }
 
+/* Visual refresh */
+.app {
+  max-width: 980px;
+  background: rgba(251, 253, 249, 0.92);
+  border-inline: 1px solid rgba(223, 232, 223, 0.9);
+}
+
+.app-header {
+  height: 64px;
+  padding: 0 20px;
+  background: rgba(251, 253, 249, 0.9);
+  color: var(--gray-900);
+  border-bottom: 1px solid rgba(223, 232, 223, 0.85);
+  backdrop-filter: blur(18px);
+}
+
+.app-title {
+  color: var(--gray-900);
+  font-size: 18px;
+}
+
+.app-title::before {
+  content: "";
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  margin-right: 9px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--green-light), var(--teal));
+  box-shadow: 0 0 0 5px rgba(34, 197, 94, 0.13);
+  vertical-align: 1px;
+}
+
+.app-user {
+  color: var(--gray-500);
+  font-weight: 700;
+}
+
+.screen {
+  padding: 20px;
+}
+
+.screen-header h1 {
+  font-size: 28px;
+  letter-spacing: 0;
+}
+
+.section-title {
+  color: var(--green);
+  font-weight: 850;
+  letter-spacing: 0.11em;
+}
+
+.dashboard-hero {
+  position: relative;
+  overflow: hidden;
+  gap: 16px;
+  padding: 24px;
+  border: 1px solid rgba(167, 243, 208, 0.3);
+  background:
+    radial-gradient(circle at 86% 12%, rgba(187, 247, 208, 0.5), transparent 30%),
+    linear-gradient(145deg, #113d2d 0%, #12805c 54%, #0ea89b 100%);
+  box-shadow: 0 22px 52px rgba(18, 128, 92, 0.24);
+}
+
+.dashboard-hero::after {
+  content: "";
+  position: absolute;
+  right: -46px;
+  bottom: -54px;
+  width: 160px;
+  height: 160px;
+  border-radius: 999px;
+  border: 28px solid rgba(255, 255, 255, 0.12);
+}
+
+.dashboard-hero__top,
+.dashboard-hero__meta,
+.hero-meter {
+  position: relative;
+  z-index: 1;
+}
+
+.dashboard-hero h1 {
+  font-size: clamp(54px, 12vw, 82px);
+  letter-spacing: 0;
+}
+
+.dashboard-hero .btn {
+  background: #ffffff;
+  color: var(--green);
+  min-height: 46px;
+  padding-inline: 20px;
+}
+
+.hero-meter {
+  height: 14px;
+  background: rgba(255, 255, 255, 0.26);
+}
+
+.hero-meter span {
+  background: linear-gradient(90deg, #d9f99d, #86efac, #5eead4);
+}
+
+.keto-status {
+  border: 1px solid rgba(34, 197, 94, 0.22);
+}
+
+.cards-grid {
+  gap: 14px;
+}
+
+.stat-card,
+.meal-summary-card,
+.log-item,
+.saved-food-item,
+.inline-form-panel,
+.meal-log-section,
+.progress-panel,
+.barcode-product-card,
+.barcode-panel,
+.barcode-review,
+.app-version-panel {
+  border-color: rgba(223, 232, 223, 0.95);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: var(--shadow-soft);
+}
+
+.stat-card {
+  min-height: 112px;
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.stat-card-label {
+  color: var(--gray-500);
+  font-weight: 800;
+}
+
+.stat-card-value {
+  color: #173522;
+  font-size: 28px;
+  letter-spacing: 0;
+}
+
+.stat-card--success {
+  border-color: rgba(34, 197, 94, 0.24);
+  background: linear-gradient(180deg, #f3fff7, #ffffff);
+}
+
+.stat-card--warning {
+  border-color: rgba(196, 122, 24, 0.26);
+  background: linear-gradient(180deg, #fff9e8, #ffffff);
+}
+
+.stat-card--danger {
+  border-color: rgba(223, 63, 70, 0.22);
+  background: linear-gradient(180deg, #fff0f0, #ffffff);
+}
+
+.progress-panel {
+  padding: 18px;
+  border-radius: 16px;
+}
+
+.progress-bar-header {
+  margin-bottom: 7px;
+}
+
+.progress-bar-label,
+label {
+  font-weight: 750;
+}
+
+.progress-bar-track {
+  height: 13px;
+  background: #e6eee6;
+}
+
+.progress-bar-fill--default {
+  background: linear-gradient(90deg, var(--teal), var(--green-light));
+}
+
+.progress-bar-fill--success {
+  background: linear-gradient(90deg, #16a34a, #86efac);
+}
+
+.progress-bar-fill--warning {
+  background: linear-gradient(90deg, #f59e0b, #facc15);
+}
+
+.progress-bar-fill--danger {
+  background: linear-gradient(90deg, #ef4444, #fb7185);
+}
+
+.btn {
+  min-height: 42px;
+  letter-spacing: 0;
+}
+
+.btn--primary {
+  background: linear-gradient(135deg, var(--green), var(--teal));
+  box-shadow: 0 14px 26px rgba(18, 128, 92, 0.24);
+}
+
+.btn--secondary {
+  color: var(--green);
+  border-color: rgba(18, 128, 92, 0.2);
+}
+
+.btn--ghost {
+  color: var(--green);
+  border-color: rgba(18, 128, 92, 0.35);
+}
+
+input[type="text"],
+input[type="number"],
+input[type="date"],
+input[type="search"],
+select {
+  min-height: 46px;
+  border-color: rgba(203, 216, 204, 0.95);
+  border-radius: 16px;
+  background: #fcfefb;
+}
+
+input:focus,
+select:focus {
+  border-color: var(--green-light);
+  box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.14);
+}
+
+.nav {
+  min-height: 82px;
+  border-top: 1px solid rgba(223, 232, 223, 0.9);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 -16px 34px rgba(28, 53, 35, 0.09);
+}
+
+.nav-btn {
+  border-radius: 12px;
+  color: var(--gray-500);
+}
+
+.nav-btn--active {
+  color: var(--white);
+  background: linear-gradient(135deg, var(--green), var(--teal));
+  box-shadow: 0 10px 20px rgba(18, 128, 92, 0.25);
+}
+
+.meal-summary-card,
+.meal-log-section,
+.log-item,
+.saved-food-item {
+  border-radius: 14px;
+}
+
+.quick-result,
+.copy-panel,
+.quick-add-panel {
+  border-color: rgba(223, 232, 223, 0.95);
+  border-radius: 14px;
+}
+
+.serving-chip--active {
+  border-color: var(--green);
+  background: var(--green);
+}
+
+.estimate-warning {
+  border-color: rgba(196, 122, 24, 0.22);
+  background: #fff9e8;
+  border-radius: 14px;
+}
+
+.source-pill {
+  background: var(--green-bg);
+  color: var(--green);
+}
+
 @media (max-width: 760px) {
   .app {
     max-width: none;
