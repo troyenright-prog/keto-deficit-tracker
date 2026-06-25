@@ -1,7 +1,7 @@
 {
   "name": "keto-deficit-tracker",
   "private": true,
-  "version": "0.0.11",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,7 +10,10 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "deploy": "npm run build && wrangler pages deploy dist --project-name keto-deficit-tracker"
+    "deploy": "npm run build && wrangler pages deploy dist --project-name keto-deficit-tracker",
+    "version:feature": "npm version minor -m \"feat: release v%s\"",
+    "version:improvement": "npm version patch -m \"chore: release v%s\"",
+    "version:bug": "npm version patch -m \"fix: release v%s\""
   },
   "dependencies": {
     "react": "^19.2.6",

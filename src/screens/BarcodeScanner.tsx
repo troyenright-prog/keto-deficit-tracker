@@ -10,6 +10,7 @@ interface BarcodeScannerProps {
   onAdd: (entry: FoodLogEntry) => boolean;
   onSaveFood: (food: FoodItem) => boolean;
   onSaveFoodDatabaseItem: (food: FoodDatabaseItem) => boolean;
+  onManualAdd: () => void;
 }
 
 type BarcodeDetectorCtor = new (options?: { formats?: string[] }) => {
@@ -27,7 +28,7 @@ const originLabels: Record<FoodOrigin, string> = {
 
 const canUseBarcodeDetector = (): boolean => typeof window !== 'undefined' && 'BarcodeDetector' in window;
 
-export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodDatabaseItem }: BarcodeScannerProps) {
+export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodDatabaseItem, onManualAdd }: BarcodeScannerProps) {
   const [barcode, setBarcode] = useState('');
   const [date, setDate] = useState(todayDateString());
   const [meal, setMeal] = useState(inferMealSlot());
@@ -214,6 +215,9 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
         <div className="barcode-actions">
           <button className="btn btn--secondary" onClick={scanning ? stopCamera : startCamera}>
             {scanning ? 'Stop camera' : 'Scan with camera'}
+          </button>
+          <button className="btn btn--ghost" onClick={onManualAdd}>
+            Add manually
           </button>
           {!scannerSupported && <span className="dim">Manual entry works on all browsers.</span>}
         </div>

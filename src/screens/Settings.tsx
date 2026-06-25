@@ -3,6 +3,8 @@ import type { UserProfile, NutritionTargets } from '../types';
 import { dietModeDefaultNetCarbs } from '../lib/nutrition';
 import { exportAppData, validateAppBundle, importAppData } from '../lib/storage';
 import { localDateString } from '../lib/date';
+import { APP_VERSION, formatBuildDate } from '../lib/version';
+import { hardRefreshApp } from '../lib/app-update';
 
 interface SettingsProps {
   profile: UserProfile;
@@ -235,6 +237,18 @@ export function Settings({ profile, targets, onSaveProfile, onSaveTargets, onImp
       {importMsg && (
         <p className={`import-msg import-msg--${importMsg.type}`}>{importMsg.text}</p>
       )}
+
+      <div className="section-title">App version</div>
+      <div className="app-version-panel">
+        <div>
+          <strong>Version {APP_VERSION}</strong>
+          <span>Built {formatBuildDate()}</span>
+        </div>
+        <p>Feature releases advance the minor version. Improvements and bug fixes advance the patch version. Installed apps check for updates on launch and when reopened.</p>
+        <button className="btn btn--secondary btn--sm" onClick={() => void hardRefreshApp()}>
+          Hard refresh app
+        </button>
+      </div>
     </div>
   );
 }

@@ -21,13 +21,13 @@ npm test
 
 The Scan screen supports packaged-food lookup by barcode. When the browser supports the native BarcodeDetector API, users can scan with the device camera. Every browser can still use manual barcode entry.
 
-Barcode lookup uses a Cloudflare Pages Function at `/api/lookup-barcode`, which queries Open Food Facts and returns normalized nutrition for review before logging. Logged entries and saved foods are copied as snapshots, so future changes in the external database do not alter historical logs.
+Barcode lookup uses a Cloudflare Pages Function at `/api/lookup-barcode`, which queries Open Food Facts first and can fall back to USDA FoodData Central when configured. Results are normalized for review before logging. Logged entries and saved foods are copied as snapshots, so future changes in the external database do not alter historical logs.
 
 Important limitations:
 
 - Open Food Facts data is crowd-sourced and can be incomplete or wrong.
 - Some browsers do not expose camera barcode scanning; manual barcode entry is the fallback.
-- Lookup requests are subject to Open Food Facts rate limits.
+- Lookup requests are subject to upstream provider rate limits.
 - The app does not upload or store camera frames; the camera preview is only used locally to detect a barcode.
 
 ### Environment variables
@@ -36,9 +36,11 @@ Optional server-side variable:
 
 ```text
 OPEN_FOOD_FACTS_USER_AGENT
+FOOD_DATA_CENTRAL_API_KEY
 ```
 
 If supplied, use a descriptive value in the form `AppName/Version (contact or URL)`. Do not put it in a `VITE_` variable.
+`FOOD_DATA_CENTRAL_API_KEY` enables USDA FoodData Central fallback lookup when Open Food Facts does not have a barcode match.
 
 ### Local Pages Function development
 
@@ -53,7 +55,7 @@ Running only `npm run dev` serves the React client but does not provide the Clou
 
 ### Cloudflare Pages deployment
 
-No secret is required. Optionally add `OPEN_FOOD_FACTS_USER_AGENT` under Settings → Variables and Secrets if you want to override the default app identifier.
+No secret is required for Open Food Facts. Optionally add `OPEN_FOOD_FACTS_USER_AGENT` under Settings -> Variables and Secrets if you want to override the default app identifier. Add `FOOD_DATA_CENTRAL_API_KEY` to enable USDA FoodData Central fallback lookup.
 
 ## Data
 

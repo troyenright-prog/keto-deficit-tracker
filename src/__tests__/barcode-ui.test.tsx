@@ -44,7 +44,7 @@ describe('Barcode scanner screen', () => {
     vi.stubGlobal('fetch', fetchMock);
     const onAdd = vi.fn(() => true);
     const onSaveFoodDatabaseItem = vi.fn(() => true);
-    render(<BarcodeScanner foodDatabase={[]} onAdd={onAdd} onSaveFood={vi.fn(() => true)} onSaveFoodDatabaseItem={onSaveFoodDatabaseItem} />);
+    render(<BarcodeScanner foodDatabase={[]} onAdd={onAdd} onSaveFood={vi.fn(() => true)} onSaveFoodDatabaseItem={onSaveFoodDatabaseItem} onManualAdd={vi.fn()} />);
 
     fireEvent.change(screen.getByLabelText('Barcode number'), { target: { value: '1234567890123' } });
     fireEvent.click(screen.getByRole('button', { name: /Look up barcode/ }));
@@ -68,7 +68,7 @@ describe('Barcode scanner screen', () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     const onAdd = vi.fn(() => true);
-    render(<BarcodeScanner foodDatabase={[localFood]} onAdd={onAdd} onSaveFood={vi.fn(() => true)} onSaveFoodDatabaseItem={vi.fn(() => true)} />);
+    render(<BarcodeScanner foodDatabase={[localFood]} onAdd={onAdd} onSaveFood={vi.fn(() => true)} onSaveFoodDatabaseItem={vi.fn(() => true)} onManualAdd={vi.fn()} />);
 
     fireEvent.change(screen.getByLabelText('Barcode number'), { target: { value: '1234567890123' } });
     fireEvent.click(screen.getByRole('button', { name: /Look up barcode/ }));
@@ -82,7 +82,7 @@ describe('Barcode scanner screen', () => {
     vi.stubGlobal('fetch', vi.fn(async () => Response.json({ error: 'Not found' }, { status: 404 })));
     const onAdd = vi.fn(() => true);
     const onSaveFoodDatabaseItem = vi.fn(() => true);
-    render(<BarcodeScanner foodDatabase={[]} onAdd={onAdd} onSaveFood={vi.fn(() => true)} onSaveFoodDatabaseItem={onSaveFoodDatabaseItem} />);
+    render(<BarcodeScanner foodDatabase={[]} onAdd={onAdd} onSaveFood={vi.fn(() => true)} onSaveFoodDatabaseItem={onSaveFoodDatabaseItem} onManualAdd={vi.fn()} />);
 
     fireEvent.change(screen.getByLabelText('Barcode number'), { target: { value: '5555' } });
     fireEvent.click(screen.getByRole('button', { name: /Look up barcode/ }));
@@ -103,7 +103,7 @@ describe('Barcode scanner screen', () => {
   it('prefers a user-corrected local barcode food over a future remote result', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
-    render(<BarcodeScanner foodDatabase={[{ ...localFood, name: 'Corrected Cheese', userEdited: true }]} onAdd={vi.fn(() => true)} onSaveFood={vi.fn(() => true)} onSaveFoodDatabaseItem={vi.fn(() => true)} />);
+    render(<BarcodeScanner foodDatabase={[{ ...localFood, name: 'Corrected Cheese', userEdited: true }]} onAdd={vi.fn(() => true)} onSaveFood={vi.fn(() => true)} onSaveFoodDatabaseItem={vi.fn(() => true)} onManualAdd={vi.fn()} />);
 
     fireEvent.change(screen.getByLabelText('Barcode number'), { target: { value: '1234567890123' } });
     fireEvent.click(screen.getByRole('button', { name: /Look up barcode/ }));
@@ -111,5 +111,14 @@ describe('Barcode scanner screen', () => {
     await screen.findByText('Corrected Cheese');
     expect(screen.getByText('User-corrected food')).toBeTruthy();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('offers a manual add fallback from the scan screen', () => {
+    const onManualAdd = vi.fn();
+    render(<BarcodeScanner foodDatabase={[]} onAdd={vi.fn(() => true)} onSaveFood={vi.fn(() => true)} onSaveFoodDatabaseItem={vi.fn(() => true)} onManualAdd={onManualAdd} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add manually' }));
+
+    expect(onManualAdd).toHaveBeenCalled();
   });
 });

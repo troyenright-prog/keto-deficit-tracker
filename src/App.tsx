@@ -290,7 +290,7 @@ function App() {
             entries={foodLog.filter((entry) => entry.date === today)}
             targets={targets}
             recommendations={recommendations}
-            onAddFood={() => setScreen('add-food')}
+            onAddFood={() => setScreen('barcode')}
           />
         )}
         {screen === 'add-food' && (
@@ -311,6 +311,7 @@ function App() {
             onAdd={handleAddEntry}
             onSaveFood={handleSaveFood}
             onSaveFoodDatabaseItem={handleSaveFoodDatabaseItem}
+            onManualAdd={() => setScreen('add-food')}
           />
         )}
         {screen === 'daily-log' && (
