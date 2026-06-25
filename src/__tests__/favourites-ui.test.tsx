@@ -13,11 +13,11 @@ const savedFood: FoodItem = {
 describe('saved food favourites', () => {
   it('marks and unmarks a saved food through the existing save boundary', () => {
     const onSave = vi.fn(() => true);
-    const { rerender } = render(<SavedFoods foods={[savedFood]} onSave={onSave} onDelete={vi.fn()} onAddToLog={vi.fn()} />);
+    const { rerender } = render(<SavedFoods foods={[savedFood]} onSave={onSave} onDelete={vi.fn(() => true)} onAddToLog={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: 'Favourite Eggs' }));
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ id: 'food', isFavourite: true }));
 
-    rerender(<SavedFoods foods={[{ ...savedFood, isFavourite: true }]} onSave={onSave} onDelete={vi.fn()} onAddToLog={vi.fn()} />);
+    rerender(<SavedFoods foods={[{ ...savedFood, isFavourite: true }]} onSave={onSave} onDelete={vi.fn(() => true)} onAddToLog={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: 'Unfavourite Eggs' }));
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ id: 'food', isFavourite: false }));
   });

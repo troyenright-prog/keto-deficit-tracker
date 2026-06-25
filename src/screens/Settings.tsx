@@ -68,7 +68,7 @@ export function Settings({ profile, targets, onSaveProfile, onSaveTargets, onImp
     a.href = url;
     a.download = `keto-backup-${localDateString()}.json`;
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
@@ -82,12 +82,15 @@ export function Settings({ profile, targets, onSaveProfile, onSaveTargets, onImp
           setImportMsg({ type: 'error', text: 'Invalid backup file format.' });
           return;
         }
-        if (!confirm('This will replace ALL your current data. Continue?')) return;
+        if (!confirm('This will replace ALL your current data. Continue?')) {
+          setImportMsg({ type: 'error', text: 'Import cancelled. Your current data was not changed.' });
+          return;
+        }
         if (!importAppData(parsed)) {
           setImportMsg({ type: 'error', text: 'Import could not be saved. Your existing data was restored.' });
           return;
         }
-        setImportMsg({ type: 'success', text: 'Import successful! Reloading data…' });
+        setImportMsg({ type: 'success', text: 'Import successful. Reloading data...' });
         setTimeout(() => {
           onImportComplete();
           setImportMsg(null);
@@ -145,9 +148,9 @@ export function Settings({ profile, targets, onSaveProfile, onSaveTargets, onImp
                 onChange={() => handleDietMode(mode)}
               />
               <span className="diet-mode-label">
-                {mode === 'strict-keto' && 'Strict keto (≤20g)'}
-                {mode === 'lazy-keto' && 'Lazy keto (≤50g)'}
-                {mode === 'high-protein-keto' && 'High-protein keto (≤30g)'}
+                {mode === 'strict-keto' && 'Strict keto (<=20g)'}
+                {mode === 'lazy-keto' && 'Lazy keto (<=50g)'}
+                {mode === 'high-protein-keto' && 'High-protein keto (<=30g)'}
               </span>
             </label>
           ))}

@@ -9,7 +9,7 @@ import { foodSignature } from '../lib/quick-add';
 interface SavedFoodsProps {
   foods: FoodItem[];
   onSave: (food: FoodItem) => boolean;
-  onDelete: (id: string) => void;
+  onDelete: (id: string) => boolean;
   onAddToLog: (food: FoodItem) => void;
 }
 
@@ -17,10 +17,16 @@ export function SavedFoods({ foods, onSave, onDelete, onAddToLog }: SavedFoodsPr
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<FoodItem | null>(null);
   const [addingNew, setAddingNew] = useState(false);
+  const [message, setMessage] = useState('');
 
-  const filtered = foods.filter((f) =>
-    f.name.toLowerCase().includes(search.toLowerCase()),
-  );
+  const filtered = foods
+    .filter((f) => f.name.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => Number(b.isFavourite === true) - Number(a.isFavourite === true) || a.name.localeCompare(b.name));
+
+  function showMessage(text: string) {
+    setMessage(text);
+    setTimeout(() => setMessage(''), 2500);
+  }
 
   function handleEdit(food: FoodItem) {
     setEditing(food);
@@ -35,7 +41,10 @@ export function SavedFoods({ foods, onSave, onDelete, onAddToLog }: SavedFoodsPr
       ...values,
       updatedAt: new Date().toISOString(),
     });
-    if (saved) setEditing(null);
+    if (saved) {
+      setEditing(null);
+      showMessage(`Saved "${values.name}".`);
+    }
   }
 
   function handleAddNew(values: FoodFormValues) {
@@ -44,7 +53,10 @@ export function SavedFoods({ foods, onSave, onDelete, onAddToLog }: SavedFoodsPr
       createdAt: new Date().toISOString(),
       ...values,
     });
-    if (saved) setAddingNew(false);
+    if (saved) {
+      setAddingNew(false);
+      showMessage(`Added "${values.name}" to saved foods.`);
+    }
   }
 
   function handleLoadStarter() {
@@ -52,9 +64,12 @@ export function SavedFoods({ foods, onSave, onDelete, onAddToLog }: SavedFoodsPr
     const starters = getStarterFoods().filter((food) => !existing.has(foodSignature(food)));
     if (starters.length === 0) return;
     if (!confirm(`Add ${starters.length} missing Australian keto starter foods? Existing and edited foods will not be changed.`)) return;
+    let added = 0;
     for (const food of starters) {
       if (!onSave(food)) break;
+      added += 1;
     }
+    if (added > 0) showMessage(`Loaded ${added} starter food${added === 1 ? '' : 's'}.`);
   }
 
   const starterMissing = getStarterFoods().filter((food) => !new Set(foods.map(foodSignature)).has(foodSignature(food))).length;
@@ -91,6 +106,7 @@ export function SavedFoods({ foods, onSave, onDelete, onAddToLog }: SavedFoodsPr
           + New Food
         </button>
       </div>
+      {message && <div className="success-toast">{message}</div>}
 
       {(addingNew || editing) && (
         <div className="inline-form-panel">
@@ -125,7 +141,7 @@ export function SavedFoods({ foods, onSave, onDelete, onAddToLog }: SavedFoodsPr
             <input
               type="search"
               className="search-input"
-              placeholder="Search saved foods…"
+              placeholder="Search saved foods..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -146,12 +162,12 @@ export function SavedFoods({ foods, onSave, onDelete, onAddToLog }: SavedFoodsPr
                       <span className="saved-food-name">{food.name}</span>
                       <span className="saved-food-serving">{food.servingSize}</span>
                       <span className="saved-food-macros">
-                        {Math.round(food.calories)} kcal · {food.proteinG.toFixed(1)}g protein ·{' '}
-                        {netCarbs.toFixed(1)}g net carbs · {food.fatG.toFixed(1)}g fat
+                        {Math.round(food.calories)} kcal - {food.proteinG.toFixed(1)}g protein -{' '}
+                        {netCarbs.toFixed(1)}g net carbs - {food.fatG.toFixed(1)}g fat
                       </span>
                       {(food.sodiumMg > 0 || food.potassiumMg > 0 || food.magnesiumMg > 0) && (
                         <span className="saved-food-electrolytes">
-                          Na {food.sodiumMg}mg · K {food.potassiumMg}mg · Mg {food.magnesiumMg}mg
+                          Na {food.sodiumMg}mg - K {food.potassiumMg}mg - Mg {food.magnesiumMg}mg
                         </span>
                       )}
                     </div>
@@ -159,9 +175,14 @@ export function SavedFoods({ foods, onSave, onDelete, onAddToLog }: SavedFoodsPr
                       <button
                         className={`btn btn--sm ${food.isFavourite ? 'btn--favourite' : 'btn--ghost'}`}
                         aria-label={food.isFavourite ? `Unfavourite ${food.name}` : `Favourite ${food.name}`}
-                        onClick={() => onSave({ ...food, isFavourite: !food.isFavourite, updatedAt: new Date().toISOString() })}
+                        onClick={() => {
+                          const nextFavourite = !food.isFavourite;
+                          if (onSave({ ...food, isFavourite: nextFavourite, updatedAt: new Date().toISOString() })) {
+                            showMessage(`${nextFavourite ? 'Favorited' : 'Unfavorited'} "${food.name}".`);
+                          }
+                        }}
                       >
-                        {food.isFavourite ? '★ Favourite' : '☆ Favourite'}
+                        {food.isFavourite ? 'Favorited' : 'Favorite'}
                       </button>
                       <button
                         className="btn btn--secondary btn--sm"
@@ -178,7 +199,7 @@ export function SavedFoods({ foods, onSave, onDelete, onAddToLog }: SavedFoodsPr
                       <button
                         className="btn btn--danger btn--sm"
                         onClick={() => {
-                          if (confirm(`Delete "${food.name}" from saved foods?`)) onDelete(food.id);
+                          if (confirm(`Delete "${food.name}" from saved foods?`) && onDelete(food.id)) showMessage(`Deleted "${food.name}".`);
                         }}
                       >
                         Delete
