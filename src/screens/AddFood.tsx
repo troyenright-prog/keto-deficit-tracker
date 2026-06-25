@@ -21,11 +21,12 @@ interface AddFoodProps {
   onAdd: (entry: FoodLogEntry) => boolean;
   onAddEntries: (entries: FoodLogEntry[]) => boolean;
   onSaveFood: (food: FoodItem) => boolean;
+  onScanBarcode?: () => void;
 }
 
 const QUICK_AMOUNTS = [0.5, 1, 1.5, 2];
 
-export function AddFood({ savedFoods, foodDatabase, log, recipes, templates, onAdd, onAddEntries, onSaveFood }: AddFoodProps) {
+export function AddFood({ savedFoods, foodDatabase, log, recipes, templates, onAdd, onAddEntries, onSaveFood, onScanBarcode }: AddFoodProps) {
   const [date, setDate] = useState(todayDateString());
   const [meal, setMeal] = useState(inferMealSlot());
   const [successMsg, setSuccessMsg] = useState('');
@@ -130,7 +131,14 @@ export function AddFood({ savedFoods, foodDatabase, log, recipes, templates, onA
 
   return (
     <div className="screen">
-      <div className="screen-header"><h1>Add Food</h1></div>
+      <div className="screen-header">
+        <h1>Add Food</h1>
+        {onScanBarcode && (
+          <button className="btn btn--secondary btn--sm" onClick={onScanBarcode}>
+            Scan barcode
+          </button>
+        )}
+      </div>
       {successMsg && <div className="success-toast">{successMsg}</div>}
 
       <div className="form-group">

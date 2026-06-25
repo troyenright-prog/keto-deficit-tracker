@@ -26,6 +26,7 @@ import {
   loadMealPlan, saveMealPlan,
   saveFoodLogAndMealPlan,
   migrateIfNeeded,
+  seedDemoDataIfEmpty,
 } from './lib/storage';
 import { savedFoodToLogEntry, summariseDay, todayDateString } from './lib/nutrition';
 import { buildRecommendations } from './lib/recommendations';
@@ -50,6 +51,7 @@ import type {
 
 // Run migration once on startup
 migrateIfNeeded();
+seedDemoDataIfEmpty();
 
 export type Screen =
   | 'dashboard'
@@ -290,7 +292,7 @@ function App() {
             entries={foodLog.filter((entry) => entry.date === today)}
             targets={targets}
             recommendations={recommendations}
-            onAddFood={() => setScreen('barcode')}
+            onAddFood={() => setScreen('add-food')}
           />
         )}
         {screen === 'add-food' && (
@@ -303,6 +305,7 @@ function App() {
             onAdd={handleAddEntry}
             onAddEntries={handleAddEntries}
             onSaveFood={handleSaveFood}
+            onScanBarcode={() => setScreen('barcode')}
           />
         )}
         {screen === 'barcode' && (

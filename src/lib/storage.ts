@@ -3,10 +3,11 @@ import type {
   MealTemplate, MealTemplateItem, Recipe, RecipeIngredient, ShoppingItem,
   MealPlanEntry, AppStateBundle, Micronutrients, FoodDatabaseItem, FoodDatabaseSource,
 } from '../types';
-import { isDateString, localDateString } from './date';
+import { addLocalDays, isDateString, localDateString } from './date';
 import { dedupeFoodDatabase } from './food-database';
 import { isMealSlot } from './meals';
 import { calcNetCarbs, safeNonNegative, safePositive } from './nutrition';
+import { getStarterFoodOptions } from './australianFoods';
 
 export const CURRENT_VERSION = 4;
 
@@ -16,6 +17,8 @@ const KEYS = {
   mealTemplates: 'keto_meal_templates', recipes: 'keto_recipes', shoppingList: 'keto_shopping_list',
   mealPlan: 'keto_meal_plan', foodDatabase: 'keto_food_database',
 } as const;
+
+const DEMO_SEED_KEY = 'keto_demo_seed_v1';
 
 type UnknownRecord = Record<string, unknown>;
 const isRecord = (value: unknown): value is UnknownRecord => typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -275,6 +278,149 @@ function writeAtomically(writes: [string, unknown][]): boolean {
 
 export function saveFoodLogAndMealPlan(log: FoodLogEntry[], plan: MealPlanEntry[]): boolean {
   return writeAtomically([[KEYS.foodLog, log], [KEYS.mealPlan, plan]]);
+}
+
+function hasUserData(): boolean {
+  return loadFoodLog().length > 0 ||
+    loadSavedFoods().length > 0 ||
+    loadWeightEntries().length > 0 ||
+    loadMealTemplates().length > 0 ||
+    loadRecipes().length > 0 ||
+    loadShoppingList().length > 0 ||
+    loadMealPlan().length > 0 ||
+    loadProfile().name.trim().length > 0;
+}
+
+export function seedDemoDataIfEmpty(): boolean {
+  const forceDemoReset = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('demo') === 'reset';
+  if (forceDemoReset) {
+    for (const key of [...Object.values(KEYS), DEMO_SEED_KEY]) localStorage.removeItem(key);
+    migrateIfNeeded();
+  }
+  if (!forceDemoReset && (safeRead(DEMO_SEED_KEY) === true || hasUserData())) return false;
+
+  const now = new Date().toISOString();
+  const today = localDateString();
+  const yesterday = addLocalDays(today, -1);
+  const twoDaysAgo = addLocalDays(today, -2);
+  const starterFoods = getStarterFoodOptions();
+  const byName = (name: string) => starterFoods.find((food) => food.name === name)!;
+
+  const eggs: FoodItem = { ...byName('Eggs (whole, large)'), id: 'demo-food-eggs', isFavourite: true, createdAt: now };
+  const salmon: FoodItem = { ...byName('Salmon (Atlantic, raw)'), id: 'demo-food-salmon', isFavourite: true, createdAt: now };
+  const avocado: FoodItem = { ...byName('Avocado'), id: 'demo-food-avocado', isFavourite: false, createdAt: now };
+  const spinach: FoodItem = { ...byName('Spinach (raw)'), id: 'demo-food-spinach', isFavourite: false, createdAt: now };
+  const yoghurt: FoodItem = { ...byName('Greek yoghurt (full fat, plain)'), id: 'demo-food-yoghurt', isFavourite: true, createdAt: now };
+  const cheese: FoodItem = { ...byName('Cheddar cheese'), id: 'demo-food-cheese', barcode: '9300000000011', isFavourite: false, createdAt: now };
+  const savedFoods: FoodItem[] = [eggs, salmon, avocado, spinach, yoghurt, cheese];
+
+  const logEntry = (food: FoodItem, id: string, day: string, servingMultiplier: number, meal: FoodLogEntry['meal']): FoodLogEntry => ({
+    id,
+    date: day,
+    foodItemId: food.id,
+    source: 'saved-food',
+    meal,
+    name: food.name,
+    servingSize: food.servingSize,
+    servingMultiplier,
+    calories: food.calories * servingMultiplier,
+    proteinG: food.proteinG * servingMultiplier,
+    fatG: food.fatG * servingMultiplier,
+    totalCarbsG: food.totalCarbsG * servingMultiplier,
+    fibreG: food.fibreG * servingMultiplier,
+    sugarAlcoholsG: food.sugarAlcoholsG * servingMultiplier,
+    sodiumMg: food.sodiumMg * servingMultiplier,
+    potassiumMg: food.potassiumMg * servingMultiplier,
+    magnesiumMg: food.magnesiumMg * servingMultiplier,
+    loggedAt: now,
+  });
+
+  const foodLog: FoodLogEntry[] = [
+    logEntry(eggs, 'demo-log-eggs-today', today, 2, 'breakfast'),
+    logEntry(avocado, 'demo-log-avocado-today', today, 0.5, 'lunch'),
+    logEntry(salmon, 'demo-log-salmon-today', today, 1.5, 'dinner'),
+    logEntry(spinach, 'demo-log-spinach-today', today, 1, 'dinner'),
+    logEntry(yoghurt, 'demo-log-yoghurt-yesterday', yesterday, 1, 'breakfast'),
+    logEntry(cheese, 'demo-log-cheese-yesterday', yesterday, 1, 'snack'),
+    logEntry(salmon, 'demo-log-salmon-yesterday', yesterday, 1, 'dinner'),
+    logEntry(eggs, 'demo-log-eggs-older', twoDaysAgo, 2, 'breakfast'),
+    logEntry(avocado, 'demo-log-avocado-older', twoDaysAgo, 1, 'lunch'),
+  ];
+
+  const templateItems: MealTemplateItem[] = [
+    { ...eggs, id: 'demo-template-eggs', savedFoodId: eggs.id, quantity: 2 },
+    { ...avocado, id: 'demo-template-avocado', savedFoodId: avocado.id, quantity: 0.5 },
+  ];
+  const mealTemplates: MealTemplate[] = [{
+    id: 'demo-template-breakfast',
+    name: 'Demo keto breakfast',
+    mealType: 'breakfast',
+    items: templateItems,
+    createdAt: now,
+  }];
+
+  const recipeIngredients: RecipeIngredient[] = [
+    { ...salmon, id: 'demo-recipe-salmon', quantity: 2 },
+    { ...spinach, id: 'demo-recipe-spinach', quantity: 2 },
+    { ...cheese, id: 'demo-recipe-cheese', quantity: 1 },
+  ];
+  const recipes: Recipe[] = [{
+    id: 'demo-recipe-salmon-bake',
+    name: 'Demo salmon bake',
+    servings: 2,
+    ingredients: recipeIngredients,
+    createdAt: now,
+  }];
+
+  const shoppingList: ShoppingItem[] = [
+    { id: 'demo-shop-eggs', name: 'Eggs', quantity: '1 dozen', completed: false, source: 'manual', createdAt: now },
+    { id: 'demo-shop-salmon', name: 'Salmon fillets', quantity: '2 portions', completed: false, source: 'manual', createdAt: now },
+    { id: 'demo-shop-spinach', name: 'Baby spinach', quantity: '1 bag', completed: true, source: 'manual', createdAt: now },
+  ];
+
+  const weightEntries: WeightEntry[] = [
+    { id: 'demo-weight-1', date: addLocalDays(today, -10), weight: 92.4, unit: 'kg', loggedAt: now },
+    { id: 'demo-weight-2', date: addLocalDays(today, -7), weight: 91.8, unit: 'kg', loggedAt: now },
+    { id: 'demo-weight-3', date: addLocalDays(today, -4), weight: 91.1, unit: 'kg', loggedAt: now },
+    { id: 'demo-weight-4', date: today, weight: 90.7, unit: 'kg', loggedAt: now },
+  ];
+
+  const cheeseDatabase: FoodDatabaseItem = {
+    id: 'demo-db-cheese',
+    barcode: cheese.barcode,
+    name: cheese.name,
+    brand: 'Demo brand',
+    source: 'barcode',
+    servingSize: cheese.servingSize,
+    calories: cheese.calories,
+    proteinG: cheese.proteinG,
+    fatG: cheese.fatG,
+    totalCarbsG: cheese.totalCarbsG,
+    fibreG: cheese.fibreG,
+    sugarAlcoholsG: cheese.sugarAlcoholsG,
+    netCarbsG: calcNetCarbs(cheese.totalCarbsG, cheese.fibreG, cheese.sugarAlcoholsG),
+    sodiumMg: cheese.sodiumMg,
+    potassiumMg: cheese.potassiumMg,
+    magnesiumMg: cheese.magnesiumMg,
+    userEdited: true,
+    verified: true,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  return writeAtomically([
+    [KEYS.profile, { ...DEFAULT_PROFILE, name: 'Demo', createdAt: now }],
+    [KEYS.targets, DEFAULT_TARGETS],
+    [KEYS.foodLog, foodLog],
+    [KEYS.savedFoods, savedFoods],
+    [KEYS.foodDatabase, [cheeseDatabase]],
+    [KEYS.weightEntries, weightEntries],
+    [KEYS.mealTemplates, mealTemplates],
+    [KEYS.recipes, recipes],
+    [KEYS.shoppingList, shoppingList],
+    [KEYS.mealPlan, []],
+    [DEMO_SEED_KEY, true],
+  ]);
 }
 
 export function exportAppData(): AppStateBundle {

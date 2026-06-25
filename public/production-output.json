@@ -1,0 +1,7 @@
+{
+  "app": "keto-deficit-tracker",
+  "branch": "codex/product-polish-beta",
+  "demoData": "enabled for empty local storage; use ?demo=reset to reseed during development",
+  "primaryFlow": "Home + Add food opens logging, with barcode scanning inside Add Food",
+  "deploymentAlias": "https://codex-product-polish-beta.keto-deficit-tracker.pages.dev"
+}
