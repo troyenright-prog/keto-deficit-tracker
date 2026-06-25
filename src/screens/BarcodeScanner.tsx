@@ -292,6 +292,22 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
                 <label htmlFor="barcode-fibre">Fibre (g)</label>
                 <input id="barcode-fibre" type="number" min="0" step="0.1" value={food.fibreG} onChange={(event) => updateFoodNumber('fibreG', event.target.value)} />
               </div>
+              <div className="form-group">
+                <label htmlFor="barcode-sugar-alcohols">Sugar alcohols (g)</label>
+                <input id="barcode-sugar-alcohols" type="number" min="0" step="0.1" value={food.sugarAlcoholsG} onChange={(event) => updateFoodNumber('sugarAlcoholsG', event.target.value)} />
+              </div>
+              <div className="form-group">
+                <label htmlFor="barcode-sodium">Sodium (mg)</label>
+                <input id="barcode-sodium" type="number" min="0" value={food.sodiumMg} onChange={(event) => updateFoodNumber('sodiumMg', event.target.value)} />
+              </div>
+              <div className="form-group">
+                <label htmlFor="barcode-potassium">Potassium (mg)</label>
+                <input id="barcode-potassium" type="number" min="0" value={food.potassiumMg} onChange={(event) => updateFoodNumber('potassiumMg', event.target.value)} />
+              </div>
+              <div className="form-group">
+                <label htmlFor="barcode-magnesium">Magnesium (mg)</label>
+                <input id="barcode-magnesium" type="number" min="0" value={food.magnesiumMg} onChange={(event) => updateFoodNumber('magnesiumMg', event.target.value)} />
+              </div>
             </div>
           )}
 

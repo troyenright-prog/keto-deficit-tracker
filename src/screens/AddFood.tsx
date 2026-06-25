@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { FoodForm, type FoodFormValues } from '../components/FoodForm';
 import type { FoodDatabaseItem, FoodItem, FoodLogEntry, MealTemplate, Recipe } from '../types';
-import { savedFoodToLogEntry, todayDateString } from '../lib/nutrition';
+import { calcNetCarbs, savedFoodToLogEntry, todayDateString } from '../lib/nutrition';
 import { addLocalDays } from '../lib/date';
 import { nanoid } from '../lib/nanoid';
 import { recipeToLogEntry } from '../lib/recipes';
@@ -40,6 +40,12 @@ export function AddFood({ savedFoods, foodDatabase, log, recipes, templates, onA
   }), [query, savedFoods, foodDatabase, recentFoods, recipes, templates]);
   const previousDate = addLocalDays(date, -1);
   const previousEntries = log.filter((entry) => entry.date === previousDate);
+  const selectedNutrition = selected && 'food' in selected ? {
+    calories: selected.food.calories,
+    proteinG: selected.food.proteinG,
+    netCarbsG: calcNetCarbs(selected.food.totalCarbsG, selected.food.fibreG, selected.food.sugarAlcoholsG),
+    fatG: selected.food.fatG,
+  } : null;
 
   function showSuccess(message: string) {
     setSuccessMsg(message);
@@ -170,6 +176,14 @@ export function AddFood({ savedFoods, foodDatabase, log, recipes, templates, onA
         <div className="quick-add-panel">
           <strong>{selected.name}</strong>
           <span className="dim">Choose servings</span>
+          {selectedNutrition && (
+            <div className="quick-nutrition-preview" aria-label="Selected food nutrition per serving">
+              <span>{Math.round(selectedNutrition.calories)} kcal</span>
+              <span>{selectedNutrition.proteinG.toFixed(1)}g protein</span>
+              <span>{selectedNutrition.netCarbsG.toFixed(1)}g net carbs</span>
+              <span>{selectedNutrition.fatG.toFixed(1)}g fat</span>
+            </div>
+          )}
           <div className="serving-options">
             {QUICK_AMOUNTS.map((amount) => (
               <button key={amount} className={`serving-chip${multiplier === String(amount) ? ' serving-chip--active' : ''}`} onClick={() => { setMultiplier(String(amount)); setQuickError(''); }}>

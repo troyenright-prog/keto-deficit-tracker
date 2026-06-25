@@ -21,6 +21,7 @@ describe('Add Food quick logging', () => {
     const onAddEntries = vi.fn(() => true);
     render(<AddFood savedFoods={[favourite]} foodDatabase={[]} log={[recent]} recipes={[]} templates={[]} onAdd={vi.fn(() => true)} onAddEntries={onAddEntries} onSaveFood={vi.fn(() => true)} />);
     fireEvent.click(screen.getByRole('button', { name: /Favourite Eggs/ }));
+    expect(screen.getByLabelText('Selected food nutrition per serving').textContent).toContain('1.0g net carbs');
     fireEvent.click(screen.getByRole('button', { name: '1.5x' }));
     fireEvent.click(screen.getByRole('button', { name: /Add to today/ }));
     expect(onAddEntries).toHaveBeenCalledWith([
