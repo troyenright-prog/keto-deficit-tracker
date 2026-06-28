@@ -1,6 +1,7 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import './App.css';
 import { Nav } from './components/Nav';
+import { UserPicker } from './components/UserPicker';
 import { Dashboard } from './screens/Dashboard';
 import { AddFood } from './screens/AddFood';
 import { DailyLog } from './screens/DailyLog';
@@ -28,7 +29,21 @@ import {
   saveFoodLogAndMealPlan,
   migrateIfNeeded,
   seedDemoDataIfEmpty,
+  configureStorageScope,
+  claimLegacyDataForActiveScope,
+  subscribeLocalDataChanges,
+  exportAppData,
+  importAppData,
+  hasLocalUserData,
 } from './lib/storage';
+import {
+  ENV,
+  initAuth,
+  saveRemoteAppData,
+  subscribeRemoteAppData,
+  subscribeSyncQueue,
+} from './lib/firebase-db';
+import { APP_USERS, clearCurrentUser, loadCurrentUser, saveCurrentUser, type AppUserKey } from './lib/users';
 import { savedFoodToLogEntry, summariseDay, todayDateString } from './lib/nutrition';
 import { buildRecommendations } from './lib/recommendations';
 import { templateToLogEntries } from './lib/meal-templates';
@@ -50,11 +65,8 @@ import type {
   ShoppingItem,
   MealPlanEntry,
   ReminderSettings,
+  AppStateBundle,
 } from './types';
-
-// Run migration once on startup
-migrateIfNeeded();
-seedDemoDataIfEmpty();
 
 export type Screen =
   | 'dashboard'
@@ -69,6 +81,11 @@ export type Screen =
   | 'weight'
   | 'settings'
   | 'barcode';
+
+type SyncStatus = {
+  tone: 'idle' | 'syncing' | 'synced' | 'queued' | 'error';
+  text: string;
+};
 
 function reloadAll() {
   return {
@@ -86,8 +103,19 @@ function reloadAll() {
   };
 }
 
+function prepareStorageForUser(userKey: AppUserKey) {
+  configureStorageScope({ environment: ENV, userKey });
+  claimLegacyDataForActiveScope();
+  migrateIfNeeded();
+  seedDemoDataIfEmpty();
+}
+
+const initialUser = loadCurrentUser();
+if (initialUser) prepareStorageForUser(initialUser);
+
 function App() {
   const [screen, setScreen] = useState<Screen>('dashboard');
+  const [currentUser, setCurrentUser] = useState<AppUserKey | null>(initialUser);
   const [profile, setProfile] = useState<UserProfile>(loadProfile);
   const [targets, setTargets] = useState<NutritionTargets>(loadTargets);
   const [foodLog, setFoodLog] = useState<FoodLogEntry[]>(loadFoodLog);
@@ -100,6 +128,13 @@ function App() {
   const [mealPlan, setMealPlan] = useState<MealPlanEntry[]>(loadMealPlan);
   const [reminders, setReminders] = useState<ReminderSettings>(loadReminders);
   const [storageError, setStorageError] = useState('');
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>(
+    initialUser ? { tone: 'syncing', text: 'Connecting' } : { tone: 'idle', text: 'Pick user' },
+  );
+  const currentUserRef = useRef(currentUser);
+  const applyingRemoteRef = useRef(false);
+  const remoteStampRef = useRef<string | null>(null);
+  const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const profileRef = useRef(profile);
   const targetsRef = useRef(targets);
   const foodLogRef = useRef(foodLog);
@@ -111,6 +146,122 @@ function App() {
   const shoppingListRef = useRef(shoppingList);
   const mealPlanRef = useRef(mealPlan);
   const remindersRef = useRef(reminders);
+
+  const applyLoadedData = useCallback((data: ReturnType<typeof reloadAll>) => {
+    setProfile(data.profile);
+    setTargets(data.targets);
+    setFoodLog(data.foodLog);
+    setSavedFoods(data.savedFoods);
+    setFoodDatabase(data.foodDatabase);
+    setWeightEntries(data.weightEntries);
+    setMealTemplates(data.mealTemplates);
+    setRecipes(data.recipes);
+    setShoppingList(data.shoppingList);
+    setMealPlan(data.mealPlan);
+    setReminders(data.reminders);
+    profileRef.current = data.profile; targetsRef.current = data.targets; foodLogRef.current = data.foodLog;
+    savedFoodsRef.current = data.savedFoods; foodDatabaseRef.current = data.foodDatabase; weightEntriesRef.current = data.weightEntries;
+    mealTemplatesRef.current = data.mealTemplates; recipesRef.current = data.recipes;
+    shoppingListRef.current = data.shoppingList; mealPlanRef.current = data.mealPlan; remindersRef.current = data.reminders;
+  }, []);
+
+  const syncNow = useCallback(async () => {
+    const userKey = currentUserRef.current;
+    if (!userKey || applyingRemoteRef.current) return;
+
+    const bundle = exportAppData();
+    setSyncStatus({ tone: 'syncing', text: 'Syncing' });
+    const result = await saveRemoteAppData(userKey, bundle);
+    remoteStampRef.current = bundle.exportedAt;
+    setSyncStatus(result.queued
+      ? { tone: 'queued', text: 'Queued' }
+      : { tone: 'synced', text: 'Synced' });
+  }, []);
+
+  const scheduleSync = useCallback(() => {
+    if (!currentUserRef.current || applyingRemoteRef.current) return;
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    syncTimerRef.current = setTimeout(() => {
+      syncTimerRef.current = null;
+      void syncNow();
+    }, 350);
+  }, [syncNow]);
+
+  const activateUser = useCallback((userKey: AppUserKey) => {
+    saveCurrentUser(userKey);
+    prepareStorageForUser(userKey);
+    currentUserRef.current = userKey;
+    remoteStampRef.current = null;
+    applyLoadedData(reloadAll());
+    setCurrentUser(userKey);
+    setStorageError('');
+    setSyncStatus({ tone: 'syncing', text: 'Connecting' });
+  }, [applyLoadedData]);
+
+  const switchUser = useCallback(() => {
+    clearCurrentUser();
+    configureStorageScope(null);
+    currentUserRef.current = null;
+    remoteStampRef.current = null;
+    setCurrentUser(null);
+    setSyncStatus({ tone: 'idle', text: 'Pick user' });
+  }, []);
+
+  useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    return subscribeLocalDataChanges(scheduleSync);
+  }, [currentUser, scheduleSync]);
+
+  useEffect(() => {
+    return subscribeSyncQueue((state) => {
+      if (state.pending > 0) setSyncStatus({ tone: state.error ? 'error' : 'queued', text: state.error ? 'Retrying' : 'Queued' });
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!currentUser) return;
+
+    let sawFirstRemoteRead = false;
+    void initAuth();
+    setSyncStatus({ tone: 'syncing', text: 'Connecting' });
+
+    const applyRemoteBundle = (bundle: AppStateBundle) => {
+      applyingRemoteRef.current = true;
+      try {
+        if (importAppData(bundle)) {
+          applyLoadedData(reloadAll());
+          remoteStampRef.current = bundle.exportedAt;
+          setSyncStatus({ tone: 'synced', text: 'Synced' });
+        }
+      } finally {
+        applyingRemoteRef.current = false;
+      }
+    };
+
+    const stop = subscribeRemoteAppData(currentUser, (bundle) => {
+      if (!bundle) {
+        if (!sawFirstRemoteRead && hasLocalUserData()) void syncNow();
+        sawFirstRemoteRead = true;
+        return;
+      }
+      sawFirstRemoteRead = true;
+      if (bundle.exportedAt === remoteStampRef.current) {
+        setSyncStatus({ tone: 'synced', text: 'Synced' });
+        return;
+      }
+      applyRemoteBundle(bundle);
+    }, {
+      onError: () => setSyncStatus({ tone: 'error', text: 'Offline' }),
+    });
+
+    return () => {
+      stop();
+    };
+  }, [currentUser, applyLoadedData, syncNow]);
 
   const persist = useCallback(<T,>(
     next: T,
@@ -273,29 +424,25 @@ function App() {
   // ── Import complete ────────────────────────────────────────────────────────
 
   const handleImportComplete = useCallback(() => {
-    const data = reloadAll();
-    setProfile(data.profile);
-    setTargets(data.targets);
-    setFoodLog(data.foodLog);
-    setSavedFoods(data.savedFoods);
-    setFoodDatabase(data.foodDatabase);
-    setWeightEntries(data.weightEntries);
-    setMealTemplates(data.mealTemplates);
-    setRecipes(data.recipes);
-    setShoppingList(data.shoppingList);
-    setMealPlan(data.mealPlan);
-    setReminders(data.reminders);
-    profileRef.current = data.profile; targetsRef.current = data.targets; foodLogRef.current = data.foodLog;
-    savedFoodsRef.current = data.savedFoods; foodDatabaseRef.current = data.foodDatabase; weightEntriesRef.current = data.weightEntries;
-    mealTemplatesRef.current = data.mealTemplates; recipesRef.current = data.recipes;
-    shoppingListRef.current = data.shoppingList; mealPlanRef.current = data.mealPlan; remindersRef.current = data.reminders;
-  }, []);
+    applyLoadedData(reloadAll());
+  }, [applyLoadedData]);
+
+  if (!currentUser) {
+    return <UserPicker onPick={activateUser} />;
+  }
+
+  const user = APP_USERS[currentUser];
 
   return (
     <div className="app">
       <header className="app-header">
         <span className="app-title">Keto Tracker</span>
-        {profile.name && <span className="app-user">Hi, {profile.name}</span>}
+        <div className="app-header-meta">
+          <span className={`sync-pill sync-pill--${syncStatus.tone}`}>{syncStatus.text}</span>
+          <button type="button" className="app-user" onClick={switchUser} title="Switch user">
+            {profile.name ? `Hi, ${profile.name}` : user.label}
+          </button>
+        </div>
       </header>
 
       <main className="app-main">

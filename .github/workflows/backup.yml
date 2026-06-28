@@ -1,0 +1,73 @@
+name: Daily Database Backup
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prepare backups branch
+        run: |
+          git fetch origin backups || true
+          if git show-ref --verify --quiet refs/remotes/origin/backups; then
+            git checkout -B backups origin/backups
+          else
+            git checkout --orphan backups
+            git rm -rf . || true
+          fi
+
+      - name: Set backup date
+        id: date
+        run: echo "DATE=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Backup production database
+        env:
+          SECRET: ${{ secrets.FIREBASE_DB_SECRET_PROD }}
+          DB_BASE: ${{ vars.KETO_FIREBASE_DB_BASE_PROD }}
+        run: |
+          test -n "$SECRET" || (echo "::error::FIREBASE_DB_SECRET_PROD is not set" && exit 1)
+          DB_BASE="${DB_BASE:-https://tasks-c8880-default-rtdb.asia-southeast1.firebasedatabase.app}"
+          mkdir -p production
+          curl -sf "$DB_BASE/ketoDeficitTracker.json?auth=${SECRET}" -o "production/${{ steps.date.outputs.DATE }}.json"
+          echo "Production backup: $(wc -c < production/${{ steps.date.outputs.DATE }}.json) bytes"
+
+      - name: Backup sandbox database
+        env:
+          SECRET: ${{ secrets.FIREBASE_DB_SECRET_SANDBOX }}
+          DB_BASE: ${{ vars.KETO_FIREBASE_DB_BASE_SANDBOX }}
+        run: |
+          test -n "$SECRET" || (echo "::error::FIREBASE_DB_SECRET_SANDBOX is not set" && exit 1)
+          DB_BASE="${DB_BASE:-https://taskboard-sandbox-default-rtdb.asia-southeast1.firebasedatabase.app}"
+          mkdir -p sandbox
+          curl -sf "$DB_BASE/ketoDeficitTracker.json?auth=${SECRET}" -o "sandbox/${{ steps.date.outputs.DATE }}.json"
+          echo "Sandbox backup: $(wc -c < sandbox/${{ steps.date.outputs.DATE }}.json) bytes"
+
+      - name: Prune backups older than 14 days
+        run: |
+          for dir in production sandbox; do
+            COUNT=$(ls "$dir"/*.json 2>/dev/null | wc -l)
+            if [ "$COUNT" -gt 14 ]; then
+              ls -t "$dir"/*.json | tail -n +15 | xargs rm -f
+              echo "Pruned $((COUNT - 14)) old backup(s) from $dir/"
+            fi
+          done
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add production/ sandbox/
+          git diff --cached --quiet || git commit -m "Backup ${{ steps.date.outputs.DATE }}"
+          git push origin backups
