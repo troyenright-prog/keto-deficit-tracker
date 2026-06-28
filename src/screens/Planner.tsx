@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { MealPlanEntry, FoodItem, MealTemplate, Recipe } from '../types';
 import { todayDateString } from '../lib/nutrition';
 import { foodToPlanEntry, recipeToPlanEntry, templateToPlanEntry } from '../lib/planner';
+import { isDateString } from '../lib/date';
 
 interface PlannerProps {
   plan: MealPlanEntry[];
@@ -21,7 +22,16 @@ export function Planner({ plan, savedFoods, templates, recipes, onSavePlan, onCo
 
   const dayEntries = plan.filter((e) => e.date === selectedDate);
 
+  function validPlanDate(): boolean {
+    if (!isDateString(selectedDate)) {
+      setMessage('Choose a valid plan date.');
+      return false;
+    }
+    return true;
+  }
+
   function addFoodToPlan(food: FoodItem) {
+    if (!validPlanDate()) return;
     if (plan.some((e) => e.date === selectedDate && e.type === 'saved-food' && e.sourceId === food.id && !e.converted)) {
       setMessage(`"${food.name}" is already planned for ${selectedDate}.`);
       return;
@@ -34,6 +44,7 @@ export function Planner({ plan, savedFoods, templates, recipes, onSavePlan, onCo
   }
 
   function addTemplateToPlan(template: MealTemplate) {
+    if (!validPlanDate()) return;
     if (plan.some((e) => e.date === selectedDate && e.type === 'template' && e.sourceId === template.id && !e.converted)) {
       setMessage(`"${template.name}" is already planned for ${selectedDate}.`);
       return;
@@ -46,6 +57,7 @@ export function Planner({ plan, savedFoods, templates, recipes, onSavePlan, onCo
   }
 
   function addRecipeToPlan(recipe: Recipe, servings: number) {
+    if (!validPlanDate()) return;
     if (!Number.isFinite(servings) || servings <= 0) {
       setMessage('Servings must be greater than zero.');
       return;
@@ -147,7 +159,7 @@ export function Planner({ plan, savedFoods, templates, recipes, onSavePlan, onCo
                       />
                       <button
                         className="btn btn--secondary btn--sm"
-                        onClick={() => addRecipeToPlan(item.item as Recipe, parseFloat(pendingServings[item.id] ?? '1') || 1)}
+                        onClick={() => addRecipeToPlan(item.item as Recipe, parseFloat(pendingServings[item.id] ?? '1'))}
                       >
                         Add
                       </button>

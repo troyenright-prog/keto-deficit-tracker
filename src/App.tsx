@@ -24,6 +24,7 @@ import {
   loadRecipes, saveRecipes,
   loadShoppingList, saveShoppingList,
   loadMealPlan, saveMealPlan,
+  loadReminders, saveReminders,
   saveFoodLogAndMealPlan,
   migrateIfNeeded,
   seedDemoDataIfEmpty,
@@ -36,6 +37,7 @@ import { nanoid } from './lib/nanoid';
 import { inferMealSlot } from './lib/meals';
 import { duplicateLogEntry } from './lib/quick-add';
 import { savedFoodToFoodDatabaseItem, upsertFoodDatabaseItem } from './lib/food-database';
+import { scheduleReminderNotifications } from './lib/reminders';
 import type {
   FoodLogEntry,
   FoodItem,
@@ -47,6 +49,7 @@ import type {
   Recipe,
   ShoppingItem,
   MealPlanEntry,
+  ReminderSettings,
 } from './types';
 
 // Run migration once on startup
@@ -79,6 +82,7 @@ function reloadAll() {
     recipes: loadRecipes(),
     shoppingList: loadShoppingList(),
     mealPlan: loadMealPlan(),
+    reminders: loadReminders(),
   };
 }
 
@@ -94,6 +98,7 @@ function App() {
   const [recipes, setRecipes] = useState<Recipe[]>(loadRecipes);
   const [shoppingList, setShoppingList] = useState<ShoppingItem[]>(loadShoppingList);
   const [mealPlan, setMealPlan] = useState<MealPlanEntry[]>(loadMealPlan);
+  const [reminders, setReminders] = useState<ReminderSettings>(loadReminders);
   const [storageError, setStorageError] = useState('');
   const profileRef = useRef(profile);
   const targetsRef = useRef(targets);
@@ -105,6 +110,7 @@ function App() {
   const recipesRef = useRef(recipes);
   const shoppingListRef = useRef(shoppingList);
   const mealPlanRef = useRef(mealPlan);
+  const remindersRef = useRef(reminders);
 
   const persist = useCallback(<T,>(
     next: T,
@@ -172,6 +178,13 @@ function App() {
 
   const handleSaveProfile = useCallback((p: UserProfile) => persist(p, profileRef, setProfile, saveProfile), [persist]);
   const handleSaveTargets = useCallback((t: NutritionTargets) => persist(t, targetsRef, setTargets, saveTargets), [persist]);
+
+  const handleSaveReminders = useCallback(async (r: ReminderSettings) => {
+    if (!persist(r, remindersRef, setReminders, saveReminders)) {
+      return { ok: false, native: false, permission: 'unsupported' as const, scheduled: 0, message: 'Reminder settings could not be saved.' };
+    }
+    return scheduleReminderNotifications(r);
+  }, [persist]);
 
   // ── Weight ─────────────────────────────────────────────────────────────────
 
@@ -271,10 +284,11 @@ function App() {
     setRecipes(data.recipes);
     setShoppingList(data.shoppingList);
     setMealPlan(data.mealPlan);
+    setReminders(data.reminders);
     profileRef.current = data.profile; targetsRef.current = data.targets; foodLogRef.current = data.foodLog;
     savedFoodsRef.current = data.savedFoods; foodDatabaseRef.current = data.foodDatabase; weightEntriesRef.current = data.weightEntries;
     mealTemplatesRef.current = data.mealTemplates; recipesRef.current = data.recipes;
-    shoppingListRef.current = data.shoppingList; mealPlanRef.current = data.mealPlan;
+    shoppingListRef.current = data.shoppingList; mealPlanRef.current = data.mealPlan; remindersRef.current = data.reminders;
   }, []);
 
   return (
@@ -292,7 +306,7 @@ function App() {
             entries={foodLog.filter((entry) => entry.date === today)}
             targets={targets}
             recommendations={recommendations}
-            onAddFood={() => setScreen('add-food')}
+            onAddFood={() => setScreen('barcode')}
           />
         )}
         {screen === 'add-food' && (
@@ -305,7 +319,6 @@ function App() {
             onAdd={handleAddEntry}
             onAddEntries={handleAddEntries}
             onSaveFood={handleSaveFood}
-            onScanBarcode={() => setScreen('barcode')}
           />
         )}
         {screen === 'barcode' && (
@@ -314,7 +327,6 @@ function App() {
             onAdd={handleAddEntry}
             onSaveFood={handleSaveFood}
             onSaveFoodDatabaseItem={handleSaveFoodDatabaseItem}
-            onManualAdd={() => setScreen('add-food')}
           />
         )}
         {screen === 'daily-log' && (
@@ -384,8 +396,10 @@ function App() {
           <Settings
             profile={profile}
             targets={targets}
+            reminders={reminders}
             onSaveProfile={handleSaveProfile}
             onSaveTargets={handleSaveTargets}
+            onSaveReminders={handleSaveReminders}
             onImportComplete={handleImportComplete}
           />
         )}

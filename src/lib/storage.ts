@@ -1,24 +1,65 @@
 import type {
   UserProfile, NutritionTargets, FoodLogEntry, FoodItem, WeightEntry,
   MealTemplate, MealTemplateItem, Recipe, RecipeIngredient, ShoppingItem,
-  MealPlanEntry, AppStateBundle, Micronutrients, FoodDatabaseItem, FoodDatabaseSource,
+  MealPlanEntry, AppStateBundle, Micronutrients, FoodDatabaseItem, FoodDatabaseSource, ReminderSettings,
 } from '../types';
 import { addLocalDays, isDateString, localDateString } from './date';
 import { dedupeFoodDatabase } from './food-database';
 import { isMealSlot } from './meals';
 import { calcNetCarbs, safeNonNegative, safePositive } from './nutrition';
 import { getStarterFoodOptions } from './australianFoods';
+import { DEFAULT_REMINDERS, hasEnabledReminders, normalizeReminderSettings } from './reminders';
 
-export const CURRENT_VERSION = 4;
+export const CURRENT_VERSION = 5;
 
 const KEYS = {
   version: 'keto_version', profile: 'keto_profile', targets: 'keto_targets',
   foodLog: 'keto_food_log', savedFoods: 'keto_saved_foods', weightEntries: 'keto_weight_entries',
   mealTemplates: 'keto_meal_templates', recipes: 'keto_recipes', shoppingList: 'keto_shopping_list',
-  mealPlan: 'keto_meal_plan', foodDatabase: 'keto_food_database',
+  mealPlan: 'keto_meal_plan', foodDatabase: 'keto_food_database', reminders: 'keto_reminders',
 } as const;
 
 const DEMO_SEED_KEY = 'keto_demo_seed_v1';
+const LEGACY_CLAIM_KEY = 'keto_legacy_data_claimed_by';
+
+type StorageScope = {
+  environment: string;
+  userKey: string;
+};
+
+let activeStorageScope: StorageScope | null = null;
+const storageChangeListeners = new Set<() => void>();
+
+function scopeId(scope = activeStorageScope): string {
+  return scope ? `${scope.environment}:${scope.userKey}` : '';
+}
+
+function scopedKey(key: string): string {
+  return activeStorageScope ? `keto_${activeStorageScope.environment}_${activeStorageScope.userKey}_${key}` : key;
+}
+
+export function configureStorageScope(scope: StorageScope | null): void {
+  activeStorageScope = scope;
+}
+
+export function getStorageScopeId(): string {
+  return scopeId();
+}
+
+export function subscribeLocalDataChanges(listener: () => void): () => void {
+  storageChangeListeners.add(listener);
+  return () => storageChangeListeners.delete(listener);
+}
+
+function notifyLocalDataChanged(): void {
+  for (const listener of storageChangeListeners) {
+    try {
+      listener();
+    } catch {
+      // Listener failures should not break writes.
+    }
+  }
+}
 
 type UnknownRecord = Record<string, unknown>;
 const isRecord = (value: unknown): value is UnknownRecord => typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -29,7 +70,7 @@ const timestamp = (value: unknown) => typeof value === 'string' && Number.isFini
 
 function safeRead(key: string): unknown {
   try {
-    const raw = localStorage.getItem(key);
+    const raw = localStorage.getItem(scopedKey(key));
     return raw ? JSON.parse(raw) : undefined;
   } catch {
     return undefined;
@@ -38,7 +79,49 @@ function safeRead(key: string): unknown {
 
 function safeWrite(key: string, value: unknown): boolean {
   try {
-    localStorage.setItem(key, JSON.stringify(value));
+    localStorage.setItem(scopedKey(key), JSON.stringify(value));
+    notifyLocalDataChanged();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function hasRawUserData(prefix = ''): boolean {
+  const read = (key: string) => localStorage.getItem(`${prefix}${key}`);
+  return Boolean(
+    read(KEYS.profile) ||
+    read(KEYS.targets) ||
+    read(KEYS.foodLog) ||
+    read(KEYS.savedFoods) ||
+    read(KEYS.weightEntries) ||
+    read(KEYS.mealTemplates) ||
+    read(KEYS.recipes) ||
+    read(KEYS.shoppingList) ||
+    read(KEYS.mealPlan) ||
+    read(KEYS.foodDatabase) ||
+    read(KEYS.reminders)
+  );
+}
+
+export function claimLegacyDataForActiveScope(): boolean {
+  if (!activeStorageScope) return false;
+  const prefix = `keto_${activeStorageScope.environment}_${activeStorageScope.userKey}_`;
+  if (hasRawUserData(prefix) || !hasRawUserData()) return false;
+
+  const claimedBy = localStorage.getItem(LEGACY_CLAIM_KEY);
+  const activeId = scopeId();
+  if (claimedBy && claimedBy !== activeId) return false;
+
+  try {
+    for (const key of Object.values(KEYS)) {
+      const raw = localStorage.getItem(key);
+      if (raw !== null) localStorage.setItem(`${prefix}${key}`, raw);
+    }
+    const demoRaw = localStorage.getItem(DEMO_SEED_KEY);
+    if (demoRaw !== null) localStorage.setItem(`${prefix}${DEMO_SEED_KEY}`, demoRaw);
+    localStorage.setItem(LEGACY_CLAIM_KEY, activeId);
+    notifyLocalDataChanged();
     return true;
   } catch {
     return false;
@@ -228,8 +311,9 @@ export function migrateIfNeeded(): void {
   if (version >= CURRENT_VERSION) return;
   try {
     for (const key of [KEYS.mealTemplates, KEYS.recipes, KEYS.shoppingList, KEYS.mealPlan, KEYS.foodDatabase]) {
-      if (localStorage.getItem(key) === null && !safeWrite(key, [])) return;
+      if (localStorage.getItem(scopedKey(key)) === null && !safeWrite(key, [])) return;
     }
+    if (localStorage.getItem(scopedKey(KEYS.reminders)) === null && !safeWrite(KEYS.reminders, DEFAULT_REMINDERS)) return;
     safeWrite(KEYS.version, CURRENT_VERSION);
   } catch {
     // Loading still falls back to normalised defaults when storage is unavailable.
@@ -256,12 +340,15 @@ export const loadShoppingList = () => normalizeArray(safeRead(KEYS.shoppingList)
 export const saveShoppingList = (value: ShoppingItem[]) => safeWrite(KEYS.shoppingList, value);
 export const loadMealPlan = () => normalizeArray(safeRead(KEYS.mealPlan), normalizePlanEntry);
 export const saveMealPlan = (value: MealPlanEntry[]) => safeWrite(KEYS.mealPlan, value);
+export const loadReminders = () => normalizeReminderSettings(safeRead(KEYS.reminders));
+export const saveReminders = (value: ReminderSettings) => safeWrite(KEYS.reminders, normalizeReminderSettings(value));
 
 function writeAtomically(writes: [string, unknown][]): boolean {
   const previous = new Map<string, string | null>();
   try {
-    for (const [key] of writes) previous.set(key, localStorage.getItem(key));
-    for (const [key, item] of writes) localStorage.setItem(key, JSON.stringify(item));
+    for (const [key] of writes) previous.set(scopedKey(key), localStorage.getItem(scopedKey(key)));
+    for (const [key, item] of writes) localStorage.setItem(scopedKey(key), JSON.stringify(item));
+    notifyLocalDataChanged();
     return true;
   } catch {
     try {
@@ -288,13 +375,20 @@ function hasUserData(): boolean {
     loadRecipes().length > 0 ||
     loadShoppingList().length > 0 ||
     loadMealPlan().length > 0 ||
+    hasEnabledReminders(loadReminders()) ||
     loadProfile().name.trim().length > 0;
 }
 
+export const hasLocalUserData = hasUserData;
+
 export function seedDemoDataIfEmpty(): boolean {
-  const forceDemoReset = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('demo') === 'reset';
+  const demoParam = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('demo') : null;
+  const forceDemoReset = demoParam === 'reset';
+  const demoRequested = forceDemoReset || demoParam === '1' || demoParam === 'true';
+  if (!demoRequested) return false;
+
   if (forceDemoReset) {
-    for (const key of [...Object.values(KEYS), DEMO_SEED_KEY]) localStorage.removeItem(key);
+    for (const key of [...Object.values(KEYS), DEMO_SEED_KEY]) localStorage.removeItem(scopedKey(key));
     migrateIfNeeded();
   }
   if (!forceDemoReset && (safeRead(DEMO_SEED_KEY) === true || hasUserData())) return false;
@@ -419,6 +513,7 @@ export function seedDemoDataIfEmpty(): boolean {
     [KEYS.recipes, recipes],
     [KEYS.shoppingList, shoppingList],
     [KEYS.mealPlan, []],
+    [KEYS.reminders, DEFAULT_REMINDERS],
     [DEMO_SEED_KEY, true],
   ]);
 }
@@ -429,6 +524,7 @@ export function exportAppData(): AppStateBundle {
     foodLog: loadFoodLog(), savedFoods: loadSavedFoods(), weightEntries: loadWeightEntries(),
     foodDatabase: loadFoodDatabase(),
     mealTemplates: loadMealTemplates(), recipes: loadRecipes(), shoppingList: loadShoppingList(), mealPlan: loadMealPlan(),
+    reminders: loadReminders(),
   };
 }
 
@@ -455,6 +551,7 @@ export function normalizeAppBundle(value: unknown): AppStateBundle | null {
     weightEntries: normalizeArray(value.weightEntries, normalizeWeight), mealTemplates: normalizeArray(value.mealTemplates, normalizeTemplate),
     recipes: normalizeArray(value.recipes, normalizeRecipe), shoppingList: normalizeArray(value.shoppingList, normalizeShoppingItem),
     mealPlan: normalizeArray(value.mealPlan, normalizePlanEntry),
+    reminders: normalizeReminderSettings(value.reminders),
   };
 }
 
@@ -469,7 +566,8 @@ export function importAppData(value: unknown): boolean {
     [KEYS.profile, bundle.profile], [KEYS.targets, bundle.targets], [KEYS.foodLog, bundle.foodLog],
     [KEYS.savedFoods, bundle.savedFoods], [KEYS.foodDatabase, bundle.foodDatabase], [KEYS.weightEntries, bundle.weightEntries],
     [KEYS.mealTemplates, bundle.mealTemplates], [KEYS.recipes, bundle.recipes],
-    [KEYS.shoppingList, bundle.shoppingList], [KEYS.mealPlan, bundle.mealPlan], [KEYS.version, CURRENT_VERSION],
+    [KEYS.shoppingList, bundle.shoppingList], [KEYS.mealPlan, bundle.mealPlan], [KEYS.reminders, bundle.reminders],
+    [KEYS.version, CURRENT_VERSION],
   ];
   return writeAtomically(writes);
 }

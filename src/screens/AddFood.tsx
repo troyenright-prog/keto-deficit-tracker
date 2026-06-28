@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { FoodForm, type FoodFormValues } from '../components/FoodForm';
 import type { FoodDatabaseItem, FoodItem, FoodLogEntry, MealTemplate, Recipe } from '../types';
 import { calcNetCarbs, savedFoodToLogEntry, todayDateString } from '../lib/nutrition';
-import { addLocalDays } from '../lib/date';
+import { addLocalDays, isDateString } from '../lib/date';
 import { nanoid } from '../lib/nanoid';
 import { recipeToLogEntry } from '../lib/recipes';
 import { templateToLogEntries } from '../lib/meal-templates';
@@ -21,12 +21,11 @@ interface AddFoodProps {
   onAdd: (entry: FoodLogEntry) => boolean;
   onAddEntries: (entries: FoodLogEntry[]) => boolean;
   onSaveFood: (food: FoodItem) => boolean;
-  onScanBarcode?: () => void;
 }
 
 const QUICK_AMOUNTS = [0.5, 1, 1.5, 2];
 
-export function AddFood({ savedFoods, foodDatabase, log, recipes, templates, onAdd, onAddEntries, onSaveFood, onScanBarcode }: AddFoodProps) {
+export function AddFood({ savedFoods, foodDatabase, log, recipes, templates, onAdd, onAddEntries, onSaveFood }: AddFoodProps) {
   const [date, setDate] = useState(todayDateString());
   const [meal, setMeal] = useState(inferMealSlot());
   const [successMsg, setSuccessMsg] = useState('');
@@ -34,6 +33,7 @@ export function AddFood({ savedFoods, foodDatabase, log, recipes, templates, onA
   const [selected, setSelected] = useState<QuickAddItem | null>(null);
   const [multiplier, setMultiplier] = useState('1');
   const [quickError, setQuickError] = useState('');
+  const [dateError, setDateError] = useState('');
 
   const recentFoods = useMemo(() => recentFoodsFromLog(log), [log]);
   const groups = useMemo(() => buildQuickAddGroups({
@@ -63,8 +63,18 @@ export function AddFood({ savedFoods, foodDatabase, log, recipes, templates, onA
     return value;
   }
 
+  function validLogDate(): boolean {
+    if (!isDateString(date) || date > todayDateString()) {
+      setDateError('Choose a valid log date that is not in the future.');
+      return false;
+    }
+    setDateError('');
+    return true;
+  }
+
   function addSelected() {
     if (!selected) return;
+    if (!validLogDate()) return;
     const amount = validMultiplier();
     if (amount === null) return;
     let entries: FoodLogEntry[];
@@ -90,11 +100,13 @@ export function AddFood({ savedFoods, foodDatabase, log, recipes, templates, onA
   }
 
   function copyEntries(entries: FoodLogEntry[]) {
+    if (!validLogDate()) return;
     if (!onAddEntries(copyLogEntries(entries, date))) return;
     showSuccess(`${entries.length} ${entries.length === 1 ? 'entry' : 'entries'} copied from ${previousDate}.`);
   }
 
   function handleSubmit(values: FoodFormValues) {
+    if (!validLogDate()) return;
     const m = values.servingMultiplier;
     const entry: FoodLogEntry = {
       id: nanoid(), date, name: values.name, servingSize: values.servingSize, servingMultiplier: m,
@@ -133,17 +145,13 @@ export function AddFood({ savedFoods, foodDatabase, log, recipes, templates, onA
     <div className="screen">
       <div className="screen-header">
         <h1>Add Food</h1>
-        {onScanBarcode && (
-          <button className="btn btn--secondary btn--sm" onClick={onScanBarcode}>
-            Scan barcode
-          </button>
-        )}
       </div>
       {successMsg && <div className="success-toast">{successMsg}</div>}
 
       <div className="form-group">
         <label htmlFor="quick-date">Add to date</label>
-        <input id="quick-date" type="date" value={date} max={todayDateString()} onChange={(event) => { setDate(event.target.value); setSelected(null); }} />
+        <input id="quick-date" type="date" value={date} max={todayDateString()} onChange={(event) => { setDate(event.target.value); setSelected(null); setDateError(''); }} />
+        {dateError && <span className="form-error" role="alert">{dateError}</span>}
       </div>
 
       <div className="form-group">

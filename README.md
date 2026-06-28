@@ -17,6 +17,24 @@ npm run lint
 npm test
 ```
 
+## Native mobile app
+
+The app can also run as a Capacitor Android/iOS wrapper around the same React/Vite build.
+
+```sh
+npm run android:sync
+npm run android:open
+```
+
+Android native project files live in `android/`. The app includes Capacitor Local Notifications for native reminder scheduling from Settings. iOS support uses the same Capacitor config, but generating/opening the iOS project requires macOS and Xcode:
+
+```sh
+npm run ios:add
+npm run ios:open
+```
+
+Push notifications are not wired yet. They require Firebase Cloud Messaging for Android and APNs/app capabilities for iOS.
+
 ## Barcode scanning
 
 The Scan screen supports packaged-food lookup by barcode. When the browser supports the native BarcodeDetector API, users can scan with the device camera. Every browser can still use manual barcode entry.
@@ -60,3 +78,5 @@ No secret is required for Open Food Facts. Optionally add `OPEN_FOOD_FACTS_USER_
 ## Data
 
 User profile, targets, food logs, saved foods, recipes, plans, and other app state are stored locally in versioned browser storage. Backup import/export uses the same normalized app-state structure. Barcode metadata is optional and included only with saved-food/log snapshots.
+
+Demo data is not loaded for normal installs. For local demos or screenshots, open the app with `?demo=reset` to replace local data with a sample dataset.

@@ -4,13 +4,13 @@ import { barcodeFoodToLogEntry, barcodeFoodToSavedFood, lookupBarcodeFood, norma
 import { barcodeFoodToFoodDatabaseItem, findFoodDatabaseByBarcode, foodDatabaseItemToBarcodeFood } from '../lib/food-database';
 import { inferMealSlot, MEAL_SLOTS } from '../lib/meals';
 import { calcNetCarbs, todayDateString } from '../lib/nutrition';
+import { isDateString } from '../lib/date';
 
 interface BarcodeScannerProps {
   foodDatabase: FoodDatabaseItem[];
   onAdd: (entry: FoodLogEntry) => boolean;
   onSaveFood: (food: FoodItem) => boolean;
   onSaveFoodDatabaseItem: (food: FoodDatabaseItem) => boolean;
-  onManualAdd: () => void;
 }
 
 type BarcodeDetectorCtor = new (options?: { formats?: string[] }) => {
@@ -28,7 +28,7 @@ const originLabels: Record<FoodOrigin, string> = {
 
 const canUseBarcodeDetector = (): boolean => typeof window !== 'undefined' && 'BarcodeDetector' in window;
 
-export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodDatabaseItem, onManualAdd }: BarcodeScannerProps) {
+export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodDatabaseItem }: BarcodeScannerProps) {
   const [barcode, setBarcode] = useState('');
   const [date, setDate] = useState(todayDateString());
   const [meal, setMeal] = useState(inferMealSlot());
@@ -143,6 +143,27 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
     return value;
   }
 
+  function validLogDate(): boolean {
+    if (!isDateString(date) || date > todayDateString()) {
+      setError('Choose a valid log date that is not in the future.');
+      return false;
+    }
+    return true;
+  }
+
+  function validReviewedFood(): boolean {
+    if (!food) return false;
+    if (!food.name.trim()) {
+      setError('Food name is required.');
+      return false;
+    }
+    if (food.fibreG + food.sugarAlcoholsG > food.totalCarbsG) {
+      setError('Fibre and sugar alcohols cannot exceed total carbs.');
+      return false;
+    }
+    return true;
+  }
+
   function updateFood<K extends keyof BarcodeFood>(key: K, value: BarcodeFood[K]) {
     setFood((current) => current ? { ...current, [key]: value } : current);
     setOrigin('corrected');
@@ -161,6 +182,7 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
 
   function addToLog() {
     if (!food) return;
+    if (!validLogDate() || !validReviewedFood()) return;
     const amount = validServings();
     if (amount === null) return;
     if (!persistReviewedFood()) return;
@@ -172,6 +194,7 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
 
   function saveFood() {
     if (!food) return;
+    if (!validReviewedFood()) return;
     if (!persistReviewedFood()) return;
     if (!onSaveFood(barcodeFoodToSavedFood(food))) return;
     setSuccess(`"${food.name}" saved to your food library.`);
@@ -216,10 +239,7 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
           <button className="btn btn--secondary" onClick={scanning ? stopCamera : startCamera}>
             {scanning ? 'Stop camera' : 'Scan with camera'}
           </button>
-          <button className="btn btn--ghost" onClick={onManualAdd}>
-            Add manually
-          </button>
-          {!scannerSupported && <span className="dim">Manual entry works on all browsers.</span>}
+          {!scannerSupported && <span className="dim">Barcode number entry works on all browsers.</span>}
         </div>
         {scanning && <video ref={videoRef} className="barcode-video" playsInline muted aria-label="Barcode scanner camera preview" />}
 
