@@ -473,6 +473,7 @@ function App() {
             onAdd={handleAddEntry}
             onSaveFood={handleSaveFood}
             onSaveFoodDatabaseItem={handleSaveFoodDatabaseItem}
+            autoStart
           />
         )}
         {screen === 'daily-log' && (

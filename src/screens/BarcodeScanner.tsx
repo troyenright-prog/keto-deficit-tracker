@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { IScannerControls } from '@zxing/browser';
 import type { FoodDatabaseItem, FoodItem, FoodLogEntry } from '../types';
 import { barcodeFoodToLogEntry, barcodeFoodToSavedFood, lookupBarcodeFood, normalizeBarcode, type BarcodeFood } from '../lib/barcode';
@@ -12,6 +12,7 @@ interface BarcodeScannerProps {
   onAdd: (entry: FoodLogEntry) => boolean;
   onSaveFood: (food: FoodItem) => boolean;
   onSaveFoodDatabaseItem: (food: FoodDatabaseItem) => boolean;
+  autoStart?: boolean;
 }
 
 type FoodOrigin = 'local' | 'openFoodFacts' | 'manual' | 'corrected';
@@ -25,7 +26,7 @@ const originLabels: Record<FoodOrigin, string> = {
 
 const canUseCamera = (): boolean => typeof navigator !== 'undefined' && Boolean(navigator.mediaDevices?.getUserMedia);
 
-export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodDatabaseItem }: BarcodeScannerProps) {
+export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodDatabaseItem, autoStart = false }: BarcodeScannerProps) {
   const [barcode, setBarcode] = useState('');
   const [date, setDate] = useState(todayDateString());
   const [meal, setMeal] = useState(inferMealSlot());
@@ -41,17 +42,16 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const scannerControlsRef = useRef<IScannerControls | null>(null);
   const stopRef = useRef(false);
+  const autoStartedRef = useRef(false);
 
-  useEffect(() => () => stopCamera(), []);
-
-  function stopCamera() {
+  const stopCamera = useCallback(() => {
     stopRef.current = true;
     scannerControlsRef.current?.stop();
     scannerControlsRef.current = null;
     setScanning(false);
-  }
+  }, []);
 
-  async function waitForVideoElement(): Promise<HTMLVideoElement> {
+  const waitForVideoElement = useCallback(async (): Promise<HTMLVideoElement> => {
     for (let attempt = 0; attempt < 8; attempt += 1) {
       if (videoRef.current) return videoRef.current;
       await new Promise((resolve) => {
@@ -60,9 +60,9 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
       });
     }
     throw new Error('Camera preview could not start.');
-  }
+  }, []);
 
-  async function lookup(raw = barcode) {
+  const lookup = useCallback(async (raw = barcode) => {
     const normalized = normalizeBarcode(raw);
     setBarcode(normalized);
     setFood(null);
@@ -91,9 +91,9 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
     } finally {
       setLoading(false);
     }
-  }
+  }, [barcode, foodDatabase, onSaveFoodDatabaseItem]);
 
-  async function startCamera() {
+  const startCamera = useCallback(async () => {
     if (scanning) return;
     if (!cameraSupported) { setError('Camera access is not available. Enter the barcode number instead.'); return; }
     if (!navigator.mediaDevices?.getUserMedia) { setError('Camera access is not available. Enter the barcode number instead.'); return; }
@@ -133,7 +133,15 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
       setError(`${message} Enter the barcode number instead.`);
       stopCamera();
     }
-  }
+  }, [cameraSupported, lookup, scanning, stopCamera, waitForVideoElement]);
+
+  useEffect(() => () => stopCamera(), [stopCamera]);
+
+  useEffect(() => {
+    if (!autoStart || autoStartedRef.current) return;
+    autoStartedRef.current = true;
+    void startCamera();
+  }, [autoStart, startCamera]);
 
   function validServings(): number | null {
     const value = Number(servings);
