@@ -122,11 +122,38 @@ export function normalizeOpenFoodFactsProduct(value: unknown, barcodeFallback = 
   };
 }
 
+// The barcode lookup is proxied by the Cloudflare Pages function at
+// /api/lookup-barcode. That relative path only resolves on the deployed web
+// app — inside the native (Capacitor) WebView the origin is https://localhost,
+// so a relative request returns the bundled index.html instead of JSON. When
+// running natively we therefore call the deployed function's absolute URL.
+// (Detected via the injected Capacitor global rather than a static import, so
+// this module stays safe to import from the Cloudflare Pages function.)
+const BARCODE_API_ORIGIN = 'https://keto-deficit-tracker.pages.dev';
+
+function isNativePlatform(): boolean {
+  const cap = (globalThis as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+  return typeof cap?.isNativePlatform === 'function' ? cap.isNativePlatform() : false;
+}
+
+export function barcodeLookupUrl(code: string): string {
+  const base = isNativePlatform() ? BARCODE_API_ORIGIN : '';
+  return `${base}/api/lookup-barcode?code=${encodeURIComponent(code)}`;
+}
+
 export async function lookupBarcodeFood(barcode: string, fetcher: typeof fetch = fetch): Promise<BarcodeFood> {
   const normalized = normalizeBarcode(barcode);
   if (!normalized) throw new Error('Enter a valid barcode number.');
-  const response = await fetcher(`/api/lookup-barcode?code=${encodeURIComponent(normalized)}`);
-  const body = await response.json() as unknown;
+  // Bypass the HTTP cache: the proxy sends `cache-control: max-age=3600`, so a
+  // response fetched before CORS was enabled can stick around without the
+  // Access-Control-Allow-Origin header and keep failing the cross-origin check.
+  const response = await fetcher(barcodeLookupUrl(normalized), { cache: 'no-store' });
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch {
+    throw new Error('Could not reach the barcode database. Check your connection and try again.');
+  }
   if (!response.ok) {
     const message = isRecord(body) && typeof body.error === 'string' ? body.error : 'Barcode lookup failed.';
     throw new Error(message);
