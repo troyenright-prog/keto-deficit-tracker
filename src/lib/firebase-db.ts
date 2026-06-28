@@ -83,7 +83,11 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}): Promise
   try {
     return await fetch(url, controller ? { ...options, signal: controller.signal } : options);
   } catch (error) {
-    if ((error as Error)?.name === 'AbortError') throw new Error(`Firebase read timed out after ${READ_TIMEOUT_MS}ms`);
+    if ((error as Error)?.name === 'AbortError') {
+      const timeoutError = new Error(`Firebase read timed out after ${READ_TIMEOUT_MS}ms`);
+      (timeoutError as Error & { cause?: unknown }).cause = error;
+      throw timeoutError;
+    }
     throw error;
   } finally {
     if (timeout) clearTimeout(timeout);

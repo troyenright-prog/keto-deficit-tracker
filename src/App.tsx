@@ -227,7 +227,6 @@ function App() {
 
     let sawFirstRemoteRead = false;
     void initAuth();
-    setSyncStatus({ tone: 'syncing', text: 'Connecting' });
 
     const applyRemoteBundle = (bundle: AppStateBundle) => {
       applyingRemoteRef.current = true;
