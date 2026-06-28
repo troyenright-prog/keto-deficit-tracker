@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { IScannerControls } from '@zxing/browser';
 import type { FoodDatabaseItem, FoodItem, FoodLogEntry } from '../types';
 import { barcodeFoodToLogEntry, barcodeFoodToSavedFood, lookupBarcodeFood, normalizeBarcode, type BarcodeFood } from '../lib/barcode';
 import { barcodeFoodToFoodDatabaseItem, findFoodDatabaseByBarcode, foodDatabaseItemToBarcodeFood } from '../lib/food-database';
@@ -13,10 +14,6 @@ interface BarcodeScannerProps {
   onSaveFoodDatabaseItem: (food: FoodDatabaseItem) => boolean;
 }
 
-type BarcodeDetectorCtor = new (options?: { formats?: string[] }) => {
-  detect: (source: CanvasImageSource) => Promise<Array<{ rawValue?: string }>>;
-};
-
 type FoodOrigin = 'local' | 'openFoodFacts' | 'manual' | 'corrected';
 
 const originLabels: Record<FoodOrigin, string> = {
@@ -26,7 +23,7 @@ const originLabels: Record<FoodOrigin, string> = {
   corrected: 'User-corrected food',
 };
 
-const canUseBarcodeDetector = (): boolean => typeof window !== 'undefined' && 'BarcodeDetector' in window;
+const canUseCamera = (): boolean => typeof navigator !== 'undefined' && Boolean(navigator.mediaDevices?.getUserMedia);
 
 export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodDatabaseItem }: BarcodeScannerProps) {
   const [barcode, setBarcode] = useState('');
@@ -40,18 +37,29 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [scanning, setScanning] = useState(false);
-  const [scannerSupported] = useState(canUseBarcodeDetector);
+  const [cameraSupported] = useState(canUseCamera);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const scannerControlsRef = useRef<IScannerControls | null>(null);
   const stopRef = useRef(false);
 
   useEffect(() => () => stopCamera(), []);
 
   function stopCamera() {
     stopRef.current = true;
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-    streamRef.current = null;
+    scannerControlsRef.current?.stop();
+    scannerControlsRef.current = null;
     setScanning(false);
+  }
+
+  async function waitForVideoElement(): Promise<HTMLVideoElement> {
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      if (videoRef.current) return videoRef.current;
+      await new Promise((resolve) => {
+        if (typeof requestAnimationFrame === 'function') requestAnimationFrame(resolve);
+        else setTimeout(resolve, 16);
+      });
+    }
+    throw new Error('Camera preview could not start.');
   }
 
   async function lookup(raw = barcode) {
@@ -86,7 +94,8 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
   }
 
   async function startCamera() {
-    if (!scannerSupported) { setError('Camera barcode scanning is not supported in this browser. Enter the barcode number instead.'); return; }
+    if (scanning) return;
+    if (!cameraSupported) { setError('Camera access is not available. Enter the barcode number instead.'); return; }
     if (!navigator.mediaDevices?.getUserMedia) { setError('Camera access is not available. Enter the barcode number instead.'); return; }
     setError('');
     setSuccess('');
@@ -94,43 +103,35 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
     setScanning(true);
     stopRef.current = false;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-      scanLoop();
-    } catch {
-      setError('Could not open the camera. Enter the barcode number instead.');
+      const video = await waitForVideoElement();
+      const { BarcodeFormat, BrowserMultiFormatReader } = await import('@zxing/browser');
+      const reader = new BrowserMultiFormatReader();
+      reader.possibleFormats = [
+        BarcodeFormat.EAN_13,
+        BarcodeFormat.EAN_8,
+        BarcodeFormat.UPC_A,
+        BarcodeFormat.UPC_E,
+        BarcodeFormat.CODE_128,
+      ];
+      scannerControlsRef.current = await reader.decodeFromConstraints(
+        { video: { facingMode: { ideal: 'environment' } }, audio: false },
+        video,
+        (result, _error, controls) => {
+          if (!result || stopRef.current) return;
+          const normalized = normalizeBarcode(result.getText());
+          if (!normalized) return;
+          controls.stop();
+          scannerControlsRef.current = null;
+          stopRef.current = true;
+          setScanning(false);
+          setBarcode(normalized);
+          void lookup(normalized);
+        },
+      );
+    } catch (err) {
+      const message = err instanceof Error && err.message ? err.message : 'Could not open the camera.';
+      setError(`${message} Enter the barcode number instead.`);
       stopCamera();
-    }
-  }
-
-  async function scanLoop() {
-    const detector = new (window as unknown as { BarcodeDetector: BarcodeDetectorCtor }).BarcodeDetector({
-      formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128'],
-    });
-    while (!stopRef.current) {
-      const video = videoRef.current;
-      if (video && video.readyState >= 2) {
-        try {
-          const results = await detector.detect(video);
-          const rawValue = results.find((result) => result.rawValue)?.rawValue;
-          if (rawValue) {
-            const normalized = normalizeBarcode(rawValue);
-            stopCamera();
-            setBarcode(normalized);
-            await lookup(normalized);
-            return;
-          }
-        } catch {
-          setError('Scanner had trouble reading the camera image. Try entering the barcode number.');
-          stopCamera();
-          return;
-        }
-      }
-      await new Promise((resolve) => setTimeout(resolve, 350));
     }
   }
 
@@ -239,7 +240,7 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
           <button className="btn btn--secondary" onClick={scanning ? stopCamera : startCamera}>
             {scanning ? 'Stop camera' : 'Scan with camera'}
           </button>
-          {!scannerSupported && <span className="dim">Barcode number entry works on all browsers.</span>}
+          {!cameraSupported && <span className="dim">Barcode number entry works on all devices.</span>}
         </div>
         {scanning && <video ref={videoRef} className="barcode-video" playsInline muted aria-label="Barcode scanner camera preview" />}
 
