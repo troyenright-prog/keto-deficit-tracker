@@ -11,6 +11,7 @@ type Tab = { id: Screen; label: string };
 const homeTabs: Tab[] = [
   { id: 'dashboard', label: 'Home' },
   { id: 'daily-log', label: 'Log' },
+  { id: 'weight', label: 'Weight' },
 ];
 
 const planTabs: Tab[] = [
@@ -23,7 +24,6 @@ const planTabs: Tab[] = [
 ];
 
 const endTabs: Tab[] = [
-  { id: 'weight', label: 'Weight' },
   { id: 'settings', label: 'Settings' },
 ];
 
