@@ -122,32 +122,43 @@ export function normalizeOpenFoodFactsProduct(value: unknown, barcodeFallback = 
   };
 }
 
-// The barcode lookup is proxied by the Cloudflare Pages function at
-// /api/lookup-barcode. That relative path only resolves on the deployed web
-// app — inside the native (Capacitor) WebView the origin is https://localhost,
-// so a relative request returns the bundled index.html instead of JSON. When
-// running natively we therefore call the deployed function's absolute URL.
-// (Detected via the injected Capacitor global rather than a static import, so
-// this module stays safe to import from the Cloudflare Pages function.)
-const BARCODE_API_ORIGIN = 'https://keto-deficit-tracker.pages.dev';
-
+// Detected via the injected Capacitor global rather than a static import, so
+// this module stays safe to import from the Cloudflare Pages function.
 function isNativePlatform(): boolean {
   const cap = (globalThis as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
   return typeof cap?.isNativePlatform === 'function' ? cap.isNativePlatform() : false;
 }
 
+// On the web the lookup goes through the same-origin Cloudflare Pages proxy
+// (edge caching + a seam for future keyed data sources). In the native app the
+// proxy hop has been the sole source of barcode breakage — a relative path
+// resolves to the WebView's https://localhost origin, and the absolute URL adds
+// cross-origin CORS plus stale-cache problems. OpenFoodFacts is public and
+// CORS-enabled, so the native app queries it directly and skips the hop.
+const OPEN_FOOD_FACTS_BASE = 'https://world.openfoodfacts.org/api/v3.6/product';
+
 export function barcodeLookupUrl(code: string): string {
-  const base = isNativePlatform() ? BARCODE_API_ORIGIN : '';
-  return `${base}/api/lookup-barcode?code=${encodeURIComponent(code)}`;
+  return isNativePlatform()
+    ? `${OPEN_FOOD_FACTS_BASE}/${encodeURIComponent(code)}.json`
+    : `/api/lookup-barcode?code=${encodeURIComponent(code)}`;
 }
 
 export async function lookupBarcodeFood(barcode: string, fetcher: typeof fetch = fetch): Promise<BarcodeFood> {
   const normalized = normalizeBarcode(barcode);
   if (!normalized) throw new Error('Enter a valid barcode number.');
-  // Bypass the HTTP cache: the proxy sends `cache-control: max-age=3600`, so a
-  // response fetched before CORS was enabled can stick around without the
-  // Access-Control-Allow-Origin header and keep failing the cross-origin check.
-  const response = await fetcher(barcodeLookupUrl(normalized), { cache: 'no-store' });
+
+  let response: Response;
+  try {
+    // `no-store` avoids serving a stale cached response; `accept` is a
+    // CORS-safelisted header so it does not trigger a preflight.
+    response = await fetcher(barcodeLookupUrl(normalized), { cache: 'no-store', headers: { accept: 'application/json' } });
+  } catch {
+    throw new Error('Could not reach the barcode database. Check your connection and try again.');
+  }
+
+  if (response.status === 404) throw new Error('No food was found for that barcode.');
+  if (response.status === 429 || response.status === 503) throw new Error('Barcode lookup is temporarily rate-limited. Try again shortly.');
+
   let body: unknown;
   try {
     body = await response.json();

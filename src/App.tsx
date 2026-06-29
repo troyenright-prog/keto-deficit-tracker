@@ -38,6 +38,7 @@ import {
 } from './lib/storage';
 import {
   ENV,
+  FIREBASE_AUTH_ACTIVE,
   initAuth,
   saveRemoteAppData,
   subscribeRemoteAppData,
@@ -87,6 +88,16 @@ type SyncStatus = {
   text: string;
 };
 
+// Cloud sync only runs when Firebase credentials are present in the build. The
+// native app currently ships without them, so rather than showing a misleading
+// "Offline" pill and polling a database it can't reach, it stays local-only.
+const SYNC_ENABLED = FIREBASE_AUTH_ACTIVE;
+
+function initialSyncStatus(hasUser: boolean): SyncStatus {
+  if (!hasUser) return { tone: 'idle', text: 'Pick user' };
+  return SYNC_ENABLED ? { tone: 'syncing', text: 'Connecting' } : { tone: 'idle', text: 'Local' };
+}
+
 function reloadAll() {
   return {
     profile: loadProfile(),
@@ -128,9 +139,7 @@ function App() {
   const [mealPlan, setMealPlan] = useState<MealPlanEntry[]>(loadMealPlan);
   const [reminders, setReminders] = useState<ReminderSettings>(loadReminders);
   const [storageError, setStorageError] = useState('');
-  const [syncStatus, setSyncStatus] = useState<SyncStatus>(
-    initialUser ? { tone: 'syncing', text: 'Connecting' } : { tone: 'idle', text: 'Pick user' },
-  );
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>(() => initialSyncStatus(Boolean(initialUser)));
   const currentUserRef = useRef(currentUser);
   const applyingRemoteRef = useRef(false);
   const remoteStampRef = useRef<string | null>(null);
@@ -167,7 +176,7 @@ function App() {
 
   const syncNow = useCallback(async () => {
     const userKey = currentUserRef.current;
-    if (!userKey || applyingRemoteRef.current) return;
+    if (!SYNC_ENABLED || !userKey || applyingRemoteRef.current) return;
 
     const bundle = exportAppData();
     setSyncStatus({ tone: 'syncing', text: 'Syncing' });
@@ -179,7 +188,7 @@ function App() {
   }, []);
 
   const scheduleSync = useCallback(() => {
-    if (!currentUserRef.current || applyingRemoteRef.current) return;
+    if (!SYNC_ENABLED || !currentUserRef.current || applyingRemoteRef.current) return;
     if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
     syncTimerRef.current = setTimeout(() => {
       syncTimerRef.current = null;
@@ -195,7 +204,7 @@ function App() {
     applyLoadedData(reloadAll());
     setCurrentUser(userKey);
     setStorageError('');
-    setSyncStatus({ tone: 'syncing', text: 'Connecting' });
+    setSyncStatus(initialSyncStatus(true));
   }, [applyLoadedData]);
 
   const switchUser = useCallback(() => {
@@ -223,7 +232,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser || !SYNC_ENABLED) return;
 
     let sawFirstRemoteRead = false;
     void initAuth();
