@@ -64,6 +64,39 @@ describe('Barcode scanner screen', () => {
     })));
   });
 
+  it('labels and stores USDA fallback barcode hits distinctly', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({
+      barcode: '1234567890123',
+      name: 'USDA Cheese Snack',
+      brand: 'USDA Brand',
+      attribution: 'USDA FoodData Central',
+      attributionUrl: 'https://fdc.nal.usda.gov',
+      servingSize: '40g',
+      dataBasis: '100g',
+      calories: 180,
+      proteinG: 8,
+      fatG: 14,
+      totalCarbsG: 6,
+      fibreG: 4,
+      sugarAlcoholsG: 0,
+      sodiumMg: 120,
+      potassiumMg: 0,
+      magnesiumMg: 0,
+    })));
+    const onSaveFoodDatabaseItem = vi.fn(() => true);
+    render(<BarcodeScanner foodDatabase={[]} onAdd={vi.fn(() => true)} onSaveFood={vi.fn(() => true)} onSaveFoodDatabaseItem={onSaveFoodDatabaseItem} />);
+
+    fireEvent.change(screen.getByLabelText('Barcode number'), { target: { value: '1234567890123' } });
+    fireEvent.click(screen.getByRole('button', { name: /Look up barcode/ }));
+
+    await screen.findByText('USDA Cheese Snack');
+    expect(screen.getByText('USDA FoodData Central')).toBeTruthy();
+    expect(onSaveFoodDatabaseItem).toHaveBeenCalledWith(expect.objectContaining({
+      barcode: '1234567890123',
+      source: 'foodDataCentral',
+    }));
+  });
+
   it('uses a local barcode database hit without fetching', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);

@@ -15,14 +15,19 @@ interface BarcodeScannerProps {
   autoStart?: boolean;
 }
 
-type FoodOrigin = 'local' | 'openFoodFacts' | 'manual' | 'corrected';
+type FoodOrigin = 'local' | 'openFoodFacts' | 'foodDataCentral' | 'manual' | 'corrected';
 
 const originLabels: Record<FoodOrigin, string> = {
   local: 'Local database',
   openFoodFacts: 'Open Food Facts',
+  foodDataCentral: 'USDA FoodData Central',
   manual: 'Manually created food',
   corrected: 'User-corrected food',
 };
+
+function remoteFoodOrigin(food: BarcodeFood): FoodOrigin {
+  return food.attribution === 'USDA FoodData Central' ? 'foodDataCentral' : 'openFoodFacts';
+}
 
 const canUseCamera = (): boolean => typeof navigator !== 'undefined' && Boolean(navigator.mediaDevices?.getUserMedia);
 
@@ -84,7 +89,7 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
     try {
       const remoteFood = await lookupBarcodeFood(normalized);
       setFood(remoteFood);
-      setOrigin('openFoodFacts');
+      setOrigin(remoteFoodOrigin(remoteFood));
       onSaveFoodDatabaseItem(barcodeFoodToFoodDatabaseItem(remoteFood));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Barcode lookup failed.');

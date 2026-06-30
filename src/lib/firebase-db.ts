@@ -2,13 +2,6 @@ import type { AppStateBundle } from '../types';
 import { normalizeAppBundle } from './storage';
 import type { AppUserKey } from './users';
 
-export type KetoEnvironment = 'sandbox' | 'production';
-
-type ResolveEnvInput = {
-  configuredEnv?: string;
-  hostname?: string;
-};
-
 type QueueItem = {
   userKey: AppUserKey;
   bundle: AppStateBundle;
@@ -20,22 +13,12 @@ type QueueState = {
   error: string | null;
 };
 
-const PROD_DB_BASE = import.meta.env.VITE_KETO_FIREBASE_DB_BASE_PROD ||
+const KETO_DB_BASE = import.meta.env.VITE_KETO_FIREBASE_DB_BASE ||
   'https://tasks-c8880-default-rtdb.asia-southeast1.firebasedatabase.app';
-const SANDBOX_DB_BASE = import.meta.env.VITE_KETO_FIREBASE_DB_BASE_SANDBOX ||
-  'https://taskboard-sandbox-default-rtdb.asia-southeast1.firebasedatabase.app';
 const FIREBASE_API_KEY = import.meta.env.VITE_FIREBASE_API_KEY || '';
 const READ_TIMEOUT_MS = 15_000;
 const POLL_INTERVAL_MS = 5_000;
 const SYNC_RETRY_INTERVAL_MS = 10_000;
-
-export function resolveKetoEnv({ configuredEnv, hostname = '' }: ResolveEnvInput = {}): KetoEnvironment {
-  if (configuredEnv) return configuredEnv === 'production' ? 'production' : 'sandbox';
-  const host = hostname.toLowerCase();
-  if (host.includes('sandbox') || host.includes('localhost') || host.includes('127.0.0.1')) return 'sandbox';
-  if (host === 'keto-deficit-tracker.pages.dev' || host.endsWith('.keto-deficit-tracker.pages.dev')) return 'production';
-  return 'sandbox';
-}
 
 export function firebaseAuthEnvIsComplete(env: Record<string, string | undefined> = {}): boolean {
   return Boolean(
@@ -66,16 +49,12 @@ export function buildDbRestUrl(path: string, { dbUrl = '', token }: { dbUrl?: st
   return appendFirebaseAuth(`${dbUrl}/${path}.json`, token);
 }
 
-export const ENV = resolveKetoEnv({
-  configuredEnv: import.meta.env.VITE_KETO_ENV,
-  hostname: typeof window !== 'undefined' ? window.location.hostname : '',
-});
-
-export const DB_BASE = ENV === 'sandbox' ? SANDBOX_DB_BASE : PROD_DB_BASE;
+export const STORAGE_NAMESPACE = 'production';
+export const DB_BASE = KETO_DB_BASE;
 export const DB_URL = `${DB_BASE}/ketoDeficitTracker`;
 export const FIREBASE_AUTH_ACTIVE = Boolean(FIREBASE_API_KEY);
 
-const QUEUE_KEY = `keto_sync_queue_${ENV}`;
+const QUEUE_KEY = `keto_sync_queue_${STORAGE_NAMESPACE}`;
 
 async function fetchWithTimeout(url: string, options: RequestInit = {}): Promise<Response> {
   const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;

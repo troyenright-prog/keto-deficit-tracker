@@ -7,7 +7,7 @@ import {
   saveFoodDatabase,
   validateAppBundle,
 } from '../lib/storage';
-import { upsertFoodDatabaseItem } from '../lib/food-database';
+import { barcodeFoodToFoodDatabaseItem, upsertFoodDatabaseItem } from '../lib/food-database';
 import type { FoodDatabaseItem } from '../types';
 
 const dbFood = (overrides: Partial<FoodDatabaseItem> = {}): FoodDatabaseItem => ({
@@ -62,6 +62,27 @@ describe('food database storage', () => {
     const merged = upsertFoodDatabaseItem([corrected], remote);
     expect(merged).toHaveLength(1);
     expect(merged[0]).toMatchObject({ id: 'local', name: 'Corrected Cheese', calories: 200 });
+  });
+
+  it('stores USDA barcode results with the correct source', () => {
+    const item = barcodeFoodToFoodDatabaseItem({
+      barcode: '1234567890123',
+      name: 'USDA Cheese',
+      brand: 'USDA Brand',
+      attribution: 'USDA FoodData Central',
+      servingSize: '40g',
+      dataBasis: '100g',
+      calories: 180,
+      proteinG: 8,
+      fatG: 14,
+      totalCarbsG: 6,
+      fibreG: 4,
+      sugarAlcoholsG: 0,
+      sodiumMg: 120,
+      potassiumMg: 0,
+      magnesiumMg: 0,
+    });
+    expect(item.source).toBe('foodDataCentral');
   });
 });
 

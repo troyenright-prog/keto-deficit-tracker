@@ -1,5 +1,12 @@
-import { describe, expect, it } from 'vitest';
-import { barcodeFoodToLogEntry, barcodeFoodToSavedFood, normalizeBarcode, normalizeOpenFoodFactsProduct } from '../lib/barcode';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  barcodeFoodToLogEntry,
+  barcodeFoodToSavedFood,
+  barcodeLookupUrls,
+  lookupBarcodeFood,
+  normalizeBarcode,
+  normalizeOpenFoodFactsProduct,
+} from '../lib/barcode';
 
 const openFoodFactsResponse = {
   code: '9300675051132',
@@ -29,6 +36,12 @@ const openFoodFactsResponse = {
 describe('barcode food mapping', () => {
   it('normalizes typed or scanned barcode text', () => {
     expect(normalizeBarcode(' 9300-6750 51132 ')).toBe('9300675051132');
+  });
+
+  it('tries the app lookup endpoint before the direct Open Food Facts fallback', () => {
+    const urls = barcodeLookupUrls('9300675051132');
+    expect(urls[0]).toBe('/api/lookup-barcode?code=9300675051132');
+    expect(urls[1]).toBe('https://world.openfoodfacts.org/api/v3.6/product/9300675051132.json');
   });
 
   it('maps Open Food Facts nutrition to app nutrition safely', () => {
@@ -66,5 +79,19 @@ describe('barcode food mapping', () => {
       name: 'Test Almond Bar (Keto Co)',
       calories: 180,
     });
+  });
+
+  it('falls through to the direct source when the app lookup endpoint misses', async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.startsWith('/api/lookup-barcode')) return Response.json({ error: 'Not found' }, { status: 404 });
+      return Response.json(openFoodFactsResponse);
+    }) as unknown as typeof fetch;
+
+    await expect(lookupBarcodeFood('9300675051132', fetcher)).resolves.toMatchObject({
+      barcode: '9300675051132',
+      name: 'Test Almond Bar',
+    });
+    expect(fetcher).toHaveBeenCalledTimes(2);
   });
 });

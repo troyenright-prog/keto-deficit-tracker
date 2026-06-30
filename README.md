@@ -39,7 +39,7 @@ Push notifications are not wired yet. They require Firebase Cloud Messaging for 
 
 The Scan screen supports packaged-food lookup by barcode. When the browser supports the native BarcodeDetector API, users can scan with the device camera. Every browser can still use manual barcode entry.
 
-Barcode lookup uses a Cloudflare Pages Function at `/api/lookup-barcode`, which queries Open Food Facts first and can fall back to USDA FoodData Central when configured. Results are normalized for review before logging. Logged entries and saved foods are copied as snapshots, so future changes in the external database do not alter historical logs.
+Barcode lookup uses a Cloudflare Pages Function at `/api/lookup-barcode`, which queries Open Food Facts first and can fall back to USDA FoodData Central when configured. Native builds can also point at the deployed function with `VITE_BARCODE_LOOKUP_URL` so scans use the broader server-side lookup instead of only the direct Open Food Facts fallback. Results are normalized for review before logging. Logged entries and saved foods are copied as snapshots, so future changes in the external database do not alter historical logs.
 
 Important limitations:
 
@@ -60,6 +60,14 @@ FOOD_DATA_CENTRAL_API_KEY
 If supplied, use a descriptive value in the form `AppName/Version (contact or URL)`. Do not put it in a `VITE_` variable.
 `FOOD_DATA_CENTRAL_API_KEY` enables USDA FoodData Central fallback lookup when Open Food Facts does not have a barcode match.
 
+Optional client-side variable:
+
+```text
+VITE_BARCODE_LOOKUP_URL
+```
+
+For native/mobile builds, set this to the deployed lookup endpoint, for example `https://keto-deficit-tracker.pages.dev/api/lookup-barcode`. It is public and safe to expose; provider secrets stay on the server-side function.
+
 ### Local Pages Function development
 
 Build and run the site through Wrangler so `/api/lookup-barcode` is available:
@@ -77,7 +85,7 @@ No secret is required for Open Food Facts. Optionally add `OPEN_FOOD_FACTS_USER_
 
 ## Data
 
-The app supports two users, Troy and Khatra. Each device asks who is logging, stores that choice locally, keeps browser storage scoped per user/environment, and syncs that user's app-state bundle to Firebase Realtime Database under:
+The app supports two users, Troy and Khatra. Each device asks who is logging, stores that choice locally, keeps browser storage scoped per user, and syncs that user's app-state bundle to Firebase Realtime Database under:
 
 ```text
 ketoDeficitTracker/users/{troy|khatra}/appState
@@ -89,19 +97,19 @@ Demo data is not loaded for normal installs. For local demos or screenshots, ope
 
 ### Multi-user sync configuration
 
-Copy `.env.example` to `.env` for local development. Keep local development on sandbox:
+Copy `.env.example` to `.env` for local development. This app uses one Firebase Realtime Database; there is no sandbox database for keto.
 
 ```text
-VITE_KETO_ENV=sandbox
+VITE_KETO_FIREBASE_DB_BASE=https://tasks-c8880-default-rtdb.asia-southeast1.firebasedatabase.app
 ```
 
-The defaults point at the same Firebase Realtime Database projects used by Taskboard, but a separate `ketoDeficitTracker` root is used so data does not mix with Taskboard. If Firebase rules require anonymous auth, set the `VITE_FIREBASE_*` web-app values in Cloudflare/GitHub environment variables.
+The default points at the production Firebase Realtime Database project used by Taskboard, but a separate `ketoDeficitTracker` root is used so data does not mix with Taskboard. If Firebase rules require anonymous auth, set the `VITE_FIREBASE_*` web-app values in Cloudflare/GitHub environment variables.
 
 Production GitHub/Cloudflare setup:
 
-- `PROD_DOTENV`: full production `.env` contents, including `VITE_KETO_ENV=production`.
-- `FIREBASE_DB_SECRET_PROD` and `FIREBASE_DB_SECRET_SANDBOX`: used by the daily backup workflow.
-- Optional repository variables `KETO_FIREBASE_DB_BASE_PROD` and `KETO_FIREBASE_DB_BASE_SANDBOX` if the DB URLs differ from Taskboard.
+- `PROD_DOTENV`: full production `.env` contents, including `VITE_KETO_FIREBASE_DB_BASE`, the Firebase web app values, tester emails, and `VITE_BARCODE_LOOKUP_URL`.
+- `FIREBASE_DB_SECRET_PROD`: used by the daily backup workflow.
+- Optional repository variable `KETO_FIREBASE_DB_BASE` if the DB URL differs from the default.
 
 ### Mobile update emails
 

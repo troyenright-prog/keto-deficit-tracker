@@ -37,8 +37,8 @@ import {
   hasLocalUserData,
 } from './lib/storage';
 import {
-  ENV,
   FIREBASE_AUTH_ACTIVE,
+  STORAGE_NAMESPACE,
   initAuth,
   saveRemoteAppData,
   subscribeRemoteAppData,
@@ -88,9 +88,9 @@ type SyncStatus = {
   text: string;
 };
 
-// Cloud sync only runs when Firebase credentials are present in the build. The
-// native app currently ships without them, so rather than showing a misleading
-// "Offline" pill and polling a database it can't reach, it stays local-only.
+// Cloud sync only runs when Firebase credentials are present in the build.
+// Without them, the app stays local-only instead of polling a database it can't
+// reach and showing a misleading "Offline" status.
 const SYNC_ENABLED = FIREBASE_AUTH_ACTIVE;
 
 function initialSyncStatus(hasUser: boolean): SyncStatus {
@@ -115,7 +115,7 @@ function reloadAll() {
 }
 
 function prepareStorageForUser(userKey: AppUserKey) {
-  configureStorageScope({ environment: ENV, userKey });
+  configureStorageScope({ environment: STORAGE_NAMESPACE, userKey });
   claimLegacyDataForActiveScope();
   migrateIfNeeded();
   seedDemoDataIfEmpty();

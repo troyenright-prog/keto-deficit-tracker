@@ -68,7 +68,7 @@ export interface FoodItem extends Micronutrients {
   isStarter?: boolean;
 }
 
-export type FoodDatabaseSource = 'manual' | 'barcode' | 'openFoodFacts' | 'recipe' | 'template';
+export type FoodDatabaseSource = 'manual' | 'barcode' | 'openFoodFacts' | 'foodDataCentral' | 'recipe' | 'template';
 
 export interface FoodDatabaseItem extends Micronutrients {
   id: string;

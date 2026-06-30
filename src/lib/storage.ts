@@ -191,7 +191,8 @@ function normalizeFood(value: unknown): FoodItem | null {
 
 function normalizeFoodDatabaseItem(value: unknown): FoodDatabaseItem | null {
   if (!isRecord(value)) return null;
-  const source: FoodDatabaseSource = value.source === 'openFoodFacts' || value.source === 'recipe' || value.source === 'template' || value.source === 'barcode'
+  const source: FoodDatabaseSource = value.source === 'openFoodFacts' || value.source === 'foodDataCentral' ||
+    value.source === 'recipe' || value.source === 'template' || value.source === 'barcode'
     ? value.source : 'manual';
   const totalCarbsG = safeNonNegative(value.totalCarbsG);
   const fibreG = safeNonNegative(value.fibreG);

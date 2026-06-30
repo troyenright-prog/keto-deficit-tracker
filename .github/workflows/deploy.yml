@@ -35,11 +35,8 @@ jobs:
         env:
           PROD_DOTENV: ${{ secrets.PROD_DOTENV }}
         run: |
-          if [ -n "$PROD_DOTENV" ]; then
-            printf '%s\n' "$PROD_DOTENV" > .env
-          else
-            printf 'VITE_KETO_ENV=production\n' > .env
-          fi
+          test -n "$PROD_DOTENV" || (echo "::error::PROD_DOTENV is not set" && exit 1)
+          printf '%s\n' "$PROD_DOTENV" > .env
 
       - name: Configure git
         run: |
