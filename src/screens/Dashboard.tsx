@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { ProgressBar } from '../components/ProgressBar';
 import { StatCard } from '../components/StatCard';
 import type { DailyNutritionSummary, FoodLogEntry, NutritionTargets, Recommendation } from '../types';
@@ -15,15 +14,17 @@ interface DashboardProps {
 }
 
 export function Dashboard({ summary, entries, targets, recommendations, onAddFood }: DashboardProps) {
-  const [showSuggestions, setShowSuggestions] = useState(false);
   const status = carbStatus(summary, targets);
   const remaining = remainingCalories(summary, targets);
   const statusVariant = status === 'aligned' ? 'success' : status === 'approaching' ? 'warning' : 'danger';
   const carbVariant = status === 'aligned' ? 'success' : status === 'approaching' ? 'warning' : 'danger';
   const caloriesPercent = targets.calories > 0 ? Math.min(100, Math.max(0, (summary.calories / targets.calories) * 100)) : 0;
   const displayRemaining = Math.round(remaining);
+  const proteinGap = Math.max(0, targets.proteinG - summary.proteinG);
+  const fatRemaining = Math.max(0, targets.fatG - summary.fatG);
 
   const suggestions = buildSmartSuggestions(summary, targets);
+  const nextMove = suggestions[0] ?? recommendations.find((rec) => rec.priority !== 'success') ?? recommendations[0];
   const mealSummaries = MEAL_SLOTS.map((slot) => {
     const mealEntries = entries.filter((entry) => entryMeal(entry) === slot.id);
     return {
@@ -66,20 +67,20 @@ export function Dashboard({ summary, entries, targets, recommendations, onAddFoo
         <StatCard
           label="Protein"
           value={`${summary.proteinG.toFixed(1)}g`}
-          sub={`of ${targets.proteinG}g`}
+          sub={proteinGap > 0 ? `${proteinGap.toFixed(1)}g to go` : 'target met'}
           variant={summary.proteinG >= targets.proteinG ? 'success' : 'default'}
         />
         <StatCard
           label="Net carbs"
           value={`${summary.netCarbsG.toFixed(1)}g`}
-          sub={`of ${targets.netCarbsG}g`}
+          sub={`${Math.max(0, targets.netCarbsG - summary.netCarbsG).toFixed(1)}g left`}
           variant={carbVariant}
         />
         <StatCard
           label="Fat"
           value={`${summary.fatG.toFixed(1)}g`}
-          sub={`of ${targets.fatG}g`}
-          variant={summary.fatG >= targets.fatG ? 'success' : 'default'}
+          sub={summary.fatG > targets.fatG ? `${(summary.fatG - targets.fatG).toFixed(1)}g over` : `${fatRemaining.toFixed(1)}g left`}
+          variant={summary.fatG > targets.fatG ? 'warning' : 'default'}
         />
         <StatCard
           label="Logged"
@@ -88,6 +89,29 @@ export function Dashboard({ summary, entries, targets, recommendations, onAddFoo
           variant={summary.entryCount > 0 ? 'success' : 'default'}
         />
       </div>
+
+      {summary.entryCount > 0 && (
+        <div className="suggestions-section" aria-label="What should I eat next">
+          <div className="section-title">What should I eat next?</div>
+          {nextMove ? (
+            <div className={`next-move next-move--${nextMove.priority}`}>
+              <strong>{nextMove.priority === 'warning' ? 'Check this first' : 'Next move'}</strong>
+              <span>{nextMove.message}</span>
+            </div>
+          ) : (
+            <p className="empty-hint empty-hint--compact">You are on track - keep the next meal protein-first and low carb.</p>
+          )}
+          {suggestions.length > 1 && (
+            <ul className="recommendations recommendations--compact">
+              {suggestions.slice(1).map((s) => (
+                <li key={s.id} className={`rec rec--${s.priority}`}>
+                  {s.message}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       <div className="section-title">Daily progress</div>
 
@@ -121,7 +145,7 @@ export function Dashboard({ summary, entries, targets, recommendations, onAddFoo
           max={targets.fatG}
           unit="g"
           decimals={1}
-          variant={summary.fatG >= targets.fatG ? 'success' : 'default'}
+          variant={summary.fatG > targets.fatG ? 'warning' : 'default'}
         />
       </div>
 
@@ -157,27 +181,29 @@ export function Dashboard({ summary, entries, targets, recommendations, onAddFoo
 
       <div className="section-title">Electrolytes</div>
 
-      <ProgressBar
-        label="Sodium"
-        value={Math.round(summary.sodiumMg)}
-        max={targets.sodiumMg}
-        unit=" mg"
-        variant={summary.sodiumMg >= targets.sodiumMg ? 'success' : 'default'}
-      />
-      <ProgressBar
-        label="Potassium"
-        value={Math.round(summary.potassiumMg)}
-        max={targets.potassiumMg}
-        unit=" mg"
-        variant={summary.potassiumMg >= targets.potassiumMg ? 'success' : 'default'}
-      />
-      <ProgressBar
-        label="Magnesium"
-        value={Math.round(summary.magnesiumMg)}
-        max={targets.magnesiumMg}
-        unit=" mg"
-        variant={summary.magnesiumMg >= targets.magnesiumMg ? 'success' : 'default'}
-      />
+      <div className="progress-panel progress-panel--electrolytes">
+        <ProgressBar
+          label="Sodium"
+          value={Math.round(summary.sodiumMg)}
+          max={targets.sodiumMg}
+          unit=" mg"
+          variant={summary.sodiumMg >= targets.sodiumMg ? 'success' : 'default'}
+        />
+        <ProgressBar
+          label="Potassium"
+          value={Math.round(summary.potassiumMg)}
+          max={targets.potassiumMg}
+          unit=" mg"
+          variant={summary.potassiumMg >= targets.potassiumMg ? 'success' : 'default'}
+        />
+        <ProgressBar
+          label="Magnesium"
+          value={Math.round(summary.magnesiumMg)}
+          max={targets.magnesiumMg}
+          unit=" mg"
+          variant={summary.magnesiumMg >= targets.magnesiumMg ? 'success' : 'default'}
+        />
+      </div>
 
       {((summary.calciumMg ?? 0) > 0 || (summary.ironMg ?? 0) > 0 || (summary.zincMg ?? 0) > 0 ||
         (summary.vitaminDMcg ?? 0) > 0 || (summary.vitaminB12Mcg ?? 0) > 0 ||
@@ -198,7 +224,7 @@ export function Dashboard({ summary, entries, targets, recommendations, onAddFoo
 
       {recommendations.length > 0 && (
         <>
-          <div className="section-title">Recommendations</div>
+          <div className="section-title">Needs attention</div>
           <ul className="recommendations">
             {recommendations.map((r) => (
               <li key={r.id} className={`rec rec--${r.priority}`}>
@@ -207,30 +233,6 @@ export function Dashboard({ summary, entries, targets, recommendations, onAddFoo
             ))}
           </ul>
         </>
-      )}
-
-      {summary.entryCount > 0 && (
-        <div className="suggestions-section">
-          <button
-            className="btn btn--ghost btn--sm"
-            onClick={() => setShowSuggestions((s) => !s)}
-          >
-            {showSuggestions ? 'Hide' : 'What should I eat?'}
-          </button>
-          {showSuggestions && (
-            suggestions.length === 0 ? (
-              <p className="empty-hint">You are well on track — no specific suggestions right now.</p>
-            ) : (
-              <ul className="recommendations">
-                {suggestions.map((s) => (
-                  <li key={s.id} className={`rec rec--${s.priority}`}>
-                    {s.message}
-                  </li>
-                ))}
-              </ul>
-            )
-          )}
-        </div>
       )}
     </div>
   );

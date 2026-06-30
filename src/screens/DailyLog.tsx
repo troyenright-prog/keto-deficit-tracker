@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { FoodLogEntry, FoodItem } from '../types';
+import type { FoodLogEntry, FoodItem, MealSlot } from '../types';
 import { calcNetCarbs, todayDateString } from '../lib/nutrition';
 import { FoodForm, type FoodFormValues } from '../components/FoodForm';
 import { entryMeal, mealLabel, MEAL_SLOTS } from '../lib/meals';
@@ -17,12 +17,24 @@ interface DailyLogProps {
 export function DailyLog({ log, savedFoods, onDelete, onEdit, onDuplicate, onSaveFood }: DailyLogProps) {
   const [selectedDate, setSelectedDate] = useState(todayDateString());
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [message, setMessage] = useState('');
 
   const dayEntries = log.filter((e) => e.date === selectedDate);
+  const dayTotals = dayEntries.reduce((acc, entry) => ({
+    calories: acc.calories + entry.calories,
+    proteinG: acc.proteinG + entry.proteinG,
+    netCarbsG: acc.netCarbsG + calcNetCarbs(entry.totalCarbsG, entry.fibreG, entry.sugarAlcoholsG),
+    fatG: acc.fatG + entry.fatG,
+  }), { calories: 0, proteinG: 0, netCarbsG: 0, fatG: 0 });
   const entriesByMeal = MEAL_SLOTS.map((slot) => ({
     ...slot,
     entries: dayEntries.filter((entry) => entryMeal(entry) === slot.id),
   }));
+
+  function showMessage(text: string) {
+    setMessage(text);
+    setTimeout(() => setMessage(''), 2500);
+  }
 
   function handleEditSubmit(entry: FoodLogEntry, values: FoodFormValues) {
     const m = values.servingMultiplier;
@@ -48,11 +60,14 @@ export function DailyLog({ log, savedFoods, onDelete, onEdit, onDuplicate, onSav
       omega3G: values.omega3G === undefined ? undefined : values.omega3G * m,
       omega6G: values.omega6G === undefined ? undefined : values.omega6G * m,
     });
-    if (saved) setEditingId(null);
+    if (saved) {
+      setEditingId(null);
+      showMessage(`Updated "${values.name}".`);
+    }
   }
 
   function saveEditedEntryAsFood(values: FoodFormValues) {
-    onSaveFood({
+    if (onSaveFood({
       id: nanoid(),
       name: values.name,
       servingSize: values.servingSize,
@@ -73,7 +88,9 @@ export function DailyLog({ log, savedFoods, onDelete, onEdit, onDuplicate, onSav
       omega3G: values.omega3G,
       omega6G: values.omega6G,
       createdAt: new Date().toISOString(),
-    });
+    })) {
+      showMessage(`Saved "${values.name}" to foods.`);
+    }
   }
 
   function initialValues(entry: FoodLogEntry): Partial<FoodFormValues> {
@@ -114,101 +131,126 @@ export function DailyLog({ log, savedFoods, onDelete, onEdit, onDuplicate, onSav
         />
       </div>
 
+      {message && <div className="success-toast">{message}</div>}
+
       {dayEntries.length === 0 ? (
         <p className="empty-hint">No entries for {selectedDate}.</p>
       ) : (
-        <ul className="log-list">
-          {entriesByMeal.map((group) => {
-            if (group.entries.length === 0) {
+        <>
+          <div className="template-totals daily-log-totals" aria-label="Daily log totals">
+            <strong>{dayEntries.length} logged</strong>
+            <span>{Math.round(dayTotals.calories)} kcal</span>
+            <span>{dayTotals.proteinG.toFixed(1)}g protein</span>
+            <span>{dayTotals.netCarbsG.toFixed(1)}g net carbs</span>
+            <span>{dayTotals.fatG.toFixed(1)}g fat</span>
+          </div>
+
+          <ul className="log-list">
+            {entriesByMeal.map((group) => {
+              if (group.entries.length === 0) {
+                return (
+                  <li key={group.id} className="meal-log-section meal-log-section--empty">
+                    <div className="meal-log-header">
+                      <strong>{group.label}</strong>
+                      <span>No entries</span>
+                    </div>
+                  </li>
+                );
+              }
+
+              const totals = group.entries.reduce((acc, entry) => ({
+                calories: acc.calories + entry.calories,
+                netCarbsG: acc.netCarbsG + calcNetCarbs(entry.totalCarbsG, entry.fibreG, entry.sugarAlcoholsG),
+              }), { calories: 0, netCarbsG: 0 });
+
               return (
-                <li key={group.id} className="meal-log-section meal-log-section--empty">
+                <li key={group.id} className="meal-log-section">
                   <div className="meal-log-header">
                     <strong>{group.label}</strong>
-                    <span>No entries</span>
+                    <span>{Math.round(totals.calories)} kcal - {totals.netCarbsG.toFixed(1)}g net carbs</span>
                   </div>
+                  <ul className="meal-log-items">
+                    {group.entries.map((entry) => {
+                      const netCarbs = calcNetCarbs(entry.totalCarbsG, entry.fibreG, entry.sugarAlcoholsG);
+                      return (
+                        <li key={entry.id} className="log-item">
+                          {editingId === entry.id ? (
+                            <div className="log-item-edit">
+                              <FoodForm
+                                initial={initialValues(entry)}
+                                onSubmit={(vals) => handleEditSubmit(entry, vals)}
+                                submitLabel="Save changes"
+                                savedFoods={savedFoods}
+                                onSaveAsFood={saveEditedEntryAsFood}
+                              />
+                              <button className="btn btn--ghost" onClick={() => setEditingId(null)}>
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="log-item-row">
+                              <div className="log-item-info">
+                                <span className="log-item-name">{entry.name}</span>
+                                <span className="log-item-serving">
+                                  {entry.servingMultiplier !== 1
+                                    ? `${entry.servingMultiplier}x ${entry.servingSize}`
+                                    : entry.servingSize}
+                                </span>
+                                <span className="log-item-macros">
+                                  {Math.round(entry.calories)} kcal - {entry.proteinG.toFixed(1)}g protein -{' '}
+                                  {netCarbs.toFixed(1)}g net carbs - {entry.fatG.toFixed(1)}g fat
+                                </span>
+                              </div>
+                              <div className="log-item-actions">
+                                <label className="meal-select-label">
+                                  <span>Meal</span>
+                                  <select
+                                    value={entryMeal(entry)}
+                                    aria-label={`Meal for ${entry.name}`}
+                                    onChange={(event) => {
+                                      const nextMeal = event.target.value as MealSlot;
+                                      if (onEdit({ ...entry, meal: nextMeal })) {
+                                        showMessage(`Moved "${entry.name}" to ${mealLabel(nextMeal)}.`);
+                                      }
+                                    }}
+                                  >
+                                    {MEAL_SLOTS.map((slot) => <option key={slot.id} value={slot.id}>{mealLabel(slot.id)}</option>)}
+                                  </select>
+                                </label>
+                                <button
+                                  className="btn btn--secondary btn--sm"
+                                  onClick={() => {
+                                    if (onDuplicate(entry, selectedDate)) showMessage(`Duplicated "${entry.name}".`);
+                                  }}
+                                >
+                                  Duplicate
+                                </button>
+                                <button className="btn btn--ghost btn--sm" onClick={() => setEditingId(entry.id)}>
+                                  Edit
+                                </button>
+                                <button
+                                  className="btn btn--danger btn--sm"
+                                  onClick={() => {
+                                    if (confirm(`Delete "${entry.name}"?`)) {
+                                      onDelete(entry.id);
+                                      showMessage(`Deleted "${entry.name}".`);
+                                    }
+                                  }}
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
                 </li>
               );
-            }
-
-            const totals = group.entries.reduce((acc, entry) => ({
-              calories: acc.calories + entry.calories,
-              netCarbsG: acc.netCarbsG + calcNetCarbs(entry.totalCarbsG, entry.fibreG, entry.sugarAlcoholsG),
-            }), { calories: 0, netCarbsG: 0 });
-
-            return (
-              <li key={group.id} className="meal-log-section">
-                <div className="meal-log-header">
-                  <strong>{group.label}</strong>
-                  <span>{Math.round(totals.calories)} kcal · {totals.netCarbsG.toFixed(1)}g net carbs</span>
-                </div>
-                <ul className="meal-log-items">
-                  {group.entries.map((entry) => {
-                    const netCarbs = calcNetCarbs(entry.totalCarbsG, entry.fibreG, entry.sugarAlcoholsG);
-                    return (
-                      <li key={entry.id} className="log-item">
-                        {editingId === entry.id ? (
-                          <div className="log-item-edit">
-                            <FoodForm
-                              initial={initialValues(entry)}
-                              onSubmit={(vals) => handleEditSubmit(entry, vals)}
-                              submitLabel="Save changes"
-                              savedFoods={savedFoods}
-                              onSaveAsFood={saveEditedEntryAsFood}
-                            />
-                            <button className="btn btn--ghost" onClick={() => setEditingId(null)}>
-                              Cancel
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="log-item-row">
-                            <div className="log-item-info">
-                              <span className="log-item-name">{entry.name}</span>
-                              <span className="log-item-serving">
-                                {entry.servingMultiplier !== 1
-                                  ? `${entry.servingMultiplier}× ${entry.servingSize}`
-                                  : entry.servingSize}
-                              </span>
-                              <span className="log-item-macros">
-                                {Math.round(entry.calories)} kcal · {entry.proteinG.toFixed(1)}g protein ·{' '}
-                                {netCarbs.toFixed(1)}g net carbs · {entry.fatG.toFixed(1)}g fat
-                              </span>
-                            </div>
-                            <div className="log-item-actions">
-                              <label className="meal-select-label">
-                                <span>Meal</span>
-                                <select
-                                  value={entryMeal(entry)}
-                                  aria-label={`Meal for ${entry.name}`}
-                                  onChange={(event) => onEdit({ ...entry, meal: event.target.value as FoodLogEntry['meal'] })}
-                                >
-                                  {MEAL_SLOTS.map((slot) => <option key={slot.id} value={slot.id}>{mealLabel(slot.id)}</option>)}
-                                </select>
-                              </label>
-                              <button className="btn btn--secondary btn--sm" onClick={() => onDuplicate(entry, selectedDate)}>
-                                Duplicate
-                              </button>
-                              <button className="btn btn--ghost btn--sm" onClick={() => setEditingId(entry.id)}>
-                                Edit
-                              </button>
-                              <button
-                                className="btn btn--danger btn--sm"
-                                onClick={() => {
-                                  if (confirm(`Delete "${entry.name}"?`)) onDelete(entry.id);
-                                }}
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </li>
-            );
-          })}
-        </ul>
+            })}
+          </ul>
+        </>
       )}
     </div>
   );

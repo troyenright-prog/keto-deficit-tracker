@@ -1,0 +1,8 @@
+{
+  "app": "keto-deficit-tracker",
+  "branch": "codex/product-polish-beta",
+  "demoData": "disabled for normal installs; use ?demo=reset to reseed during development",
+  "primaryFlow": "Home + Add food opens the barcode scanner directly, with barcode number entry fallback",
+  "mobileApp": "Capacitor Android wrapper added with native local reminder settings",
+  "deploymentAlias": "https://codex-product-polish-beta.keto-deficit-tracker.pages.dev"
+}

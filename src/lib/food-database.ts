@@ -5,6 +5,12 @@ import { nanoid } from './nanoid';
 
 const MICRO_KEYS = ['calciumMg', 'ironMg', 'zincMg', 'vitaminDMcg', 'vitaminB12Mcg', 'omega3G', 'omega6G'] as const;
 
+function barcodeFoodSource(food: BarcodeFood, userEdited: boolean): FoodDatabaseItem['source'] {
+  if (userEdited) return 'barcode';
+  if (food.attribution === 'USDA FoodData Central') return 'foodDataCentral';
+  return 'openFoodFacts';
+}
+
 export function foodDatabaseSignature(item: Pick<FoodDatabaseItem | FoodItem, 'name' | 'servingSize'>): string {
   return `${item.name.trim().toLowerCase()}|${item.servingSize.trim().toLowerCase()}`;
 }
@@ -78,7 +84,7 @@ export function barcodeFoodToFoodDatabaseItem(food: BarcodeFood, existing?: Food
     barcode: food.barcode,
     name: food.name,
     brand: food.brand,
-    source: userEdited ? 'barcode' : 'openFoodFacts',
+    source: barcodeFoodSource(food, userEdited),
     servingSize: food.servingSize,
     calories: food.calories,
     proteinG: food.proteinG,

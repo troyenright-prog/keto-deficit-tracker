@@ -21,6 +21,7 @@ describe('Add Food quick logging', () => {
     const onAddEntries = vi.fn(() => true);
     render(<AddFood savedFoods={[favourite]} foodDatabase={[]} log={[recent]} recipes={[]} templates={[]} onAdd={vi.fn(() => true)} onAddEntries={onAddEntries} onSaveFood={vi.fn(() => true)} />);
     fireEvent.click(screen.getByRole('button', { name: /Favourite Eggs/ }));
+    expect(screen.getByLabelText('Selected food nutrition per serving').textContent).toContain('1.0g net carbs');
     fireEvent.click(screen.getByRole('button', { name: '1.5x' }));
     fireEvent.click(screen.getByRole('button', { name: /Add to today/ }));
     expect(onAddEntries).toHaveBeenCalledWith([
@@ -36,5 +37,17 @@ describe('Add Food quick logging', () => {
     expect(onAddEntries).toHaveBeenCalledWith([
       expect.objectContaining({ name: 'Recent Salmon', calories: 200, source: 'manual' }),
     ]);
+  });
+
+  it('does not create entries with a cleared log date', () => {
+    const onAddEntries = vi.fn(() => true);
+    render(<AddFood savedFoods={[favourite]} foodDatabase={[]} log={[]} recipes={[]} templates={[]} onAdd={vi.fn(() => true)} onAddEntries={onAddEntries} onSaveFood={vi.fn(() => true)} />);
+
+    fireEvent.change(screen.getByLabelText('Add to date'), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: /Favourite Eggs/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add to' }));
+
+    expect(onAddEntries).not.toHaveBeenCalled();
+    expect(screen.getByText('Choose a valid log date that is not in the future.')).toBeTruthy();
   });
 });

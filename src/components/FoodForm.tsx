@@ -101,6 +101,10 @@ export function FoodForm({
       e.fibreG = 'Fibre cannot exceed total carbs';
     if (values.sugarAlcoholsG > values.totalCarbsG)
       e.sugarAlcoholsG = 'Sugar alcohols cannot exceed total carbs';
+    if (values.fibreG + values.sugarAlcoholsG > values.totalCarbsG) {
+      e.fibreG = e.fibreG ?? 'Fibre and sugar alcohols cannot exceed total carbs';
+      e.sugarAlcoholsG = e.sugarAlcoholsG ?? 'Fibre and sugar alcohols cannot exceed total carbs';
+    }
     setErrors(e);
     return Object.keys(e).length === 0;
   }

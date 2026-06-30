@@ -1,25 +1,40 @@
 import { useRef, useState } from 'react';
-import type { UserProfile, NutritionTargets } from '../types';
+import type { UserProfile, NutritionTargets, ReminderKey, ReminderRule, ReminderSettings, WeeklyReminderRule } from '../types';
 import { dietModeDefaultNetCarbs } from '../lib/nutrition';
 import { exportAppData, validateAppBundle, importAppData } from '../lib/storage';
 import { localDateString } from '../lib/date';
 import { APP_VERSION, formatBuildDate } from '../lib/version';
 import { hardRefreshApp } from '../lib/app-update';
+import { sendTestReminder, type ReminderScheduleResult } from '../lib/reminders';
 
 interface SettingsProps {
   profile: UserProfile;
   targets: NutritionTargets;
+  reminders: ReminderSettings;
   onSaveProfile: (p: UserProfile) => boolean;
   onSaveTargets: (t: NutritionTargets) => boolean;
+  onSaveReminders: (settings: ReminderSettings) => Promise<ReminderScheduleResult>;
   onImportComplete: () => void;
 }
 
-export function Settings({ profile, targets, onSaveProfile, onSaveTargets, onImportComplete }: SettingsProps) {
+const WEEKDAYS = [
+  { value: 1, label: 'Sunday' },
+  { value: 2, label: 'Monday' },
+  { value: 3, label: 'Tuesday' },
+  { value: 4, label: 'Wednesday' },
+  { value: 5, label: 'Thursday' },
+  { value: 6, label: 'Friday' },
+  { value: 7, label: 'Saturday' },
+];
+
+export function Settings({ profile, targets, reminders, onSaveProfile, onSaveTargets, onSaveReminders, onImportComplete }: SettingsProps) {
   const [prof, setProf] = useState<UserProfile>(profile);
   const [tgts, setTgts] = useState<NutritionTargets>(targets);
+  const [rem, setRem] = useState<ReminderSettings>(reminders);
   const [saved, setSaved] = useState(false);
   const [importMsg, setImportMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [validationError, setValidationError] = useState('');
+  const [reminderMsg, setReminderMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   function numTarget(key: keyof NutritionTargets, val: string) {
@@ -68,7 +83,63 @@ export function Settings({ profile, targets, onSaveProfile, onSaveTargets, onImp
     a.href = url;
     a.download = `keto-backup-${localDateString()}.json`;
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function updateReminder<K extends ReminderKey>(key: K, patch: Partial<ReminderSettings[K]>) {
+    setRem((current) => ({
+      ...current,
+      [key]: { ...current[key], ...patch },
+    }));
+  }
+
+  async function handleSaveReminders() {
+    const next = { ...rem, updatedAt: new Date().toISOString() };
+    setRem(next);
+    const result = await onSaveReminders(next);
+    setReminderMsg({ type: result.ok ? 'success' : 'error', text: result.message });
+  }
+
+  async function handleTestReminder() {
+    const result = await sendTestReminder();
+    setReminderMsg({ type: result.ok ? 'success' : 'error', text: result.message });
+  }
+
+  function renderReminder(
+    key: ReminderKey,
+    label: string,
+    rule: ReminderRule,
+    weekly?: WeeklyReminderRule,
+  ) {
+    return (
+      <div className="reminder-card">
+        <label className="checkbox-label reminder-toggle">
+          <input
+            type="checkbox"
+            checked={rule.enabled}
+            onChange={(event) => updateReminder(key, { enabled: event.target.checked } as Partial<ReminderSettings[typeof key]>)}
+          />
+          {label}
+        </label>
+        <input
+          type="time"
+          value={rule.time}
+          disabled={!rule.enabled}
+          aria-label={`${label} time`}
+          onChange={(event) => updateReminder(key, { time: event.target.value } as Partial<ReminderSettings[typeof key]>)}
+        />
+        {weekly && (
+          <select
+            value={weekly.weekday}
+            disabled={!rule.enabled}
+            aria-label={`${label} day`}
+            onChange={(event) => updateReminder(key, { weekday: Number(event.target.value) } as Partial<ReminderSettings[typeof key]>)}
+          >
+            {WEEKDAYS.map((day) => <option key={day.value} value={day.value}>{day.label}</option>)}
+          </select>
+        )}
+      </div>
+    );
   }
 
   function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
@@ -82,12 +153,15 @@ export function Settings({ profile, targets, onSaveProfile, onSaveTargets, onImp
           setImportMsg({ type: 'error', text: 'Invalid backup file format.' });
           return;
         }
-        if (!confirm('This will replace ALL your current data. Continue?')) return;
+        if (!confirm('This will replace ALL your current data. Continue?')) {
+          setImportMsg({ type: 'error', text: 'Import cancelled. Your current data was not changed.' });
+          return;
+        }
         if (!importAppData(parsed)) {
           setImportMsg({ type: 'error', text: 'Import could not be saved. Your existing data was restored.' });
           return;
         }
-        setImportMsg({ type: 'success', text: 'Import successful! Reloading data…' });
+        setImportMsg({ type: 'success', text: 'Import successful. Reloading data...' });
         setTimeout(() => {
           onImportComplete();
           setImportMsg(null);
@@ -145,9 +219,9 @@ export function Settings({ profile, targets, onSaveProfile, onSaveTargets, onImp
                 onChange={() => handleDietMode(mode)}
               />
               <span className="diet-mode-label">
-                {mode === 'strict-keto' && 'Strict keto (≤20g)'}
-                {mode === 'lazy-keto' && 'Lazy keto (≤50g)'}
-                {mode === 'high-protein-keto' && 'High-protein keto (≤30g)'}
+                {mode === 'strict-keto' && 'Strict keto (<=20g)'}
+                {mode === 'lazy-keto' && 'Lazy keto (<=50g)'}
+                {mode === 'high-protein-keto' && 'High-protein keto (<=30g)'}
               </span>
             </label>
           ))}
@@ -216,6 +290,25 @@ export function Settings({ profile, targets, onSaveProfile, onSaveTargets, onImp
         </div>
         {validationError && <p className="form-error" role="alert">{validationError}</p>}
       </form>
+
+      <div className="section-title">Native reminders</div>
+      <div className="reminder-grid">
+        {renderReminder('mealLogging', 'Meal logging', rem.mealLogging)}
+        {renderReminder('weighIn', 'Weigh-in', rem.weighIn, rem.weighIn)}
+        {renderReminder('electrolytes', 'Electrolytes', rem.electrolytes)}
+        {renderReminder('shopping', 'Shopping list', rem.shopping, rem.shopping)}
+      </div>
+      <div className="form-actions">
+        <button type="button" className="btn btn--primary" onClick={() => void handleSaveReminders()}>
+          Save reminders
+        </button>
+        <button type="button" className="btn btn--secondary" onClick={() => void handleTestReminder()}>
+          Send test notification
+        </button>
+      </div>
+      {reminderMsg && (
+        <p className={`import-msg import-msg--${reminderMsg.type}`}>{reminderMsg.text}</p>
+      )}
 
       <div className="section-title">Backup &amp; Restore</div>
       <p className="empty-hint" style={{ marginTop: 0 }}>

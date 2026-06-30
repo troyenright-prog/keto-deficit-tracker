@@ -1,21 +1,65 @@
 import type {
   UserProfile, NutritionTargets, FoodLogEntry, FoodItem, WeightEntry,
   MealTemplate, MealTemplateItem, Recipe, RecipeIngredient, ShoppingItem,
-  MealPlanEntry, AppStateBundle, Micronutrients, FoodDatabaseItem, FoodDatabaseSource,
+  MealPlanEntry, AppStateBundle, Micronutrients, FoodDatabaseItem, FoodDatabaseSource, ReminderSettings,
 } from '../types';
-import { isDateString, localDateString } from './date';
+import { addLocalDays, isDateString, localDateString } from './date';
 import { dedupeFoodDatabase } from './food-database';
 import { isMealSlot } from './meals';
 import { calcNetCarbs, safeNonNegative, safePositive } from './nutrition';
+import { getStarterFoodOptions } from './australianFoods';
+import { DEFAULT_REMINDERS, hasEnabledReminders, normalizeReminderSettings } from './reminders';
 
-export const CURRENT_VERSION = 4;
+export const CURRENT_VERSION = 5;
 
 const KEYS = {
   version: 'keto_version', profile: 'keto_profile', targets: 'keto_targets',
   foodLog: 'keto_food_log', savedFoods: 'keto_saved_foods', weightEntries: 'keto_weight_entries',
   mealTemplates: 'keto_meal_templates', recipes: 'keto_recipes', shoppingList: 'keto_shopping_list',
-  mealPlan: 'keto_meal_plan', foodDatabase: 'keto_food_database',
+  mealPlan: 'keto_meal_plan', foodDatabase: 'keto_food_database', reminders: 'keto_reminders',
 } as const;
+
+const DEMO_SEED_KEY = 'keto_demo_seed_v1';
+const LEGACY_CLAIM_KEY = 'keto_legacy_data_claimed_by';
+
+type StorageScope = {
+  environment: string;
+  userKey: string;
+};
+
+let activeStorageScope: StorageScope | null = null;
+const storageChangeListeners = new Set<() => void>();
+
+function scopeId(scope = activeStorageScope): string {
+  return scope ? `${scope.environment}:${scope.userKey}` : '';
+}
+
+function scopedKey(key: string): string {
+  return activeStorageScope ? `keto_${activeStorageScope.environment}_${activeStorageScope.userKey}_${key}` : key;
+}
+
+export function configureStorageScope(scope: StorageScope | null): void {
+  activeStorageScope = scope;
+}
+
+export function getStorageScopeId(): string {
+  return scopeId();
+}
+
+export function subscribeLocalDataChanges(listener: () => void): () => void {
+  storageChangeListeners.add(listener);
+  return () => storageChangeListeners.delete(listener);
+}
+
+function notifyLocalDataChanged(): void {
+  for (const listener of storageChangeListeners) {
+    try {
+      listener();
+    } catch {
+      // Listener failures should not break writes.
+    }
+  }
+}
 
 type UnknownRecord = Record<string, unknown>;
 const isRecord = (value: unknown): value is UnknownRecord => typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -26,7 +70,7 @@ const timestamp = (value: unknown) => typeof value === 'string' && Number.isFini
 
 function safeRead(key: string): unknown {
   try {
-    const raw = localStorage.getItem(key);
+    const raw = localStorage.getItem(scopedKey(key));
     return raw ? JSON.parse(raw) : undefined;
   } catch {
     return undefined;
@@ -35,7 +79,49 @@ function safeRead(key: string): unknown {
 
 function safeWrite(key: string, value: unknown): boolean {
   try {
-    localStorage.setItem(key, JSON.stringify(value));
+    localStorage.setItem(scopedKey(key), JSON.stringify(value));
+    notifyLocalDataChanged();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function hasRawUserData(prefix = ''): boolean {
+  const read = (key: string) => localStorage.getItem(`${prefix}${key}`);
+  return Boolean(
+    read(KEYS.profile) ||
+    read(KEYS.targets) ||
+    read(KEYS.foodLog) ||
+    read(KEYS.savedFoods) ||
+    read(KEYS.weightEntries) ||
+    read(KEYS.mealTemplates) ||
+    read(KEYS.recipes) ||
+    read(KEYS.shoppingList) ||
+    read(KEYS.mealPlan) ||
+    read(KEYS.foodDatabase) ||
+    read(KEYS.reminders)
+  );
+}
+
+export function claimLegacyDataForActiveScope(): boolean {
+  if (!activeStorageScope) return false;
+  const prefix = `keto_${activeStorageScope.environment}_${activeStorageScope.userKey}_`;
+  if (hasRawUserData(prefix) || !hasRawUserData()) return false;
+
+  const claimedBy = localStorage.getItem(LEGACY_CLAIM_KEY);
+  const activeId = scopeId();
+  if (claimedBy && claimedBy !== activeId) return false;
+
+  try {
+    for (const key of Object.values(KEYS)) {
+      const raw = localStorage.getItem(key);
+      if (raw !== null) localStorage.setItem(`${prefix}${key}`, raw);
+    }
+    const demoRaw = localStorage.getItem(DEMO_SEED_KEY);
+    if (demoRaw !== null) localStorage.setItem(`${prefix}${DEMO_SEED_KEY}`, demoRaw);
+    localStorage.setItem(LEGACY_CLAIM_KEY, activeId);
+    notifyLocalDataChanged();
     return true;
   } catch {
     return false;
@@ -105,7 +191,8 @@ function normalizeFood(value: unknown): FoodItem | null {
 
 function normalizeFoodDatabaseItem(value: unknown): FoodDatabaseItem | null {
   if (!isRecord(value)) return null;
-  const source: FoodDatabaseSource = value.source === 'openFoodFacts' || value.source === 'recipe' || value.source === 'template' || value.source === 'barcode'
+  const source: FoodDatabaseSource = value.source === 'openFoodFacts' || value.source === 'foodDataCentral' ||
+    value.source === 'recipe' || value.source === 'template' || value.source === 'barcode'
     ? value.source : 'manual';
   const totalCarbsG = safeNonNegative(value.totalCarbsG);
   const fibreG = safeNonNegative(value.fibreG);
@@ -225,8 +312,9 @@ export function migrateIfNeeded(): void {
   if (version >= CURRENT_VERSION) return;
   try {
     for (const key of [KEYS.mealTemplates, KEYS.recipes, KEYS.shoppingList, KEYS.mealPlan, KEYS.foodDatabase]) {
-      if (localStorage.getItem(key) === null && !safeWrite(key, [])) return;
+      if (localStorage.getItem(scopedKey(key)) === null && !safeWrite(key, [])) return;
     }
+    if (localStorage.getItem(scopedKey(KEYS.reminders)) === null && !safeWrite(KEYS.reminders, DEFAULT_REMINDERS)) return;
     safeWrite(KEYS.version, CURRENT_VERSION);
   } catch {
     // Loading still falls back to normalised defaults when storage is unavailable.
@@ -253,12 +341,15 @@ export const loadShoppingList = () => normalizeArray(safeRead(KEYS.shoppingList)
 export const saveShoppingList = (value: ShoppingItem[]) => safeWrite(KEYS.shoppingList, value);
 export const loadMealPlan = () => normalizeArray(safeRead(KEYS.mealPlan), normalizePlanEntry);
 export const saveMealPlan = (value: MealPlanEntry[]) => safeWrite(KEYS.mealPlan, value);
+export const loadReminders = () => normalizeReminderSettings(safeRead(KEYS.reminders));
+export const saveReminders = (value: ReminderSettings) => safeWrite(KEYS.reminders, normalizeReminderSettings(value));
 
 function writeAtomically(writes: [string, unknown][]): boolean {
   const previous = new Map<string, string | null>();
   try {
-    for (const [key] of writes) previous.set(key, localStorage.getItem(key));
-    for (const [key, item] of writes) localStorage.setItem(key, JSON.stringify(item));
+    for (const [key] of writes) previous.set(scopedKey(key), localStorage.getItem(scopedKey(key)));
+    for (const [key, item] of writes) localStorage.setItem(scopedKey(key), JSON.stringify(item));
+    notifyLocalDataChanged();
     return true;
   } catch {
     try {
@@ -277,12 +368,164 @@ export function saveFoodLogAndMealPlan(log: FoodLogEntry[], plan: MealPlanEntry[
   return writeAtomically([[KEYS.foodLog, log], [KEYS.mealPlan, plan]]);
 }
 
+function hasUserData(): boolean {
+  return loadFoodLog().length > 0 ||
+    loadSavedFoods().length > 0 ||
+    loadWeightEntries().length > 0 ||
+    loadMealTemplates().length > 0 ||
+    loadRecipes().length > 0 ||
+    loadShoppingList().length > 0 ||
+    loadMealPlan().length > 0 ||
+    hasEnabledReminders(loadReminders()) ||
+    loadProfile().name.trim().length > 0;
+}
+
+export const hasLocalUserData = hasUserData;
+
+export function seedDemoDataIfEmpty(): boolean {
+  const demoParam = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('demo') : null;
+  const forceDemoReset = demoParam === 'reset';
+  const demoRequested = forceDemoReset || demoParam === '1' || demoParam === 'true';
+  if (!demoRequested) return false;
+
+  if (forceDemoReset) {
+    for (const key of [...Object.values(KEYS), DEMO_SEED_KEY]) localStorage.removeItem(scopedKey(key));
+    migrateIfNeeded();
+  }
+  if (!forceDemoReset && (safeRead(DEMO_SEED_KEY) === true || hasUserData())) return false;
+
+  const now = new Date().toISOString();
+  const today = localDateString();
+  const yesterday = addLocalDays(today, -1);
+  const twoDaysAgo = addLocalDays(today, -2);
+  const starterFoods = getStarterFoodOptions();
+  const byName = (name: string) => starterFoods.find((food) => food.name === name)!;
+
+  const eggs: FoodItem = { ...byName('Eggs (whole, large)'), id: 'demo-food-eggs', isFavourite: true, createdAt: now };
+  const salmon: FoodItem = { ...byName('Salmon (Atlantic, raw)'), id: 'demo-food-salmon', isFavourite: true, createdAt: now };
+  const avocado: FoodItem = { ...byName('Avocado'), id: 'demo-food-avocado', isFavourite: false, createdAt: now };
+  const spinach: FoodItem = { ...byName('Spinach (raw)'), id: 'demo-food-spinach', isFavourite: false, createdAt: now };
+  const yoghurt: FoodItem = { ...byName('Greek yoghurt (full fat, plain)'), id: 'demo-food-yoghurt', isFavourite: true, createdAt: now };
+  const cheese: FoodItem = { ...byName('Cheddar cheese'), id: 'demo-food-cheese', barcode: '9300000000011', isFavourite: false, createdAt: now };
+  const savedFoods: FoodItem[] = [eggs, salmon, avocado, spinach, yoghurt, cheese];
+
+  const logEntry = (food: FoodItem, id: string, day: string, servingMultiplier: number, meal: FoodLogEntry['meal']): FoodLogEntry => ({
+    id,
+    date: day,
+    foodItemId: food.id,
+    source: 'saved-food',
+    meal,
+    name: food.name,
+    servingSize: food.servingSize,
+    servingMultiplier,
+    calories: food.calories * servingMultiplier,
+    proteinG: food.proteinG * servingMultiplier,
+    fatG: food.fatG * servingMultiplier,
+    totalCarbsG: food.totalCarbsG * servingMultiplier,
+    fibreG: food.fibreG * servingMultiplier,
+    sugarAlcoholsG: food.sugarAlcoholsG * servingMultiplier,
+    sodiumMg: food.sodiumMg * servingMultiplier,
+    potassiumMg: food.potassiumMg * servingMultiplier,
+    magnesiumMg: food.magnesiumMg * servingMultiplier,
+    loggedAt: now,
+  });
+
+  const foodLog: FoodLogEntry[] = [
+    logEntry(eggs, 'demo-log-eggs-today', today, 2, 'breakfast'),
+    logEntry(avocado, 'demo-log-avocado-today', today, 0.5, 'lunch'),
+    logEntry(salmon, 'demo-log-salmon-today', today, 1.5, 'dinner'),
+    logEntry(spinach, 'demo-log-spinach-today', today, 1, 'dinner'),
+    logEntry(yoghurt, 'demo-log-yoghurt-yesterday', yesterday, 1, 'breakfast'),
+    logEntry(cheese, 'demo-log-cheese-yesterday', yesterday, 1, 'snack'),
+    logEntry(salmon, 'demo-log-salmon-yesterday', yesterday, 1, 'dinner'),
+    logEntry(eggs, 'demo-log-eggs-older', twoDaysAgo, 2, 'breakfast'),
+    logEntry(avocado, 'demo-log-avocado-older', twoDaysAgo, 1, 'lunch'),
+  ];
+
+  const templateItems: MealTemplateItem[] = [
+    { ...eggs, id: 'demo-template-eggs', savedFoodId: eggs.id, quantity: 2 },
+    { ...avocado, id: 'demo-template-avocado', savedFoodId: avocado.id, quantity: 0.5 },
+  ];
+  const mealTemplates: MealTemplate[] = [{
+    id: 'demo-template-breakfast',
+    name: 'Demo keto breakfast',
+    mealType: 'breakfast',
+    items: templateItems,
+    createdAt: now,
+  }];
+
+  const recipeIngredients: RecipeIngredient[] = [
+    { ...salmon, id: 'demo-recipe-salmon', quantity: 2 },
+    { ...spinach, id: 'demo-recipe-spinach', quantity: 2 },
+    { ...cheese, id: 'demo-recipe-cheese', quantity: 1 },
+  ];
+  const recipes: Recipe[] = [{
+    id: 'demo-recipe-salmon-bake',
+    name: 'Demo salmon bake',
+    servings: 2,
+    ingredients: recipeIngredients,
+    createdAt: now,
+  }];
+
+  const shoppingList: ShoppingItem[] = [
+    { id: 'demo-shop-eggs', name: 'Eggs', quantity: '1 dozen', completed: false, source: 'manual', createdAt: now },
+    { id: 'demo-shop-salmon', name: 'Salmon fillets', quantity: '2 portions', completed: false, source: 'manual', createdAt: now },
+    { id: 'demo-shop-spinach', name: 'Baby spinach', quantity: '1 bag', completed: true, source: 'manual', createdAt: now },
+  ];
+
+  const weightEntries: WeightEntry[] = [
+    { id: 'demo-weight-1', date: addLocalDays(today, -10), weight: 92.4, unit: 'kg', loggedAt: now },
+    { id: 'demo-weight-2', date: addLocalDays(today, -7), weight: 91.8, unit: 'kg', loggedAt: now },
+    { id: 'demo-weight-3', date: addLocalDays(today, -4), weight: 91.1, unit: 'kg', loggedAt: now },
+    { id: 'demo-weight-4', date: today, weight: 90.7, unit: 'kg', loggedAt: now },
+  ];
+
+  const cheeseDatabase: FoodDatabaseItem = {
+    id: 'demo-db-cheese',
+    barcode: cheese.barcode,
+    name: cheese.name,
+    brand: 'Demo brand',
+    source: 'barcode',
+    servingSize: cheese.servingSize,
+    calories: cheese.calories,
+    proteinG: cheese.proteinG,
+    fatG: cheese.fatG,
+    totalCarbsG: cheese.totalCarbsG,
+    fibreG: cheese.fibreG,
+    sugarAlcoholsG: cheese.sugarAlcoholsG,
+    netCarbsG: calcNetCarbs(cheese.totalCarbsG, cheese.fibreG, cheese.sugarAlcoholsG),
+    sodiumMg: cheese.sodiumMg,
+    potassiumMg: cheese.potassiumMg,
+    magnesiumMg: cheese.magnesiumMg,
+    userEdited: true,
+    verified: true,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  return writeAtomically([
+    [KEYS.profile, { ...DEFAULT_PROFILE, name: 'Demo', createdAt: now }],
+    [KEYS.targets, DEFAULT_TARGETS],
+    [KEYS.foodLog, foodLog],
+    [KEYS.savedFoods, savedFoods],
+    [KEYS.foodDatabase, [cheeseDatabase]],
+    [KEYS.weightEntries, weightEntries],
+    [KEYS.mealTemplates, mealTemplates],
+    [KEYS.recipes, recipes],
+    [KEYS.shoppingList, shoppingList],
+    [KEYS.mealPlan, []],
+    [KEYS.reminders, DEFAULT_REMINDERS],
+    [DEMO_SEED_KEY, true],
+  ]);
+}
+
 export function exportAppData(): AppStateBundle {
   return {
     version: CURRENT_VERSION, exportedAt: new Date().toISOString(), profile: loadProfile(), targets: loadTargets(),
     foodLog: loadFoodLog(), savedFoods: loadSavedFoods(), weightEntries: loadWeightEntries(),
     foodDatabase: loadFoodDatabase(),
     mealTemplates: loadMealTemplates(), recipes: loadRecipes(), shoppingList: loadShoppingList(), mealPlan: loadMealPlan(),
+    reminders: loadReminders(),
   };
 }
 
@@ -309,6 +552,7 @@ export function normalizeAppBundle(value: unknown): AppStateBundle | null {
     weightEntries: normalizeArray(value.weightEntries, normalizeWeight), mealTemplates: normalizeArray(value.mealTemplates, normalizeTemplate),
     recipes: normalizeArray(value.recipes, normalizeRecipe), shoppingList: normalizeArray(value.shoppingList, normalizeShoppingItem),
     mealPlan: normalizeArray(value.mealPlan, normalizePlanEntry),
+    reminders: normalizeReminderSettings(value.reminders),
   };
 }
 
@@ -323,7 +567,8 @@ export function importAppData(value: unknown): boolean {
     [KEYS.profile, bundle.profile], [KEYS.targets, bundle.targets], [KEYS.foodLog, bundle.foodLog],
     [KEYS.savedFoods, bundle.savedFoods], [KEYS.foodDatabase, bundle.foodDatabase], [KEYS.weightEntries, bundle.weightEntries],
     [KEYS.mealTemplates, bundle.mealTemplates], [KEYS.recipes, bundle.recipes],
-    [KEYS.shoppingList, bundle.shoppingList], [KEYS.mealPlan, bundle.mealPlan], [KEYS.version, CURRENT_VERSION],
+    [KEYS.shoppingList, bundle.shoppingList], [KEYS.mealPlan, bundle.mealPlan], [KEYS.reminders, bundle.reminders],
+    [KEYS.version, CURRENT_VERSION],
   ];
   return writeAtomically(writes);
 }

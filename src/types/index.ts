@@ -68,7 +68,7 @@ export interface FoodItem extends Micronutrients {
   isStarter?: boolean;
 }
 
-export type FoodDatabaseSource = 'manual' | 'barcode' | 'openFoodFacts' | 'recipe' | 'template';
+export type FoodDatabaseSource = 'manual' | 'barcode' | 'openFoodFacts' | 'foodDataCentral' | 'recipe' | 'template';
 
 export interface FoodDatabaseItem extends Micronutrients {
   id: string;
@@ -217,6 +217,25 @@ export interface ShoppingItem {
   createdAt: string;
 }
 
+export type ReminderKey = 'mealLogging' | 'weighIn' | 'electrolytes' | 'shopping';
+
+export interface ReminderRule {
+  enabled: boolean;
+  time: string; // HH:mm
+}
+
+export interface WeeklyReminderRule extends ReminderRule {
+  weekday: number; // 1 Sunday - 7 Saturday
+}
+
+export interface ReminderSettings {
+  mealLogging: ReminderRule;
+  weighIn: WeeklyReminderRule;
+  electrolytes: ReminderRule;
+  shopping: WeeklyReminderRule;
+  updatedAt?: string;
+}
+
 // ── Meal planner ───────────────────────────────────────────────────────────────
 
 export type PlanItemType = 'saved-food' | 'template' | 'recipe';
@@ -270,4 +289,5 @@ export interface AppStateBundle {
   recipes: Recipe[];
   shoppingList: ShoppingItem[];
   mealPlan: MealPlanEntry[];
+  reminders: ReminderSettings;
 }

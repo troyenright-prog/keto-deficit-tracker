@@ -28,6 +28,16 @@ export function Weight({ entries, weightUnit, onSave }: WeightProps) {
 
   const latestWeight = sorted[0];
   const sevenDayAvg = sevenDayAvgWeight(sorted, todayDateString());
+  const trendEntries = [...sorted].reverse().slice(-14);
+  const trendWeights = trendEntries.map((entry) => entry.weight);
+  const minTrend = trendWeights.length > 0 ? Math.min(...trendWeights) : 0;
+  const maxTrend = trendWeights.length > 0 ? Math.max(...trendWeights) : 0;
+  const trendRange = Math.max(0.1, maxTrend - minTrend);
+  const trendPoints = trendEntries.map((entry, index) => {
+    const x = trendEntries.length === 1 ? 50 : (index / (trendEntries.length - 1)) * 100;
+    const y = 84 - ((entry.weight - minTrend) / trendRange) * 68;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
 
   const weightChange =
     sorted.length >= 2
@@ -117,6 +127,22 @@ export function Weight({ entries, weightUnit, onSave }: WeightProps) {
               variant={weightChange < 0 ? 'success' : weightChange > 0 ? 'warning' : 'default'}
             />
           )}
+        </div>
+      )}
+
+      {trendEntries.length >= 2 && (
+        <div className="weight-trend-panel" aria-label="Weight trend">
+          <div className="weight-trend-header">
+            <strong>Trend</strong>
+            <span>Last {trendEntries.length} entries</span>
+          </div>
+          <svg viewBox="0 0 100 100" role="img" aria-label={`Weight trend from ${trendEntries[0].weight} to ${trendEntries[trendEntries.length - 1].weight} ${weightUnit}`}>
+            <polyline points={trendPoints} />
+          </svg>
+          <div className="weight-trend-axis">
+            <span>{trendEntries[0].date}</span>
+            <span>{trendEntries[trendEntries.length - 1].date}</span>
+          </div>
         </div>
       )}
 

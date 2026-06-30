@@ -17,6 +17,9 @@ function json(body: unknown, status = 200): Response {
     headers: {
       'content-type': 'application/json; charset=utf-8',
       'cache-control': 'public, max-age=3600',
+      // Allow the native (Capacitor) app, whose WebView origin is
+      // https://localhost, to call this public read-only endpoint cross-origin.
+      'access-control-allow-origin': '*',
     },
   });
 }

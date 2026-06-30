@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { MealPlanEntry, FoodItem, MealTemplate, Recipe } from '../types';
 import { todayDateString } from '../lib/nutrition';
 import { foodToPlanEntry, recipeToPlanEntry, templateToPlanEntry } from '../lib/planner';
+import { isDateString } from '../lib/date';
 
 interface PlannerProps {
   plan: MealPlanEntry[];
@@ -17,33 +18,66 @@ export function Planner({ plan, savedFoods, templates, recipes, onSavePlan, onCo
   const [addType, setAddType] = useState<'food' | 'template' | 'recipe'>('food');
   const [search, setSearch] = useState('');
   const [pendingServings, setPendingServings] = useState<Record<string, string>>({});
+  const [message, setMessage] = useState('');
 
   const dayEntries = plan.filter((e) => e.date === selectedDate);
 
+  function validPlanDate(): boolean {
+    if (!isDateString(selectedDate)) {
+      setMessage('Choose a valid plan date.');
+      return false;
+    }
+    return true;
+  }
+
   function addFoodToPlan(food: FoodItem) {
+    if (!validPlanDate()) return;
+    if (plan.some((e) => e.date === selectedDate && e.type === 'saved-food' && e.sourceId === food.id && !e.converted)) {
+      setMessage(`"${food.name}" is already planned for ${selectedDate}.`);
+      return;
+    }
     const entry = foodToPlanEntry(food, selectedDate);
-    if (onSavePlan([...plan, entry])) setSearch('');
+    if (onSavePlan([...plan, entry])) {
+      setSearch('');
+      setMessage(`Added "${food.name}" to ${selectedDate}.`);
+    }
   }
 
   function addTemplateToPlan(template: MealTemplate) {
+    if (!validPlanDate()) return;
+    if (plan.some((e) => e.date === selectedDate && e.type === 'template' && e.sourceId === template.id && !e.converted)) {
+      setMessage(`"${template.name}" is already planned for ${selectedDate}.`);
+      return;
+    }
     const entry = templateToPlanEntry(template, selectedDate);
-    if (onSavePlan([...plan, entry])) setSearch('');
+    if (onSavePlan([...plan, entry])) {
+      setSearch('');
+      setMessage(`Added "${template.name}" to ${selectedDate}.`);
+    }
   }
 
   function addRecipeToPlan(recipe: Recipe, servings: number) {
+    if (!validPlanDate()) return;
+    if (!Number.isFinite(servings) || servings <= 0) {
+      setMessage('Servings must be greater than zero.');
+      return;
+    }
     const entry = recipeToPlanEntry(recipe, servings, selectedDate);
-    if (onSavePlan([...plan, entry])) setSearch('');
+    if (onSavePlan([...plan, entry])) {
+      setSearch('');
+      setMessage(`Added "${recipe.name}" to ${selectedDate}.`);
+    }
   }
 
   function removeFromPlan(id: string) {
-    onSavePlan(plan.filter((e) => e.id !== id));
+    if (onSavePlan(plan.filter((e) => e.id !== id))) setMessage('Removed planned item.');
   }
 
   function convertDayToLog() {
     const toConvert = dayEntries.filter((e) => !e.converted);
     if (toConvert.length === 0) return;
     const nextPlan = plan.map((e) => e.date === selectedDate && !e.converted ? { ...e, converted: true } : e);
-    onConvertToLog(toConvert, nextPlan);
+    if (onConvertToLog(toConvert, nextPlan)) setMessage(`${toConvert.length} planned item${toConvert.length === 1 ? '' : 's'} added to the food log.`);
   }
 
   const dayTotals = dayEntries.reduce(
@@ -75,6 +109,7 @@ export function Planner({ plan, savedFoods, templates, recipes, onSavePlan, onCo
       <div className="screen-header">
         <h1>Meal Planner</h1>
       </div>
+      {message && <div className="success-toast">{message}</div>}
 
       <div className="form-group">
         <label htmlFor="plan-date">Date</label>
@@ -124,7 +159,7 @@ export function Planner({ plan, savedFoods, templates, recipes, onSavePlan, onCo
                       />
                       <button
                         className="btn btn--secondary btn--sm"
-                        onClick={() => addRecipeToPlan(item.item as Recipe, parseFloat(pendingServings[item.id] ?? '1') || 1)}
+                        onClick={() => addRecipeToPlan(item.item as Recipe, parseFloat(pendingServings[item.id] ?? '1'))}
                       >
                         Add
                       </button>

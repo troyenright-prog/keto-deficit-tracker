@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { FoodForm, type FoodFormValues } from '../components/FoodForm';
 import type { FoodDatabaseItem, FoodItem, FoodLogEntry, MealTemplate, Recipe } from '../types';
-import { savedFoodToLogEntry, todayDateString } from '../lib/nutrition';
-import { addLocalDays } from '../lib/date';
+import { calcNetCarbs, savedFoodToLogEntry, todayDateString } from '../lib/nutrition';
+import { addLocalDays, isDateString } from '../lib/date';
 import { nanoid } from '../lib/nanoid';
 import { recipeToLogEntry } from '../lib/recipes';
 import { templateToLogEntries } from '../lib/meal-templates';
@@ -33,6 +33,7 @@ export function AddFood({ savedFoods, foodDatabase, log, recipes, templates, onA
   const [selected, setSelected] = useState<QuickAddItem | null>(null);
   const [multiplier, setMultiplier] = useState('1');
   const [quickError, setQuickError] = useState('');
+  const [dateError, setDateError] = useState('');
 
   const recentFoods = useMemo(() => recentFoodsFromLog(log), [log]);
   const groups = useMemo(() => buildQuickAddGroups({
@@ -40,6 +41,12 @@ export function AddFood({ savedFoods, foodDatabase, log, recipes, templates, onA
   }), [query, savedFoods, foodDatabase, recentFoods, recipes, templates]);
   const previousDate = addLocalDays(date, -1);
   const previousEntries = log.filter((entry) => entry.date === previousDate);
+  const selectedNutrition = selected && 'food' in selected ? {
+    calories: selected.food.calories,
+    proteinG: selected.food.proteinG,
+    netCarbsG: calcNetCarbs(selected.food.totalCarbsG, selected.food.fibreG, selected.food.sugarAlcoholsG),
+    fatG: selected.food.fatG,
+  } : null;
 
   function showSuccess(message: string) {
     setSuccessMsg(message);
@@ -56,8 +63,18 @@ export function AddFood({ savedFoods, foodDatabase, log, recipes, templates, onA
     return value;
   }
 
+  function validLogDate(): boolean {
+    if (!isDateString(date) || date > todayDateString()) {
+      setDateError('Choose a valid log date that is not in the future.');
+      return false;
+    }
+    setDateError('');
+    return true;
+  }
+
   function addSelected() {
     if (!selected) return;
+    if (!validLogDate()) return;
     const amount = validMultiplier();
     if (amount === null) return;
     let entries: FoodLogEntry[];
@@ -83,11 +100,13 @@ export function AddFood({ savedFoods, foodDatabase, log, recipes, templates, onA
   }
 
   function copyEntries(entries: FoodLogEntry[]) {
+    if (!validLogDate()) return;
     if (!onAddEntries(copyLogEntries(entries, date))) return;
     showSuccess(`${entries.length} ${entries.length === 1 ? 'entry' : 'entries'} copied from ${previousDate}.`);
   }
 
   function handleSubmit(values: FoodFormValues) {
+    if (!validLogDate()) return;
     const m = values.servingMultiplier;
     const entry: FoodLogEntry = {
       id: nanoid(), date, name: values.name, servingSize: values.servingSize, servingMultiplier: m,
@@ -124,12 +143,15 @@ export function AddFood({ savedFoods, foodDatabase, log, recipes, templates, onA
 
   return (
     <div className="screen">
-      <div className="screen-header"><h1>Add Food</h1></div>
+      <div className="screen-header">
+        <h1>Add Food</h1>
+      </div>
       {successMsg && <div className="success-toast">{successMsg}</div>}
 
       <div className="form-group">
         <label htmlFor="quick-date">Add to date</label>
-        <input id="quick-date" type="date" value={date} max={todayDateString()} onChange={(event) => { setDate(event.target.value); setSelected(null); }} />
+        <input id="quick-date" type="date" value={date} max={todayDateString()} onChange={(event) => { setDate(event.target.value); setSelected(null); setDateError(''); }} />
+        {dateError && <span className="form-error" role="alert">{dateError}</span>}
       </div>
 
       <div className="form-group">
@@ -170,6 +192,14 @@ export function AddFood({ savedFoods, foodDatabase, log, recipes, templates, onA
         <div className="quick-add-panel">
           <strong>{selected.name}</strong>
           <span className="dim">Choose servings</span>
+          {selectedNutrition && (
+            <div className="quick-nutrition-preview" aria-label="Selected food nutrition per serving">
+              <span>{Math.round(selectedNutrition.calories)} kcal</span>
+              <span>{selectedNutrition.proteinG.toFixed(1)}g protein</span>
+              <span>{selectedNutrition.netCarbsG.toFixed(1)}g net carbs</span>
+              <span>{selectedNutrition.fatG.toFixed(1)}g fat</span>
+            </div>
+          )}
           <div className="serving-options">
             {QUICK_AMOUNTS.map((amount) => (
               <button key={amount} className={`serving-chip${multiplier === String(amount) ? ' serving-chip--active' : ''}`} onClick={() => { setMultiplier(String(amount)); setQuickError(''); }}>

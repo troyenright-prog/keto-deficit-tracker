@@ -41,8 +41,14 @@ describe('buildRecommendations', () => {
 
   it('suggests protein when low and calories remain', () => {
     const s = makeSummary({ proteinG: 50, calories: 800 });
-    const recs = buildRecommendations(s, DEFAULT_TARGETS);
+    const recs = buildRecommendations(s, DEFAULT_TARGETS, new Date('2026-06-20T12:00:00'));
     expect(recs.some((r) => r.id === 'protein-low')).toBe(true);
+  });
+
+  it('warns when intake is very low late in the day', () => {
+    const s = makeSummary({ calories: 900, proteinG: 80 });
+    const recs = buildRecommendations(s, DEFAULT_TARGETS, new Date('2026-06-20T19:00:00'));
+    expect(recs.some((r) => r.id === 'calories-low-late')).toBe(true);
   });
 
   it('warns when calories exceeded', () => {

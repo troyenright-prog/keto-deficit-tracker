@@ -6,6 +6,8 @@ export interface BarcodeFood extends Micronutrients {
   barcode: string;
   name: string;
   brand?: string;
+  attribution?: string;
+  attributionUrl?: string;
   servingSize: string;
   dataBasis: 'serving' | '100g';
   calories: number;
@@ -89,6 +91,8 @@ export function normalizeOpenFoodFactsProduct(value: unknown, barcodeFallback = 
       vitaminB12Mcg: asNumber(product.vitaminB12Mcg),
       omega3G: asNumber(product.omega3G),
       omega6G: asNumber(product.omega6G),
+      attribution: asText(product.attribution),
+      attributionUrl: asText(product.attributionUrl),
       sourceUrl: asText(product.sourceUrl),
     };
   }
@@ -118,22 +122,100 @@ export function normalizeOpenFoodFactsProduct(value: unknown, barcodeFallback = 
     vitaminB12Mcg: asNumber(nutriments[`vitamin-b12_${basis}`]),
     omega3G: asNumber(nutriments[`omega-3-fat_${basis}`]),
     omega6G: asNumber(nutriments[`omega-6-fat_${basis}`]),
+    attribution: asText(product.attribution),
+    attributionUrl: asText(product.attributionUrl),
     sourceUrl: asText(product.url),
   };
+}
+
+// Detected via the injected Capacitor global rather than a static import, so
+// this module stays safe to import from the Cloudflare Pages function.
+function isNativePlatform(): boolean {
+  const cap = (globalThis as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+  return typeof cap?.isNativePlatform === 'function' ? cap.isNativePlatform() : false;
+}
+
+// Prefer the app lookup endpoint when available because it can combine multiple
+// food sources. Direct Open Food Facts remains the no-key fallback.
+const OPEN_FOOD_FACTS_BASE = 'https://world.openfoodfacts.org/api/v3.6/product';
+
+function publicEnv(name: string): string {
+  const meta = import.meta as ImportMeta & { env?: Record<string, string | undefined> };
+  return meta.env?.[name]?.trim() ?? '';
+}
+
+function withCodeParam(endpoint: string, code: string): string {
+  const separator = endpoint.includes('?') ? '&' : '?';
+  return `${endpoint}${separator}code=${encodeURIComponent(code)}`;
+}
+
+function addUniqueUrl(urls: string[], url: string): void {
+  if (!urls.includes(url)) urls.push(url);
+}
+
+export function barcodeLookupUrls(code: string): string[] {
+  const normalized = normalizeBarcode(code);
+  if (!normalized) return [];
+
+  const urls: string[] = [];
+  const configuredEndpoint = publicEnv('VITE_BARCODE_LOOKUP_URL');
+  if (configuredEndpoint) {
+    addUniqueUrl(urls, withCodeParam(configuredEndpoint, normalized));
+  } else if (!isNativePlatform()) {
+    addUniqueUrl(urls, `/api/lookup-barcode?code=${encodeURIComponent(normalized)}`);
+  }
+
+  addUniqueUrl(urls, `${OPEN_FOOD_FACTS_BASE}/${encodeURIComponent(normalized)}.json`);
+  return urls;
+}
+
+export function barcodeLookupUrl(code: string): string {
+  return barcodeLookupUrls(code)[0] ?? `${OPEN_FOOD_FACTS_BASE}/${encodeURIComponent(normalizeBarcode(code))}.json`;
 }
 
 export async function lookupBarcodeFood(barcode: string, fetcher: typeof fetch = fetch): Promise<BarcodeFood> {
   const normalized = normalizeBarcode(barcode);
   if (!normalized) throw new Error('Enter a valid barcode number.');
-  const response = await fetcher(`/api/lookup-barcode?code=${encodeURIComponent(normalized)}`);
-  const body = await response.json() as unknown;
-  if (!response.ok) {
-    const message = isRecord(body) && typeof body.error === 'string' ? body.error : 'Barcode lookup failed.';
-    throw new Error(message);
+
+  let lastError = 'No food was found for that barcode.';
+  for (const url of barcodeLookupUrls(normalized)) {
+    let response: Response;
+    try {
+      // `no-store` avoids serving a stale cached response; `accept` is a
+      // CORS-safelisted header so it does not trigger a preflight.
+      response = await fetcher(url, { cache: 'no-store', headers: { accept: 'application/json' } });
+    } catch {
+      lastError = 'Could not reach the barcode database. Check your connection and try again.';
+      continue;
+    }
+
+    if (response.status === 404) {
+      lastError = 'No food was found for that barcode.';
+      continue;
+    }
+    if (response.status === 429 || response.status === 503) {
+      lastError = 'Barcode lookup is temporarily rate-limited. Try again shortly.';
+      continue;
+    }
+
+    let body: unknown;
+    try {
+      body = await response.json();
+    } catch {
+      lastError = 'Could not reach the barcode database. Check your connection and try again.';
+      continue;
+    }
+    if (!response.ok) {
+      lastError = isRecord(body) && typeof body.error === 'string' ? body.error : 'Barcode lookup failed.';
+      continue;
+    }
+
+    const food = normalizeOpenFoodFactsProduct(body, normalized);
+    if (food) return food;
+    lastError = 'Barcode lookup returned incomplete nutrition data.';
   }
-  const food = normalizeOpenFoodFactsProduct(body, normalized);
-  if (!food) throw new Error('Barcode lookup returned incomplete nutrition data.');
-  return food;
+
+  throw new Error(lastError);
 }
 
 export function barcodeFoodToLogEntry(food: BarcodeFood, date: string, multiplier = 1, meal?: MealSlot): FoodLogEntry {
