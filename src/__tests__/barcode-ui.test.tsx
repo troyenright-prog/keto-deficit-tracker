@@ -55,7 +55,7 @@ describe('Barcode scanner screen', () => {
     }));
 
     fireEvent.change(screen.getByLabelText('Servings'), { target: { value: '2' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Add to log' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Add to log' })[0]);
     await waitFor(() => expect(onAdd).toHaveBeenCalledWith(expect.objectContaining({
       source: 'barcode',
       barcode: '1234567890123',
@@ -123,7 +123,7 @@ describe('Barcode scanner screen', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create food for this barcode' }));
     fireEvent.change(screen.getByLabelText('Food name'), { target: { value: 'Manual Bar' } });
     fireEvent.change(screen.getByLabelText('Calories'), { target: { value: '150' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Add to log' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Add to log' })[0]);
 
     await waitFor(() => expect(onSaveFoodDatabaseItem).toHaveBeenCalledWith(expect.objectContaining({
       barcode: '5555',
@@ -146,7 +146,7 @@ describe('Barcode scanner screen', () => {
     fireEvent.change(screen.getByLabelText('Total carbs (g)'), { target: { value: '5' } });
     fireEvent.change(screen.getByLabelText('Fibre (g)'), { target: { value: '4' } });
     fireEvent.change(screen.getByLabelText('Sugar alcohols (g)'), { target: { value: '4' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Add to log' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Add to log' })[0]);
 
     expect(onAdd).not.toHaveBeenCalled();
     expect(screen.getByText('Fibre and sugar alcohols cannot exceed total carbs.')).toBeTruthy();
@@ -165,9 +165,17 @@ describe('Barcode scanner screen', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('does not offer a manual add fallback from the scan screen', () => {
+  it('offers a manual add fallback when a handler is provided', () => {
+    const onAddManually = vi.fn();
+    render(<BarcodeScanner foodDatabase={[]} onAdd={vi.fn(() => true)} onSaveFood={vi.fn(() => true)} onSaveFoodDatabaseItem={vi.fn(() => true)} onAddManually={onAddManually} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'No barcode? Add manually' }));
+    expect(onAddManually).toHaveBeenCalled();
+  });
+
+  it('hides the manual add fallback when no handler is provided', () => {
     render(<BarcodeScanner foodDatabase={[]} onAdd={vi.fn(() => true)} onSaveFood={vi.fn(() => true)} onSaveFoodDatabaseItem={vi.fn(() => true)} />);
 
-    expect(screen.queryByRole('button', { name: 'Add manually' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'No barcode? Add manually' })).toBeNull();
   });
 });

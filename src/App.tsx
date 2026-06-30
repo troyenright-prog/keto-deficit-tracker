@@ -474,6 +474,7 @@ function App() {
             onAdd={handleAddEntry}
             onAddEntries={handleAddEntries}
             onSaveFood={handleSaveFood}
+            onScanBarcode={() => setScreen('barcode')}
           />
         )}
         {screen === 'barcode' && (
@@ -482,6 +483,7 @@ function App() {
             onAdd={handleAddEntry}
             onSaveFood={handleSaveFood}
             onSaveFoodDatabaseItem={handleSaveFoodDatabaseItem}
+            onAddManually={() => setScreen('add-food')}
             autoStart
           />
         )}

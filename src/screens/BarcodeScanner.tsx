@@ -12,6 +12,7 @@ interface BarcodeScannerProps {
   onAdd: (entry: FoodLogEntry) => boolean;
   onSaveFood: (food: FoodItem) => boolean;
   onSaveFoodDatabaseItem: (food: FoodDatabaseItem) => boolean;
+  onAddManually?: () => void;
   autoStart?: boolean;
 }
 
@@ -31,7 +32,7 @@ function remoteFoodOrigin(food: BarcodeFood): FoodOrigin {
 
 const canUseCamera = (): boolean => typeof navigator !== 'undefined' && Boolean(navigator.mediaDevices?.getUserMedia);
 
-export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodDatabaseItem, autoStart = false }: BarcodeScannerProps) {
+export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodDatabaseItem, onAddManually, autoStart = false }: BarcodeScannerProps) {
   const [barcode, setBarcode] = useState('');
   const [date, setDate] = useState(todayDateString());
   const [meal, setMeal] = useState(inferMealSlot());
@@ -253,6 +254,11 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
           <button className="btn btn--secondary" onClick={scanning ? stopCamera : startCamera}>
             {scanning ? 'Stop camera' : 'Scan with camera'}
           </button>
+          {onAddManually && (
+            <button className="btn btn--ghost" onClick={onAddManually}>
+              No barcode? Add manually
+            </button>
+          )}
           {!cameraSupported && <span className="dim">Barcode number entry works on all devices.</span>}
         </div>
         {scanning && <video ref={videoRef} className="barcode-video" playsInline muted aria-label="Barcode scanner camera preview" />}
@@ -287,6 +293,10 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
             {food.brand && <span>{food.brand}</span>}
             <small>{food.servingSize} - {food.dataBasis === '100g' ? 'nutrition per 100g' : 'nutrition per serving'} - {food.barcode}</small>
           </div>
+
+          <button className="btn btn--primary" onClick={addToLog} disabled={!food.name.trim()}>
+            Add to log
+          </button>
 
           <button className="btn btn--ghost btn--sm" onClick={() => setEditing((value) => !value)}>
             {editing ? 'Hide edits' : 'Edit nutrition'}
