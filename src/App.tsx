@@ -52,7 +52,8 @@ import { recipeToLogEntry } from './lib/recipes';
 import { nanoid } from './lib/nanoid';
 import { inferMealSlot } from './lib/meals';
 import { duplicateLogEntry } from './lib/quick-add';
-import { savedFoodToFoodDatabaseItem, upsertFoodDatabaseItem } from './lib/food-database';
+import { barcodeFoodToFoodDatabaseItem, savedFoodToFoodDatabaseItem, upsertFoodDatabaseItem } from './lib/food-database';
+import { applyBarcodeNutritionToEntry, entryNeedsNutritionRepair, lookupBarcodeFood, type BarcodeFood } from './lib/barcode';
 import { scheduleReminderNotifications } from './lib/reminders';
 import { isHealthConnectSupported, healthConnectAvailable, ensureWeightPermissions, fetchWeightHistory } from './lib/health-connect';
 import { toGarminReadings, mergeGarminReadings, summarizeMerge } from './lib/garmin-weight-sync';
@@ -336,6 +337,33 @@ function App() {
     return persist(nextDatabase, foodDatabaseRef, setFoodDatabase, saveFoodDatabase);
   }, [persist]);
 
+  // Re-fetch nutrition for barcode entries logged with no calories (the Open Food
+  // Facts v3 empty-nutriments bug). Each entry's serving size is preserved.
+  const handleRepairScannedNutrition = useCallback(async (): Promise<string> => {
+    const targets = foodLogRef.current.filter(entryNeedsNutritionRepair);
+    if (targets.length === 0) return 'No scanned foods need fixing.';
+    const cache = new Map<string, BarcodeFood>();
+    let fixed = 0;
+    let failed = 0;
+    for (const entry of targets) {
+      const code = entry.barcode as string;
+      try {
+        let food = cache.get(code);
+        if (!food) {
+          food = await lookupBarcodeFood(code);
+          cache.set(code, food);
+          handleSaveFoodDatabaseItem(barcodeFoodToFoodDatabaseItem(food));
+        }
+        handleEditEntry(applyBarcodeNutritionToEntry(entry, food));
+        if (food.calories > 0) fixed += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+    if (fixed === 0) return failed > 0 ? 'Could not fetch nutrition — check your connection and try again.' : 'No nutrition found for those barcodes.';
+    return `Updated ${fixed} scanned food${fixed === 1 ? '' : 's'}${failed > 0 ? `; ${failed} could not be fetched` : ''}.`;
+  }, [handleEditEntry, handleSaveFoodDatabaseItem]);
+
   const handleDeleteSavedFood = useCallback((id: string) => {
     return persist(savedFoodsRef.current.filter((f) => f.id !== id), savedFoodsRef, setSavedFoods, saveSavedFoods);
   }, [persist]);
@@ -522,6 +550,7 @@ function App() {
             onEdit={handleEditEntry}
             onDuplicate={(entry, targetDate) => handleAddEntry(duplicateLogEntry(entry, targetDate))}
             onSaveFood={handleSaveFood}
+            onRepairScannedNutrition={handleRepairScannedNutrition}
           />
         )}
         {screen === 'weekly' && (

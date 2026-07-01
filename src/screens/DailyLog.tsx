@@ -3,6 +3,7 @@ import type { FoodLogEntry, FoodItem, MealSlot } from '../types';
 import { calcNetCarbs, todayDateString } from '../lib/nutrition';
 import { FoodForm, type FoodFormValues } from '../components/FoodForm';
 import { entryMeal, mealLabel, MEAL_SLOTS } from '../lib/meals';
+import { entryNeedsNutritionRepair } from '../lib/barcode';
 import { nanoid } from '../lib/nanoid';
 
 interface DailyLogProps {
@@ -12,12 +13,28 @@ interface DailyLogProps {
   onEdit: (entry: FoodLogEntry) => boolean;
   onDuplicate: (entry: FoodLogEntry, targetDate?: string) => boolean;
   onSaveFood: (food: FoodItem) => boolean;
+  onRepairScannedNutrition?: () => Promise<string>;
 }
 
-export function DailyLog({ log, savedFoods, onDelete, onEdit, onDuplicate, onSaveFood }: DailyLogProps) {
+export function DailyLog({ log, savedFoods, onDelete, onEdit, onDuplicate, onSaveFood, onRepairScannedNutrition }: DailyLogProps) {
   const [selectedDate, setSelectedDate] = useState(todayDateString());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [message, setMessage] = useState('');
+  const [repairing, setRepairing] = useState(false);
+
+  const repairableCount = log.filter(entryNeedsNutritionRepair).length;
+
+  async function runRepair() {
+    if (!onRepairScannedNutrition || repairing) return;
+    setRepairing(true);
+    try {
+      setMessage(await onRepairScannedNutrition());
+    } catch {
+      setMessage('Could not fetch nutrition. Check your connection and try again.');
+    } finally {
+      setRepairing(false);
+    }
+  }
 
   const dayEntries = log.filter((e) => e.date === selectedDate);
   const dayTotals = dayEntries.reduce((acc, entry) => ({
@@ -132,6 +149,16 @@ export function DailyLog({ log, savedFoods, onDelete, onEdit, onDuplicate, onSav
       </div>
 
       {message && <div className="success-toast">{message}</div>}
+
+      {repairableCount > 0 && onRepairScannedNutrition && (
+        <div className="estimate-warning" role="status">
+          <strong>Some scanned foods are missing nutrition</strong>
+          <span>{repairableCount} logged item{repairableCount === 1 ? '' : 's'} came through with 0 calories. Re-fetch to fill in the macros (serving sizes are kept).</span>
+          <button className="btn btn--primary btn--sm" onClick={runRepair} disabled={repairing}>
+            {repairing ? 'Fetching nutrition…' : 'Re-fetch nutrition'}
+          </button>
+        </div>
+      )}
 
       {dayEntries.length === 0 ? (
         <p className="empty-hint">No entries for {selectedDate}.</p>

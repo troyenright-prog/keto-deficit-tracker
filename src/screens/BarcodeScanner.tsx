@@ -78,7 +78,10 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
     if (!normalized) { setError('Enter or scan a valid barcode.'); return; }
 
     const local = findFoodDatabaseByBarcode(foodDatabase, normalized);
-    if (local) {
+    // Use the cached copy only when it has real nutrition or the user edited it;
+    // a cached 0-calorie row (e.g. saved during the OFF v3 empty-nutriments bug)
+    // is treated as a miss so we re-fetch fresh data.
+    if (local && (local.userEdited || local.calories > 0)) {
       setFood(foodDatabaseItemToBarcodeFood(local));
       setOrigin(local.userEdited ? 'corrected' : 'local');
       setError('');

@@ -251,6 +251,40 @@ export function barcodeFoodToLogEntry(food: BarcodeFood, date: string, multiplie
   };
 }
 
+// A logged barcode entry needs nutrition repair if it was scanned but stored no
+// calories (e.g. logged while the Open Food Facts lookup was returning empty
+// nutriments). See barcode-off-v2.
+export function entryNeedsNutritionRepair(entry: Pick<FoodLogEntry, 'barcode' | 'calories'>): boolean {
+  return Boolean(entry.barcode) && !(entry.calories > 0);
+}
+
+// Recompute a log entry's macros from a freshly-fetched barcode food, preserving
+// the entry's identity, date, meal, and serving multiplier.
+export function applyBarcodeNutritionToEntry(entry: FoodLogEntry, food: BarcodeFood): FoodLogEntry {
+  const amount = safePositive(entry.servingMultiplier);
+  const scale = (value: number | undefined, current: number | undefined) =>
+    value === undefined ? current : value * amount;
+  return {
+    ...entry,
+    calories: food.calories * amount,
+    proteinG: food.proteinG * amount,
+    fatG: food.fatG * amount,
+    totalCarbsG: food.totalCarbsG * amount,
+    fibreG: food.fibreG * amount,
+    sugarAlcoholsG: food.sugarAlcoholsG * amount,
+    sodiumMg: food.sodiumMg * amount,
+    potassiumMg: food.potassiumMg * amount,
+    magnesiumMg: food.magnesiumMg * amount,
+    calciumMg: scale(food.calciumMg, entry.calciumMg),
+    ironMg: scale(food.ironMg, entry.ironMg),
+    zincMg: scale(food.zincMg, entry.zincMg),
+    vitaminDMcg: scale(food.vitaminDMcg, entry.vitaminDMcg),
+    vitaminB12Mcg: scale(food.vitaminB12Mcg, entry.vitaminB12Mcg),
+    omega3G: scale(food.omega3G, entry.omega3G),
+    omega6G: scale(food.omega6G, entry.omega6G),
+  };
+}
+
 export function barcodeFoodToSavedFood(food: BarcodeFood): FoodItem {
   return {
     id: nanoid(),
