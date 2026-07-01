@@ -137,7 +137,9 @@ function isNativePlatform(): boolean {
 
 // Prefer the app lookup endpoint when available because it can combine multiple
 // food sources. Direct Open Food Facts remains the no-key fallback.
-const OPEN_FOOD_FACTS_BASE = 'https://world.openfoodfacts.org/api/v3.6/product';
+// v2 returns fully-populated `nutriments`; v3.x returns an empty nutriments
+// object, which silently produces 0-calorie results.
+const OPEN_FOOD_FACTS_BASE = 'https://world.openfoodfacts.org/api/v2/product';
 
 function publicEnv(name: string): string {
   const meta = import.meta as ImportMeta & { env?: Record<string, string | undefined> };

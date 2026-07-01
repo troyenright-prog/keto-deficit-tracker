@@ -72,7 +72,9 @@ function normalizeFoodDataCentralSearch(value: unknown, barcode: string) {
 }
 
 async function lookupOpenFoodFacts(code: string, env: Env, fetcher: typeof fetch) {
-  const upstream = `https://world.openfoodfacts.org/api/v3.6/product/${encodeURIComponent(code)}.json`;
+  // v2 returns fully-populated `nutriments` by default; v3.x returns an empty
+  // nutriments object, which silently yields 0-calorie results.
+  const upstream = `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json`;
   const response = await fetcher(upstream, {
     headers: {
       accept: 'application/json',

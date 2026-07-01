@@ -41,7 +41,7 @@ describe('barcode food mapping', () => {
   it('tries the app lookup endpoint before the direct Open Food Facts fallback', () => {
     const urls = barcodeLookupUrls('9300675051132');
     expect(urls[0]).toBe('/api/lookup-barcode?code=9300675051132');
-    expect(urls[1]).toBe('https://world.openfoodfacts.org/api/v3.6/product/9300675051132.json');
+    expect(urls[1]).toBe('https://world.openfoodfacts.org/api/v2/product/9300675051132.json');
   });
 
   it('maps Open Food Facts nutrition to app nutrition safely', () => {
