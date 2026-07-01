@@ -9,14 +9,32 @@ interface WeightProps {
   entries: WeightEntry[];
   weightUnit: 'kg' | 'lbs';
   onSave: (entries: WeightEntry[]) => boolean;
+  // Provided only on platforms where Garmin/Health Connect is available.
+  // Resolves to a status message to show the user.
+  onSyncGarmin?: () => Promise<string>;
 }
 
-export function Weight({ entries, weightUnit, onSave }: WeightProps) {
+export function Weight({ entries, weightUnit, onSave, onSyncGarmin }: WeightProps) {
   const [weightInput, setWeightInput] = useState('');
   const [dateInput, setDateInput] = useState(todayDateString());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editWeight, setEditWeight] = useState('');
   const [validationError, setValidationError] = useState('');
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState('');
+
+  async function runGarminSync() {
+    if (!onSyncGarmin || syncing) return;
+    setSyncing(true);
+    setSyncMessage('');
+    try {
+      setSyncMessage(await onSyncGarmin());
+    } catch (err) {
+      setSyncMessage(err instanceof Error ? err.message : 'Could not sync from Garmin.');
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   const sorted = useMemo(
     () =>
@@ -85,7 +103,13 @@ export function Weight({ entries, weightUnit, onSave }: WeightProps) {
     <div className="screen">
       <div className="screen-header">
         <h1>Weight Tracking</h1>
+        {onSyncGarmin && (
+          <button type="button" className="btn btn--secondary btn--sm" onClick={runGarminSync} disabled={syncing}>
+            {syncing ? 'Syncing…' : 'Sync from Garmin'}
+          </button>
+        )}
       </div>
+      {syncMessage && <p className="empty-hint empty-hint--compact" role="status">{syncMessage}</p>}
       {validationError && <p className="form-error" role="alert">{validationError}</p>}
 
       <div className="weight-add-row">
@@ -171,7 +195,11 @@ export function Weight({ entries, weightUnit, onSave }: WeightProps) {
               ) : (
                 <>
                   <span className="weight-entry-date">{e.date}</span>
-                  <span className="weight-entry-value">{e.weight} {e.unit}</span>
+                  <span className="weight-entry-value">
+                    {e.weight} {e.unit}
+                    {e.bodyFat != null && <small className="dim"> · {e.bodyFat}% fat</small>}
+                    {e.source === 'garminHealthConnect' && <small className="source-pill"> Garmin</small>}
+                  </span>
                   <button className="btn btn--ghost btn--xs" onClick={() => startEdit(e)}>Edit</button>
                   <button
                     className="btn btn--danger btn--xs"

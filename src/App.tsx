@@ -54,6 +54,8 @@ import { inferMealSlot } from './lib/meals';
 import { duplicateLogEntry } from './lib/quick-add';
 import { savedFoodToFoodDatabaseItem, upsertFoodDatabaseItem } from './lib/food-database';
 import { scheduleReminderNotifications } from './lib/reminders';
+import { isHealthConnectSupported, healthConnectAvailable, ensureWeightPermissions, fetchWeightHistory } from './lib/health-connect';
+import { toGarminReadings, mergeGarminReadings, summarizeMerge } from './lib/garmin-weight-sync';
 import type {
   FoodLogEntry,
   FoodItem,
@@ -351,6 +353,21 @@ function App() {
     return persist(entries, weightEntriesRef, setWeightEntries, saveWeightEntries);
   }, [persist]);
 
+  // Garmin → Health Connect weight import (native Android only).
+  const handleSyncGarminWeight = useCallback(async (): Promise<string> => {
+    if (!(await healthConnectAvailable())) {
+      return "Health Connect isn't available on this device. Install it and connect Garmin Connect first.";
+    }
+    await ensureWeightPermissions(); // throws a user-facing message if not granted
+    const raw = await fetchWeightHistory();
+    if (raw.length === 0) return 'No weight data found in Health Connect yet.';
+    const unit = profileRef.current.weightUnit;
+    const readings = toGarminReadings(raw, unit);
+    const result = mergeGarminReadings(weightEntriesRef.current, readings, unit, new Date().toISOString(), nanoid);
+    if (!handleSaveWeightEntries(result.entries)) return 'Could not save the imported weight entries.';
+    return summarizeMerge(result);
+  }, [handleSaveWeightEntries]);
+
   // ── Meal templates ─────────────────────────────────────────────────────────
 
   const handleSaveTemplate = useCallback((template: MealTemplate) => {
@@ -548,6 +565,7 @@ function App() {
             entries={weightEntries}
             weightUnit={profile.weightUnit}
             onSave={handleSaveWeightEntries}
+            onSyncGarmin={isHealthConnectSupported() ? handleSyncGarminWeight : undefined}
           />
         )}
         {screen === 'settings' && (

@@ -142,12 +142,18 @@ export interface DailyNutritionSummary extends Micronutrients {
 
 // ── Weight ─────────────────────────────────────────────────────────────────────
 
+export type WeightEntrySource = 'manual' | 'garminHealthConnect';
+
 export interface WeightEntry {
   id: string;
   date: string; // YYYY-MM-DD
   weight: number;
   unit: 'kg' | 'lbs';
   loggedAt: string;
+  bodyFat?: number; // body-fat percentage, when available (e.g. from a Garmin scale)
+  source?: WeightEntrySource; // absent/`manual` for hand-entered rows
+  sourceLabel?: string; // human label for imported rows, e.g. "Garmin via Health Connect"
+  importedAt?: string; // ISO timestamp of the last Health Connect import
 }
 
 // ── Meal templates ─────────────────────────────────────────────────────────────

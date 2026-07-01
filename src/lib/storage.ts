@@ -241,9 +241,17 @@ function normalizeWeight(value: unknown): WeightEntry | null {
   if (!isRecord(value)) return null;
   const weight = safePositive(value.weight, 0);
   if (weight === 0) return null;
+  const bodyFat = safePositive(value.bodyFat, 0);
+  const isGarmin = value.source === 'garminHealthConnect';
   return {
     id: text(value.id, crypto.randomUUID()), date: date(value.date), weight,
     unit: value.unit === 'lbs' ? 'lbs' : 'kg', loggedAt: timestamp(value.loggedAt),
+    ...(bodyFat > 0 ? { bodyFat } : {}),
+    ...(isGarmin ? {
+      source: 'garminHealthConnect' as const,
+      sourceLabel: optionalText(value.sourceLabel) ?? 'Garmin via Health Connect',
+      importedAt: timestamp(value.importedAt),
+    } : {}),
   };
 }
 
