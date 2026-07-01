@@ -24,6 +24,19 @@ allprojects {
     }
 }
 
+subprojects {
+    // The Health Connect plugin ships with Kotlin 1.8.20, which can't resolve the
+    // default JVM target under this AGP/JDK toolchain. Pin it to 17 so the module
+    // compiles. (Same workaround the LiFT app uses.)
+    afterEvaluate {
+        if (project.name == 'kiwi-health-capacitor-health-connect') {
+            android.kotlinOptions {
+                jvmTarget = "17"
+            }
+        }
+    }
+}
+
 task clean(type: Delete) {
     delete rootProject.buildDir
 }
