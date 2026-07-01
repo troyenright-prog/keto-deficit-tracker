@@ -21,8 +21,6 @@ export interface BarcodeFood extends Micronutrients {
   potassiumMg: number;
   magnesiumMg: number;
   sourceUrl?: string;
-  confidence?: number;
-  warnings?: string[];
 }
 
 type UnknownRecord = Record<string, unknown>;
@@ -30,11 +28,6 @@ type UnknownRecord = Record<string, unknown>;
 const isRecord = (value: unknown): value is UnknownRecord => typeof value === 'object' && value !== null && !Array.isArray(value);
 const asText = (value: unknown): string | undefined => typeof value === 'string' && value.trim() ? value.trim() : undefined;
 const asNumber = (value: unknown): number | undefined => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
-const asTextArray = (value: unknown): string[] | undefined => {
-  if (!Array.isArray(value)) return undefined;
-  const result = value.map(asText).filter((item): item is string => Boolean(item));
-  return result.length ? result : undefined;
-};
 
 export function normalizeBarcode(raw: string): string {
   return raw.replace(/\D/g, '').slice(0, 32);
@@ -160,8 +153,6 @@ export function normalizeOpenFoodFactsProduct(value: unknown, barcodeFallback = 
       attribution: asText(product.attribution),
       attributionUrl: asText(product.attributionUrl),
       sourceUrl: asText(product.sourceUrl),
-      confidence: asNumber(product.confidence),
-      warnings: asTextArray(product.warnings),
     };
   }
 

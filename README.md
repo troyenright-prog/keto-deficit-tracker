@@ -39,14 +39,14 @@ Push notifications are not wired yet. They require Firebase Cloud Messaging for 
 
 The Scan screen supports packaged-food lookup by barcode. When the browser supports the native BarcodeDetector API, users can scan with the device camera. Every browser can still use manual barcode entry.
 
-Barcode lookup uses a Cloudflare Pages Function at `/api/lookup-barcode`, which queries Open Food Facts first and can fall back to USDA FoodData Central when configured. Native builds can also point at the deployed function with `VITE_BARCODE_LOOKUP_URL` so scans use the broader server-side lookup instead of only the direct Open Food Facts fallback. If a barcode is not found, the scan screen can optionally upload a nutrition label photo to `/api/parse-nutrition-label` to prefill the same review form before logging. Results are normalized for review before logging. Logged entries and saved foods are copied as snapshots, so future changes in the external database do not alter historical logs.
+Barcode lookup uses a Cloudflare Pages Function at `/api/lookup-barcode`, which queries Open Food Facts first and can fall back to USDA FoodData Central when configured. Native builds can also point at the deployed function with `VITE_BARCODE_LOOKUP_URL` so scans use the broader server-side lookup instead of only the direct Open Food Facts fallback. Results are normalized for review before logging. Logged entries and saved foods are copied as snapshots, so future changes in the external database do not alter historical logs.
 
 Important limitations:
 
 - Open Food Facts data is crowd-sourced and can be incomplete or wrong.
 - Some browsers do not expose camera barcode scanning; manual barcode entry is the fallback.
 - Lookup requests are subject to upstream provider rate limits.
-- The app does not upload or store barcode camera frames; the camera preview is only used locally to detect a barcode. Nutrition label photos are uploaded only when the user chooses that fallback and are not stored by the app.
+- The app does not upload or store camera frames; the camera preview is only used locally to detect a barcode.
 
 ### Environment variables
 
@@ -55,27 +55,22 @@ Optional server-side variable:
 ```text
 OPEN_FOOD_FACTS_USER_AGENT
 FOOD_DATA_CENTRAL_API_KEY
-OPENAI_API_KEY
-OPENAI_NUTRITION_LABEL_MODEL
 ```
 
 If supplied, use a descriptive value in the form `AppName/Version (contact or URL)`. Do not put it in a `VITE_` variable.
 `FOOD_DATA_CENTRAL_API_KEY` enables USDA FoodData Central fallback lookup when Open Food Facts does not have a barcode match.
-`OPENAI_API_KEY` enables nutrition label photo import. `OPENAI_NUTRITION_LABEL_MODEL` is optional and defaults to `gpt-5.5`.
 
 Optional client-side variable:
 
 ```text
 VITE_BARCODE_LOOKUP_URL
-VITE_NUTRITION_LABEL_PARSE_URL
 ```
 
 For native/mobile builds, set this to the deployed lookup endpoint, for example `https://keto-deficit-tracker.pages.dev/api/lookup-barcode`. It is public and safe to expose; provider secrets stay on the server-side function.
-If `VITE_NUTRITION_LABEL_PARSE_URL` is omitted, the app derives it from `VITE_BARCODE_LOOKUP_URL` by using the same host and `/api/parse-nutrition-label` path.
 
 ### Local Pages Function development
 
-Build and run the site through Wrangler so `/api/lookup-barcode` and `/api/parse-nutrition-label` are available:
+Build and run the site through Wrangler so `/api/lookup-barcode` is available:
 
 ```sh
 npm run build
@@ -86,7 +81,7 @@ Running only `npm run dev` serves the React client but does not provide the Clou
 
 ### Cloudflare Pages deployment
 
-No secret is required for Open Food Facts. Optionally add `OPEN_FOOD_FACTS_USER_AGENT` under Settings -> Variables and Secrets if you want to override the default app identifier. Add `FOOD_DATA_CENTRAL_API_KEY` to enable USDA FoodData Central fallback lookup. Add `OPENAI_API_KEY` to enable nutrition label photo import, and optionally `OPENAI_NUTRITION_LABEL_MODEL` to override the default parser model.
+No secret is required for Open Food Facts. Optionally add `OPEN_FOOD_FACTS_USER_AGENT` under Settings -> Variables and Secrets if you want to override the default app identifier. Add `FOOD_DATA_CENTRAL_API_KEY` to enable USDA FoodData Central fallback lookup.
 
 ## Data
 
@@ -112,7 +107,7 @@ The default points at the production Firebase Realtime Database project used by 
 
 Production GitHub/Cloudflare setup:
 
-- `PROD_DOTENV`: full production `.env` contents, including `VITE_KETO_FIREBASE_DB_BASE`, the Firebase web app values, tester emails, `VITE_BARCODE_LOOKUP_URL`, and optionally `VITE_NUTRITION_LABEL_PARSE_URL`.
+- `PROD_DOTENV`: full production `.env` contents, including `VITE_KETO_FIREBASE_DB_BASE`, the Firebase web app values, tester emails, and `VITE_BARCODE_LOOKUP_URL`.
 - `FIREBASE_DB_SECRET_PROD`: used by the daily backup workflow.
 - Optional repository variable `KETO_FIREBASE_DB_BASE` if the DB URL differs from the default.
 

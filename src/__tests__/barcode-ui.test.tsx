@@ -242,68 +242,6 @@ describe('Barcode scanner screen', () => {
     expect(onAdd).toHaveBeenCalledWith(expect.objectContaining({ name: 'Manual Bar', calories: 150 }));
   });
 
-  it('imports a nutrition label photo after barcode lookup misses', async () => {
-    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
-      if (url.includes('/api/parse-nutrition-label')) {
-        expect(init?.method).toBe('POST');
-        expect(init?.body).toBeInstanceOf(FormData);
-        return Response.json({
-          barcode: '7777',
-          name: 'Label Almond Bar',
-          brand: 'Keto Co',
-          servingSize: '1 bar (45g)',
-          dataBasis: 'serving',
-          calories: 210,
-          proteinG: 8,
-          fatG: 14,
-          totalCarbsG: 18,
-          fibreG: 12,
-          sugarAlcoholsG: 2,
-          sodiumMg: 120,
-          potassiumMg: 80,
-          magnesiumMg: 35,
-          vitaminCMg: 12,
-          attribution: 'Nutrition label photo',
-        });
-      }
-      return Response.json({ error: 'Not found' }, { status: 404 });
-    });
-    vi.stubGlobal('fetch', fetchMock);
-    const onAdd = vi.fn(() => true);
-    const onSaveFoodDatabaseItem = vi.fn(() => true);
-    const { container } = render(<BarcodeScanner foodDatabase={[]} onAdd={onAdd} onSaveFood={vi.fn(() => true)} onSaveFoodDatabaseItem={onSaveFoodDatabaseItem} />);
-
-    fireEvent.change(screen.getByLabelText('Barcode number'), { target: { value: '7777' } });
-    fireEvent.click(screen.getByRole('button', { name: /Look up barcode/ }));
-    await screen.findByRole('button', { name: 'Scan nutrition label' });
-
-    const labelInput = container.querySelector('input[type="file"]') as HTMLInputElement;
-    fireEvent.change(labelInput, { target: { files: [new File(['fake'], 'label.jpg', { type: 'image/jpeg' })] } });
-
-    await screen.findByText('Label Almond Bar');
-    expect(screen.getByText('Nutrition label photo')).toBeTruthy();
-    expect((screen.getByLabelText('Total carbs (g)') as HTMLInputElement).value).toBe('18');
-
-    fireEvent.click(screen.getAllByRole('button', { name: 'Add to log' })[0]);
-
-    await waitFor(() => expect(onSaveFoodDatabaseItem).toHaveBeenCalledWith(expect.objectContaining({
-      barcode: '7777',
-      name: 'Label Almond Bar',
-      source: 'barcode',
-      userEdited: true,
-      vitaminCMg: 12,
-    })));
-    expect(onAdd).toHaveBeenCalledWith(expect.objectContaining({
-      barcode: '7777',
-      name: 'Label Almond Bar (Keto Co)',
-      calories: 210,
-      totalCarbsG: 18,
-      fibreG: 12,
-      vitaminCMg: 12,
-    }));
-  });
-
   it('reuses a manually created barcode food on future scans', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);

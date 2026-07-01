@@ -1,4 +1,4 @@
-import { type ChangeEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { IScannerControls } from '@zxing/browser';
 import type { FoodDatabaseItem, FoodItem, FoodLogEntry } from '../types';
 import { barcodeFoodToLogEntry, barcodeFoodToSavedFood, lookupBarcodeFood, normalizeBarcode, type BarcodeFood } from '../lib/barcode';
@@ -7,7 +7,6 @@ import { inferMealSlot, MEAL_SLOTS } from '../lib/meals';
 import { calcNetCarbs, todayDateString } from '../lib/nutrition';
 import { isDateString } from '../lib/date';
 import { MICRONUTRIENT_FIELDS, MICRONUTRIENT_KEYS } from '../lib/micronutrients';
-import { parseNutritionLabelPhoto } from '../lib/nutrition-label';
 
 interface BarcodeScannerProps {
   foodDatabase: FoodDatabaseItem[];
@@ -18,7 +17,7 @@ interface BarcodeScannerProps {
   autoStart?: boolean;
 }
 
-type FoodOrigin = 'local' | 'openFoodFacts' | 'foodDataCentral' | 'manual' | 'corrected' | 'label';
+type FoodOrigin = 'local' | 'openFoodFacts' | 'foodDataCentral' | 'manual' | 'corrected';
 
 const originLabels: Record<FoodOrigin, string> = {
   local: 'Local database',
@@ -26,11 +25,9 @@ const originLabels: Record<FoodOrigin, string> = {
   foodDataCentral: 'USDA FoodData Central',
   manual: 'Manually created food',
   corrected: 'User-corrected food',
-  label: 'Nutrition label photo',
 };
 
 function remoteFoodOrigin(food: BarcodeFood): FoodOrigin {
-  if (food.attribution === 'Nutrition label photo') return 'label';
   return food.attribution === 'USDA FoodData Central' ? 'foodDataCentral' : 'openFoodFacts';
 }
 
@@ -88,11 +85,9 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
-  const [labelLoading, setLabelLoading] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [cameraSupported] = useState(canUseCamera);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const labelInputRef = useRef<HTMLInputElement | null>(null);
   const scannerControlsRef = useRef<IScannerControls | null>(null);
   const stopRef = useRef(false);
   const autoStartedRef = useRef(false);
@@ -249,7 +244,7 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
     updateFood(key, (Number.isFinite(next) && next >= 0 ? next : 0) as never);
   }
 
-  function persistReviewedFood(userEdited = origin === 'corrected' || origin === 'manual' || origin === 'label') {
+  function persistReviewedFood(userEdited = origin === 'corrected' || origin === 'manual') {
     if (!food) return false;
     const existing = findFoodDatabaseByBarcode(foodDatabase, food.barcode);
     if (shouldSkipEmptyRemoteCacheWrite(existing, food, userEdited)) return true;
@@ -300,37 +295,6 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
     setError('');
   }
 
-  async function importNutritionLabel(file: File | undefined) {
-    const normalized = normalizeBarcode(barcode);
-    setBarcode(normalized);
-    setSuccess('');
-    if (!normalized) {
-      setError('Enter or scan a valid barcode before importing a nutrition label.');
-      return;
-    }
-    if (!file) return;
-
-    setLabelLoading(true);
-    setError('');
-    try {
-      const labelFood = await parseNutritionLabelPhoto(file, normalized);
-      setFood(labelFood);
-      setOrigin('label');
-      setEditing(true);
-      setSuccess('Nutrition label imported. Review the values before logging.');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Nutrition label import failed.');
-    } finally {
-      setLabelLoading(false);
-    }
-  }
-
-  function handleNutritionLabelFile(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    void importNutritionLabel(file);
-    event.target.value = '';
-  }
-
   return (
     <div className="screen">
       <div className="screen-header"><h1>Barcode</h1></div>
@@ -369,24 +333,10 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
         <button className="btn btn--primary" onClick={() => lookup()} disabled={loading || !barcode}>
           {loading ? 'Looking up...' : 'Look up barcode'}
         </button>
-        {(error || labelLoading) && barcode && (
-          <>
-            <button className="btn btn--secondary" onClick={startManualFood} disabled={labelLoading}>
-              Create food for this barcode
-            </button>
-            <input
-              ref={labelInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              capture="environment"
-              aria-label="Nutrition label photo"
-              style={{ display: 'none' }}
-              onChange={handleNutritionLabelFile}
-            />
-            <button className="btn btn--secondary" onClick={() => labelInputRef.current?.click()} disabled={labelLoading}>
-              {labelLoading ? 'Reading label...' : 'Scan nutrition label'}
-            </button>
-          </>
+        {error && barcode && (
+          <button className="btn btn--secondary" onClick={startManualFood}>
+            Create food for this barcode
+          </button>
         )}
       </div>
 
@@ -402,9 +352,6 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
           {!hasPositiveMacros(food) && (
             <p className="privacy-note">No macro nutrition found - values are zero or need manual adjustment.</p>
           )}
-          {food.warnings?.map((warning) => (
-            <p className="privacy-note" key={warning}>{warning}</p>
-          ))}
 
           <button className="btn btn--primary" onClick={addToLog} disabled={!food.name.trim()}>
             Add to log
