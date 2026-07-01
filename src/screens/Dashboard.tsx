@@ -69,6 +69,19 @@ export function Dashboard({ summary, entries, targets, recommendations, onAddFoo
         {carbStatusLabel(status)}
       </div>
 
+      {recommendations.length > 0 && (
+        <>
+          <div className="section-title">Needs attention</div>
+          <ul className="recommendations">
+            {recommendations.map((r) => (
+              <li key={r.id} className={`rec rec--${r.priority}`}>
+                {r.message}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
       {summary.entryCount === 0 && (
         <p className="empty-hint">No food logged yet. Add your first meal to get started.</p>
       )}
@@ -241,19 +254,6 @@ export function Dashboard({ summary, entries, targets, recommendations, onAddFoo
               ))}
             </div>
           )}
-        </>
-      )}
-
-      {recommendations.length > 0 && (
-        <>
-          <div className="section-title">Needs attention</div>
-          <ul className="recommendations">
-            {recommendations.map((r) => (
-              <li key={r.id} className={`rec rec--${r.priority}`}>
-                {r.message}
-              </li>
-            ))}
-          </ul>
         </>
       )}
     </div>
