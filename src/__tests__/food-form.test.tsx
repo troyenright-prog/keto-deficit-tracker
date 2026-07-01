@@ -16,4 +16,36 @@ describe('FoodForm validation', () => {
     expect(onSubmit).not.toHaveBeenCalled();
     expect(screen.getAllByText('Fibre and sugar alcohols cannot exceed total carbs')).toHaveLength(2);
   });
+
+  it('shows numeric fields empty with a placeholder instead of a locked 0', () => {
+    render(<FoodForm onSubmit={vi.fn()} />);
+    const calories = screen.getByLabelText('Calories') as HTMLInputElement;
+    expect(calories.value).toBe('');
+    expect(calories.placeholder).toBe('0');
+  });
+
+  it('lets a numeric field be cleared without snapping back to 0', () => {
+    render(<FoodForm onSubmit={vi.fn()} />);
+    const calories = screen.getByLabelText('Calories') as HTMLInputElement;
+
+    fireEvent.change(calories, { target: { value: '250' } });
+    expect(calories.value).toBe('250');
+
+    fireEvent.change(calories, { target: { value: '' } });
+    expect(calories.value).toBe('');
+
+    fireEvent.change(calories, { target: { value: '0.5' } });
+    expect(calories.value).toBe('0.5');
+  });
+
+  it('scales a cleared (empty) numeric field as 0 on submit', () => {
+    const onSubmit = vi.fn();
+    render(<FoodForm onSubmit={onSubmit} />);
+
+    fireEvent.change(screen.getByLabelText('Food name *'), { target: { value: 'Water' } });
+    fireEvent.change(screen.getByLabelText('Calories'), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add to Log' }));
+
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ name: 'Water', calories: 0 }));
+  });
 });

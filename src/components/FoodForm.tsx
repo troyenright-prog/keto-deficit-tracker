@@ -45,6 +45,24 @@ function optNum(val: string): number | undefined {
   return Math.max(0, n);
 }
 
+// Numeric fields are backed by their raw text so an empty field stays empty
+// (showing the placeholder) instead of a controlled 0 that cannot be cleared.
+const NUMERIC_KEYS = [
+  'servingMultiplier', 'calories', 'proteinG', 'fatG', 'totalCarbsG',
+  'fibreG', 'sugarAlcoholsG', 'sodiumMg', 'potassiumMg', 'magnesiumMg',
+] as const;
+
+function displayNum(value: number | undefined): string {
+  return value === undefined || value === 0 ? '' : String(value);
+}
+
+function seedTexts(values: FoodFormValues): Record<string, string> {
+  const texts: Record<string, string> = {};
+  for (const key of NUMERIC_KEYS) texts[key] = displayNum(values[key]);
+  for (const field of MICRONUTRIENT_FIELDS) texts[field.key] = displayNum(values[field.key]);
+  return texts;
+}
+
 interface FoodFormProps {
   initial?: Partial<FoodFormValues>;
   onSubmit: (values: FoodFormValues) => void;
@@ -69,15 +87,18 @@ export function FoodForm({
   hideServingMultiplier = false,
 }: FoodFormProps) {
   const [values, setValues] = useState<FoodFormValues>({ ...EMPTY, ...initial });
+  const [texts, setTexts] = useState<Record<string, string>>(() => seedTexts({ ...EMPTY, ...initial }));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [selectedSaved, setSelectedSaved] = useState('');
   const [showMicro, setShowMicro] = useState(false);
 
   function num(key: keyof FoodFormValues, val: string) {
+    setTexts((t) => ({ ...t, [key]: val }));
     setValues((v) => ({ ...v, [key]: clampNum(val) }));
   }
 
   function micro(key: MicronutrientKey, val: string) {
+    setTexts((t) => ({ ...t, [key]: val }));
     setValues((v) => ({ ...v, [key]: optNum(val) }));
   }
 
@@ -107,6 +128,7 @@ export function FoodForm({
     if (!validate()) return;
     onSubmit(values);
     setValues({ ...EMPTY });
+    setTexts(seedTexts({ ...EMPTY }));
     setSelectedSaved('');
   }
 
@@ -119,7 +141,7 @@ export function FoodForm({
   function loadSavedFood(id: string) {
     const food = savedFoods.find((f) => f.id === id);
     if (!food) return;
-    setValues({
+    const loaded: FoodFormValues = {
       name: food.name,
       servingSize: food.servingSize,
       servingMultiplier: 1,
@@ -133,7 +155,9 @@ export function FoodForm({
       potassiumMg: food.potassiumMg,
       magnesiumMg: food.magnesiumMg,
       ...pickMicronutrients(food),
-    });
+    };
+    setValues(loaded);
+    setTexts(seedTexts(loaded));
     setSelectedSaved(id);
   }
 
@@ -205,7 +229,8 @@ export function FoodForm({
               type="number"
               min="0.1"
               step="0.1"
-              value={values.servingMultiplier}
+              placeholder="1"
+              value={texts.servingMultiplier}
               onChange={(e) => num('servingMultiplier', e.target.value)}
             />
             {errors.servingMultiplier && <span className="form-error">{errors.servingMultiplier}</span>}
@@ -217,32 +242,32 @@ export function FoodForm({
       <div className="form-row">
         <div className="form-group">
           <label htmlFor="calories">Calories</label>
-          <input id="calories" type="number" min="0" value={values.calories} onChange={(e) => num('calories', e.target.value)} />
+          <input id="calories" type="number" min="0" placeholder="0" value={texts.calories} onChange={(e) => num('calories', e.target.value)} />
         </div>
         <div className="form-group">
           <label htmlFor="protein">Protein (g)</label>
-          <input id="protein" type="number" min="0" step="0.1" value={values.proteinG} onChange={(e) => num('proteinG', e.target.value)} />
+          <input id="protein" type="number" min="0" step="0.1" placeholder="0" value={texts.proteinG} onChange={(e) => num('proteinG', e.target.value)} />
         </div>
       </div>
       <div className="form-row">
         <div className="form-group">
           <label htmlFor="fat">Fat (g)</label>
-          <input id="fat" type="number" min="0" step="0.1" value={values.fatG} onChange={(e) => num('fatG', e.target.value)} />
+          <input id="fat" type="number" min="0" step="0.1" placeholder="0" value={texts.fatG} onChange={(e) => num('fatG', e.target.value)} />
         </div>
         <div className="form-group">
           <label htmlFor="total-carbs">Total carbs (g)</label>
-          <input id="total-carbs" type="number" min="0" step="0.1" value={values.totalCarbsG} onChange={(e) => num('totalCarbsG', e.target.value)} />
+          <input id="total-carbs" type="number" min="0" step="0.1" placeholder="0" value={texts.totalCarbsG} onChange={(e) => num('totalCarbsG', e.target.value)} />
         </div>
       </div>
       <div className="form-row">
         <div className="form-group">
           <label htmlFor="fibre">Fibre (g)</label>
-          <input id="fibre" type="number" min="0" step="0.1" value={values.fibreG} onChange={(e) => num('fibreG', e.target.value)} />
+          <input id="fibre" type="number" min="0" step="0.1" placeholder="0" value={texts.fibreG} onChange={(e) => num('fibreG', e.target.value)} />
           {errors.fibreG && <span className="form-error">{errors.fibreG}</span>}
         </div>
         <div className="form-group">
           <label htmlFor="sugar-alc">Sugar alcohols (g)</label>
-          <input id="sugar-alc" type="number" min="0" step="0.1" value={values.sugarAlcoholsG} onChange={(e) => num('sugarAlcoholsG', e.target.value)} />
+          <input id="sugar-alc" type="number" min="0" step="0.1" placeholder="0" value={texts.sugarAlcoholsG} onChange={(e) => num('sugarAlcoholsG', e.target.value)} />
           {errors.sugarAlcoholsG && <span className="form-error">{errors.sugarAlcoholsG}</span>}
         </div>
       </div>
@@ -255,17 +280,17 @@ export function FoodForm({
       <div className="form-row">
         <div className="form-group">
           <label htmlFor="sodium">Sodium (mg)</label>
-          <input id="sodium" type="number" min="0" value={values.sodiumMg} onChange={(e) => num('sodiumMg', e.target.value)} />
+          <input id="sodium" type="number" min="0" placeholder="0" value={texts.sodiumMg} onChange={(e) => num('sodiumMg', e.target.value)} />
         </div>
         <div className="form-group">
           <label htmlFor="potassium">Potassium (mg)</label>
-          <input id="potassium" type="number" min="0" value={values.potassiumMg} onChange={(e) => num('potassiumMg', e.target.value)} />
+          <input id="potassium" type="number" min="0" placeholder="0" value={texts.potassiumMg} onChange={(e) => num('potassiumMg', e.target.value)} />
         </div>
       </div>
       <div className="form-row">
         <div className="form-group">
           <label htmlFor="magnesium">Magnesium (mg)</label>
-          <input id="magnesium" type="number" min="0" value={values.magnesiumMg} onChange={(e) => num('magnesiumMg', e.target.value)} />
+          <input id="magnesium" type="number" min="0" placeholder="0" value={texts.magnesiumMg} onChange={(e) => num('magnesiumMg', e.target.value)} />
         </div>
       </div>
 
@@ -289,7 +314,7 @@ export function FoodForm({
                   type="number"
                   min="0"
                   step={field.unit === 'g' ? '0.01' : '0.1'}
-                  value={values[field.key] ?? ''}
+                  value={texts[field.key] ?? ''}
                   placeholder="0"
                   onChange={(e) => micro(field.key, e.target.value)}
                 />
