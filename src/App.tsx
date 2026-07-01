@@ -237,6 +237,7 @@ function App() {
     if (!currentUser || !SYNC_ENABLED) return;
 
     let sawFirstRemoteRead = false;
+    let consecutiveFailures = 0;
     void initAuth();
 
     const applyRemoteBundle = (bundle: AppStateBundle) => {
@@ -253,19 +254,28 @@ function App() {
     };
 
     const stop = subscribeRemoteAppData(currentUser, (bundle) => {
+      consecutiveFailures = 0; // a successful read means we're connected again
+      const firstRead = !sawFirstRemoteRead;
+      sawFirstRemoteRead = true;
       if (!bundle) {
-        if (!sawFirstRemoteRead && hasLocalUserData()) void syncNow();
-        sawFirstRemoteRead = true;
+        // Remote is empty. On the first read, push local data up; on later reads
+        // just confirm we're connected so a stale "Offline" can't stick.
+        if (firstRead && hasLocalUserData()) { void syncNow(); return; }
+        setSyncStatus((prev) => (prev.tone === 'synced' ? prev : { tone: 'synced', text: 'Synced' }));
         return;
       }
-      sawFirstRemoteRead = true;
       if (bundle.exportedAt === remoteStampRef.current) {
         setSyncStatus({ tone: 'synced', text: 'Synced' });
         return;
       }
       applyRemoteBundle(bundle);
     }, {
-      onError: () => setSyncStatus({ tone: 'error', text: 'Offline' }),
+      // A single blip (cold-start auth/network hiccup) shouldn't flash a scary red
+      // "Offline"; only surface it after repeated consecutive failures.
+      onError: () => {
+        consecutiveFailures += 1;
+        if (consecutiveFailures >= 2) setSyncStatus({ tone: 'error', text: 'Offline' });
+      },
     });
 
     return () => {
