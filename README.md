@@ -41,6 +41,8 @@ The Scan screen supports packaged-food lookup by barcode. When the browser suppo
 
 Barcode lookup uses a Cloudflare Pages Function at `/api/lookup-barcode`, which queries Open Food Facts first and can fall back to USDA FoodData Central when configured. Native builds can also point at the deployed function with `VITE_BARCODE_LOOKUP_URL` so scans use the broader server-side lookup instead of only the direct Open Food Facts fallback. Results are normalized for review before logging. Logged entries and saved foods are copied as snapshots, so future changes in the external database do not alter historical logs.
 
+The Add Food search box also searches Open Food Facts **by name** through a Cloudflare Pages Function at `/api/search-foods` (free, no API key). Matches appear in an "Open Food Facts" group alongside your saved, recent, and locally-cached foods. Selecting one logs it and caches it into the local food database, so the same product becomes instantly (and offline) name-searchable afterwards. The web app derives the search endpoint automatically; native builds derive it from `VITE_BARCODE_LOOKUP_URL` (or override with `VITE_FOOD_SEARCH_URL`) and otherwise call Open Food Facts directly.
+
 Important limitations:
 
 - Open Food Facts data is crowd-sourced and can be incomplete or wrong.
@@ -64,13 +66,14 @@ Optional client-side variable:
 
 ```text
 VITE_BARCODE_LOOKUP_URL
+VITE_FOOD_SEARCH_URL
 ```
 
-For native/mobile builds, set this to the deployed lookup endpoint, for example `https://keto-deficit-tracker.pages.dev/api/lookup-barcode`. It is public and safe to expose; provider secrets stay on the server-side function.
+For native/mobile builds, set `VITE_BARCODE_LOOKUP_URL` to the deployed lookup endpoint, for example `https://keto-deficit-tracker.pages.dev/api/lookup-barcode`. It is public and safe to expose; provider secrets stay on the server-side function. `VITE_FOOD_SEARCH_URL` is optional — if omitted, the name-search endpoint is derived from `VITE_BARCODE_LOOKUP_URL` (same host, `/api/search-foods`).
 
 ### Local Pages Function development
 
-Build and run the site through Wrangler so `/api/lookup-barcode` is available:
+Build and run the site through Wrangler so `/api/lookup-barcode` and `/api/search-foods` are available:
 
 ```sh
 npm run build

@@ -528,6 +528,7 @@ function App() {
             onAdd={handleAddEntry}
             onAddEntries={handleAddEntries}
             onSaveFood={handleSaveFood}
+            onSaveFoodDatabaseItem={handleSaveFoodDatabaseItem}
             onScanBarcode={() => setScreen('barcode')}
           />
         )}

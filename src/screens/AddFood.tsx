@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { FoodForm, type FoodFormValues } from '../components/FoodForm';
 import type { FoodDatabaseItem, FoodItem, FoodLogEntry, MealTemplate, Recipe } from '../types';
 import { calcNetCarbs, savedFoodToLogEntry, todayDateString } from '../lib/nutrition';
@@ -12,6 +12,9 @@ import {
   buildQuickAddGroups, copyLogEntries, recentFoodsFromLog, type QuickAddItem,
 } from '../lib/quick-add';
 import { pickMicronutrients, scaleMicronutrients } from '../lib/micronutrients';
+import { barcodeFoodToSavedFood, type BarcodeFood } from '../lib/barcode';
+import { barcodeFoodToFoodDatabaseItem } from '../lib/food-database';
+import { MIN_FOOD_SEARCH_LENGTH, searchFoodsByName } from '../lib/food-search';
 
 interface AddFoodProps {
   savedFoods: FoodItem[];
@@ -22,12 +25,13 @@ interface AddFoodProps {
   onAdd: (entry: FoodLogEntry) => boolean;
   onAddEntries: (entries: FoodLogEntry[]) => boolean;
   onSaveFood: (food: FoodItem) => boolean;
+  onSaveFoodDatabaseItem?: (item: FoodDatabaseItem) => boolean;
   onScanBarcode?: () => void;
 }
 
 const QUICK_AMOUNTS = [0.5, 1, 1.5, 2];
 
-export function AddFood({ savedFoods, foodDatabase, log, recipes, templates, onAdd, onAddEntries, onSaveFood, onScanBarcode }: AddFoodProps) {
+export function AddFood({ savedFoods, foodDatabase, log, recipes, templates, onAdd, onAddEntries, onSaveFood, onSaveFoodDatabaseItem, onScanBarcode }: AddFoodProps) {
   const [date, setDate] = useState(todayDateString());
   const [meal, setMeal] = useState(inferMealSlot());
   const [successMsg, setSuccessMsg] = useState('');
@@ -36,18 +40,55 @@ export function AddFood({ savedFoods, foodDatabase, log, recipes, templates, onA
   const [multiplier, setMultiplier] = useState('1');
   const [quickError, setQuickError] = useState('');
   const [dateError, setDateError] = useState('');
+  const [remoteResults, setRemoteResults] = useState<BarcodeFood[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState('');
+
+  // Debounced Open Food Facts name search so typing pulls in packaged foods that
+  // have not been scanned yet. All state updates happen inside the debounced
+  // callback (never synchronously in the effect body), and stale responses are
+  // ignored via the cancel flag.
+  useEffect(() => {
+    const q = query.trim();
+    let cancelled = false;
+    const handle = setTimeout(() => {
+      if (q.length < MIN_FOOD_SEARCH_LENGTH) {
+        setRemoteResults([]);
+        setSearching(false);
+        setSearchError('');
+        return;
+      }
+      setSearching(true);
+      setSearchError('');
+      searchFoodsByName(q)
+        .then((foods) => { if (!cancelled) { setRemoteResults(foods); setSearching(false); } })
+        .catch((err) => {
+          if (cancelled) return;
+          setRemoteResults([]);
+          setSearching(false);
+          setSearchError(err instanceof Error ? err.message : 'Food search failed.');
+        });
+    }, 350);
+    return () => { cancelled = true; clearTimeout(handle); };
+  }, [query]);
 
   const recentFoods = useMemo(() => recentFoodsFromLog(log), [log]);
+  const remoteFoods = useMemo(
+    () => remoteResults.map((food) => ({ ...barcodeFoodToSavedFood(food), id: `off-${food.barcode}` })),
+    [remoteResults],
+  );
   const groups = useMemo(() => buildQuickAddGroups({
-    query, savedFoods, foodDatabase, recentFoods, recipes, templates, starterFoods: getStarterFoodOptions(),
-  }), [query, savedFoods, foodDatabase, recentFoods, recipes, templates]);
+    query, savedFoods, foodDatabase, recentFoods, recipes, templates, starterFoods: getStarterFoodOptions(), remoteFoods,
+  }), [query, savedFoods, foodDatabase, recentFoods, recipes, templates, remoteFoods]);
   const previousDate = addLocalDays(date, -1);
   const previousEntries = log.filter((entry) => entry.date === previousDate);
+  const previewMultiplier = Number(multiplier);
+  const previewScale = Number.isFinite(previewMultiplier) && previewMultiplier > 0 ? previewMultiplier : 1;
   const selectedNutrition = selected && 'food' in selected ? {
-    calories: selected.food.calories,
-    proteinG: selected.food.proteinG,
-    netCarbsG: calcNetCarbs(selected.food.totalCarbsG, selected.food.fibreG, selected.food.sugarAlcoholsG),
-    fatG: selected.food.fatG,
+    calories: selected.food.calories * previewScale,
+    proteinG: selected.food.proteinG * previewScale,
+    netCarbsG: calcNetCarbs(selected.food.totalCarbsG, selected.food.fibreG, selected.food.sugarAlcoholsG) * previewScale,
+    fatG: selected.food.fatG * previewScale,
   } : null;
 
   function showSuccess(message: string) {
@@ -95,6 +136,12 @@ export function AddFood({ savedFoods, foodDatabase, log, recipes, templates, onA
       entries = [entry];
     }
     if (!onAddEntries(entries)) return;
+    // Cache an Open Food Facts search hit into the local database so it becomes
+    // instantly (and offline) name-searchable next time, like a scanned food.
+    if (onSaveFoodDatabaseItem && selected.kind === 'database') {
+      const remoteHit = remoteResults.find((food) => `off-${food.barcode}` === selected.id);
+      if (remoteHit) onSaveFoodDatabaseItem(barcodeFoodToFoodDatabaseItem(remoteHit));
+    }
     showSuccess(`"${selected.name}" added to ${date === todayDateString() ? 'today' : date}.`);
     setSelected(null);
     setMultiplier('1');
@@ -164,6 +211,8 @@ export function AddFood({ savedFoods, foodDatabase, log, recipes, templates, onA
         type="search" className="search-input" placeholder="Search foods, recipes and meals..."
         value={query} onChange={(event) => { setQuery(event.target.value); setSelected(null); }}
       />
+      {searching && <p className="empty-hint empty-hint--compact" role="status">Searching Open Food Facts…</p>}
+      {searchError && <p className="form-error" role="alert">{searchError}</p>}
 
       {groups.length === 0 ? <p className="empty-hint empty-hint--compact">No matching foods or meals.</p> : (
         <div className="quick-groups">
@@ -191,7 +240,7 @@ export function AddFood({ savedFoods, foodDatabase, log, recipes, templates, onA
           <strong>{selected.name}</strong>
           <span className="dim">Choose servings</span>
           {selectedNutrition && (
-            <div className="quick-nutrition-preview" aria-label="Selected food nutrition per serving">
+            <div className="quick-nutrition-preview" aria-label="Selected food nutrition for chosen servings">
               <span>{Math.round(selectedNutrition.calories)} kcal</span>
               <span>{selectedNutrition.proteinG.toFixed(1)}g protein</span>
               <span>{selectedNutrition.netCarbsG.toFixed(1)}g net carbs</span>

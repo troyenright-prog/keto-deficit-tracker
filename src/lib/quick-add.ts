@@ -61,6 +61,7 @@ export function buildQuickAddGroups(options: {
   recipes: Recipe[];
   templates: MealTemplate[];
   starterFoods: FoodItem[];
+  remoteFoods?: FoodItem[];
 }): QuickAddGroup[] {
   const query = options.query.trim().toLowerCase();
   const matches = (name: string) => !query || name.toLowerCase().includes(query);
@@ -73,6 +74,16 @@ export function buildQuickAddGroups(options: {
       return !existingFoods.has(key) && matches(`${item.name} ${item.brand ?? ''} ${item.barcode ?? ''}`);
     })
     .map(foodDatabaseItemToSavedFood);
+  // Remote (Open Food Facts) name-search hits, minus anything already available
+  // locally so the same product does not appear twice.
+  const localKeys = new Set([
+    ...existingFoods,
+    ...(options.foodDatabase ?? []).map((item) => item.barcode ? `barcode:${item.barcode}` : `sig:${foodDatabaseSignature(item)}`),
+  ]);
+  const remote = (options.remoteFoods ?? []).filter((food) => {
+    const key = food.barcode ? `barcode:${food.barcode}` : `sig:${foodSignature(food)}`;
+    return !localKeys.has(key);
+  });
   const recent = options.recentFoods.filter((food) => matches(food.name));
   const recipes = options.recipes.filter((recipe) => matches(recipe.name));
   const shortcuts = options.templates.filter((template) => template.mealType && matches(template.name));
@@ -91,6 +102,7 @@ export function buildQuickAddGroups(options: {
     { key: 'recipes', label: 'Recipes', items: recipes.map((recipe) => ({ kind: 'recipe', id: recipe.id, name: recipe.name, recipe })) },
     { key: 'templates', label: 'Meal templates', items: templates.map((template) => ({ kind: 'template', id: template.id, name: template.name, template })) },
     { key: 'starters', label: 'Starter foods', items: starters.map((food) => ({ kind: 'starter', id: food.id, name: food.name, food })) },
+    { key: 'remote', label: 'Open Food Facts', items: remote.map((food) => ({ kind: 'database', id: food.id, name: food.name, food })) },
   );
   return groups.filter((group) => group.items.length > 0);
 }
