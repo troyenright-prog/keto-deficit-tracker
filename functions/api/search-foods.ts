@@ -10,12 +10,29 @@ const isRecord = (value: unknown): value is UnknownRecord => typeof value === 'o
 
 const MIN_QUERY_LENGTH = 2;
 const MAX_RESULTS = 20;
+const UPSTREAM_TIMEOUT_MS = 9000;
 
-// Fields kept small so Open Food Facts returns the nutrition we need without a
-// multi-megabyte payload. Uses the v1 search endpoint, which returns
-// product-shaped records with populated `nutriments` (the v3 product endpoint
-// returns empty nutriments — see barcode-off-v2).
+// Fields kept small so the upstream returns the nutrition we need without a
+// multi-megabyte payload. Records carry populated `nutriments` (the v3 product
+// endpoint returns empty nutriments — see barcode-off-v2).
 const SEARCH_FIELDS = 'code,product_name,generic_name,abbreviated_product_name,brands,serving_size,quantity,nutriments';
+
+function timeoutSignal(): AbortSignal | undefined {
+  try {
+    return typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
+      ? AbortSignal.timeout(UPSTREAM_TIMEOUT_MS)
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+// Coerce Search-a-licious's array `brands` into the string shape the shared
+// Open Food Facts normalizer expects.
+function coerceProduct(item: unknown): unknown {
+  if (!isRecord(item) || !Array.isArray(item.brands)) return item;
+  return { ...item, brands: item.brands.filter((b): b is string => typeof b === 'string').join(', ') };
+}
 
 function corsHeaders() {
   return {
@@ -41,11 +58,11 @@ function noContent(): Response {
 }
 
 async function searchOpenFoodFacts(query: string, env: Env, fetcher: typeof fetch) {
-  const url = new URL('https://world.openfoodfacts.org/cgi/search.pl');
-  url.searchParams.set('search_terms', query);
-  url.searchParams.set('search_simple', '1');
-  url.searchParams.set('action', 'process');
-  url.searchParams.set('json', '1');
+  // Search-a-licious is Open Food Facts' purpose-built search API and is far more
+  // reliable than the legacy cgi/search.pl endpoint, which frequently returns 5xx
+  // under load and produced spurious "check your connection" errors.
+  const url = new URL('https://search.openfoodfacts.org/search');
+  url.searchParams.set('q', query);
   url.searchParams.set('page_size', String(MAX_RESULTS));
   url.searchParams.set('fields', SEARCH_FIELDS);
 
@@ -54,17 +71,24 @@ async function searchOpenFoodFacts(query: string, env: Env, fetcher: typeof fetc
       accept: 'application/json',
       'user-agent': env.OPEN_FOOD_FACTS_USER_AGENT ?? 'KetoDeficitTracker/1.0 (https://keto-deficit-tracker.pages.dev)',
     },
+    signal: timeoutSignal(),
   });
 
-  if (response.status === 429 || response.status === 503) return { status: 'limited' as const };
+  // Treat any server-side failure (429/503 and other 5xx) as a temporary,
+  // retryable condition rather than a hard error.
+  if (response.status === 429 || response.status === 503 || response.status >= 500) return { status: 'limited' as const };
   if (!response.ok) return { status: 'failed' as const };
 
   const body = await response.json() as unknown;
-  const products = isRecord(body) && Array.isArray(body.products) ? body.products : [];
+  // Search-a-licious returns { hits: [...] }; the legacy endpoint returned
+  // { products: [...] }. Accept both so this stays resilient.
+  const products = isRecord(body) && Array.isArray(body.hits) ? body.hits
+    : isRecord(body) && Array.isArray(body.products) ? body.products
+    : [];
   const results: BarcodeFood[] = [];
   const seen = new Set<string>();
   for (const product of products) {
-    const food = normalizeOpenFoodFactsProduct(product);
+    const food = normalizeOpenFoodFactsProduct(coerceProduct(product));
     // Skip entries with no barcode/name or no usable calories — those add noise
     // and cannot be logged meaningfully.
     if (!food || !(food.calories > 0) || seen.has(food.barcode)) continue;

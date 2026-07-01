@@ -7,10 +7,15 @@ describe('foodSearchUrls', () => {
     expect('a'.length).toBeLessThan(MIN_FOOD_SEARCH_LENGTH);
   });
 
-  it('prefers the local Pages function and keeps a direct Open Food Facts fallback', () => {
+  it('prefers the local Pages function, then Search-a-licious, then the legacy cgi fallback', () => {
     const urls = foodSearchUrls('cheddar');
     expect(urls[0]).toBe('/api/search-foods?q=cheddar');
-    expect(urls.some((url) => url.includes('world.openfoodfacts.org/cgi/search.pl'))).toBe(true);
+    const searchalicious = urls.findIndex((url) => url.includes('search.openfoodfacts.org/search'));
+    const legacy = urls.findIndex((url) => url.includes('world.openfoodfacts.org/cgi/search.pl'));
+    expect(searchalicious).toBeGreaterThan(-1);
+    expect(legacy).toBeGreaterThan(-1);
+    // Reliable Search-a-licious must be tried before the flaky legacy endpoint.
+    expect(searchalicious).toBeLessThan(legacy);
     expect(urls.some((url) => url.includes('search_terms=cheddar'))).toBe(true);
   });
 });
@@ -54,8 +59,21 @@ describe('searchFoodsByName', () => {
     expect(foods[0].attribution).toBe('Open Food Facts');
   });
 
-  it('throws a friendly error when every endpoint is unreachable', async () => {
+  it('normalizes Search-a-licious hits and coerces array brands', async () => {
+    const fetcher = vi.fn(async () => Response.json({
+      hits: [
+        { code: '333', product_name: 'Cheddar', brands: ['Dairyland'], nutriments: { 'energy-kcal_100g': 410, proteins_100g: 25 } },
+      ],
+    })) as unknown as typeof fetch;
+
+    const foods = await searchFoodsByName('cheddar', fetcher);
+    expect(foods).toHaveLength(1);
+    expect(foods[0]).toMatchObject({ barcode: '333', name: 'Cheddar', brand: 'Dairyland', calories: 410 });
+  });
+
+  it('throws a friendly, non-blaming error when every endpoint is unreachable', async () => {
     const fetcher = vi.fn(async () => { throw new Error('network down'); }) as unknown as typeof fetch;
-    await expect(searchFoodsByName('cheddar', fetcher)).rejects.toThrow(/Could not reach the food database/);
+    // Browser reports online in jsdom, so the message must not blame the connection.
+    await expect(searchFoodsByName('cheddar', fetcher)).rejects.toThrow(/food database is busy/);
   });
 });

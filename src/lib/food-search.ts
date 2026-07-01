@@ -7,6 +7,35 @@ const isRecord = (value: unknown): value is UnknownRecord => typeof value === 'o
 export const MIN_FOOD_SEARCH_LENGTH = 2;
 const MAX_RESULTS = 20;
 const SEARCH_FIELDS = 'code,product_name,generic_name,abbreviated_product_name,brands,serving_size,quantity,nutriments';
+const REQUEST_TIMEOUT_MS = 9000;
+
+// A request signal that aborts a hung upstream so the UI can fall back or fail
+// cleanly instead of showing "Searching…" forever. Undefined where unsupported.
+function timeoutSignal(): AbortSignal | undefined {
+  try {
+    return typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
+      ? AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+// Honest copy: only blame the user's connection when the browser is actually
+// offline; an upstream 5xx/timeout is the food database being busy, not them.
+function unreachableMessage(): string {
+  const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+  return offline
+    ? 'You appear to be offline — check your connection and try again.'
+    : 'The food database is busy right now — please try again in a moment.';
+}
+
+// Coerce Search-a-licious's array `brands` into the string shape the shared
+// Open Food Facts normalizer expects, so the brand still shows on results.
+function coerceProduct(item: unknown): unknown {
+  if (!isRecord(item) || !Array.isArray(item.brands)) return item;
+  return { ...item, brands: item.brands.filter((b): b is string => typeof b === 'string').join(', ') };
+}
 
 function publicEnv(name: string): string {
   const meta = import.meta as ImportMeta & { env?: Record<string, string | undefined> };
@@ -38,7 +67,20 @@ function withQueryParam(endpoint: string, query: string): string {
   return `${endpoint}${separator}q=${encodeURIComponent(query)}`;
 }
 
-function directOpenFoodFactsUrl(query: string): string {
+// Primary direct source: Open Food Facts' Search-a-licious API. It is purpose-built
+// for name search and far more reliable than the legacy cgi endpoint, which is
+// frequently overloaded (5xx/timeout) and was the cause of spurious "check your
+// connection" errors.
+function searchaliciousUrl(query: string): string {
+  const url = new URL('https://search.openfoodfacts.org/search');
+  url.searchParams.set('q', query);
+  url.searchParams.set('page_size', String(MAX_RESULTS));
+  url.searchParams.set('fields', SEARCH_FIELDS);
+  return url.toString();
+}
+
+// Legacy cgi search, kept only as a last-ditch fallback if Search-a-licious is down.
+function legacyOpenFoodFactsUrl(query: string): string {
   const url = new URL('https://world.openfoodfacts.org/cgi/search.pl');
   url.searchParams.set('search_terms', query);
   url.searchParams.set('search_simple', '1');
@@ -71,20 +113,26 @@ export function foodSearchUrls(query: string): string[] {
   }
 
   // Direct Open Food Facts remains the no-key fallback (and the primary path for
-  // native builds that have no server function configured).
-  addUniqueUrl(urls, directOpenFoodFactsUrl(normalized));
+  // native builds that have no server function configured). Try the reliable
+  // Search-a-licious API first, then the legacy cgi endpoint as a last resort.
+  addUniqueUrl(urls, searchaliciousUrl(normalized));
+  addUniqueUrl(urls, legacyOpenFoodFactsUrl(normalized));
   return urls;
 }
 
 function resultsFromBody(body: unknown): BarcodeFood[] {
   if (!isRecord(body)) return [];
-  // Our own endpoint returns { results: [...] }; Open Food Facts returns
-  // { products: [...] }. Normalize both to guarantee a consistent shape.
-  const raw = Array.isArray(body.results) ? body.results : Array.isArray(body.products) ? body.products : [];
+  // Our own endpoint returns { results: [...] }; Search-a-licious returns
+  // { hits: [...] }; the legacy cgi endpoint returns { products: [...] }.
+  // Normalize all three to guarantee a consistent shape.
+  const raw = Array.isArray(body.results) ? body.results
+    : Array.isArray(body.hits) ? body.hits
+    : Array.isArray(body.products) ? body.products
+    : [];
   const foods: BarcodeFood[] = [];
   const seen = new Set<string>();
   for (const item of raw) {
-    const food = normalizeOpenFoodFactsProduct(item);
+    const food = normalizeOpenFoodFactsProduct(coerceProduct(item));
     if (!food || !(food.calories > 0) || seen.has(food.barcode)) continue;
     seen.add(food.barcode);
     foods.push(food.attribution ? food : { ...food, attribution: 'Open Food Facts', attributionUrl: 'https://world.openfoodfacts.org' });
@@ -101,9 +149,9 @@ export async function searchFoodsByName(query: string, fetcher: typeof fetch = f
   for (const url of urls) {
     let response: Response;
     try {
-      response = await fetcher(url, { cache: 'no-store', headers: { accept: 'application/json' } });
+      response = await fetcher(url, { cache: 'no-store', headers: { accept: 'application/json' }, signal: timeoutSignal() });
     } catch {
-      lastError = new Error('Could not reach the food database. Check your connection and try again.');
+      lastError = new Error(unreachableMessage());
       continue;
     }
 
@@ -116,7 +164,7 @@ export async function searchFoodsByName(query: string, fetcher: typeof fetch = f
     try {
       body = await response.json();
     } catch {
-      lastError = new Error('Could not reach the food database. Check your connection and try again.');
+      lastError = new Error(unreachableMessage());
       continue;
     }
 

@@ -55,8 +55,33 @@ describe('food search endpoint', () => {
     });
   });
 
+  it('normalizes Search-a-licious hits and coerces array brands', async () => {
+    const fetcher = vi.fn(async () => Response.json({
+      hits: [
+        {
+          code: '4444444444444',
+          product_name: 'Cheddar block',
+          brands: ['Dairyland'],
+          nutriments: { 'energy-kcal_100g': 410, proteins_100g: 25, fat_100g: 34, carbohydrates_100g: 1 },
+        },
+      ],
+    })) as unknown as typeof fetch;
+    const response = await handleSearchFoods(new Request('https://example.com/api/search-foods?q=cheddar'), {}, fetcher);
+    expect(response.status).toBe(200);
+    const body = await response.json() as { results: Array<{ barcode: string; name: string; brand: string }> };
+    expect(body.results).toHaveLength(1);
+    expect(body.results[0]).toMatchObject({ barcode: '4444444444444', name: 'Cheddar block', brand: 'Dairyland' });
+  });
+
   it('surfaces upstream rate limiting', async () => {
     const fetcher = vi.fn(async () => new Response('', { status: 429 })) as unknown as typeof fetch;
+    const response = await handleSearchFoods(new Request('https://example.com/api/search-foods?q=cheddar'), {}, fetcher);
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toMatchObject({ error: expect.stringContaining('rate-limited') });
+  });
+
+  it('treats a generic upstream 5xx as temporary, not a hard failure', async () => {
+    const fetcher = vi.fn(async () => new Response('', { status: 500 })) as unknown as typeof fetch;
     const response = await handleSearchFoods(new Request('https://example.com/api/search-foods?q=cheddar'), {}, fetcher);
     expect(response.status).toBe(502);
     await expect(response.json()).resolves.toMatchObject({ error: expect.stringContaining('rate-limited') });
