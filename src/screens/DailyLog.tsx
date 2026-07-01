@@ -5,6 +5,7 @@ import { FoodForm, type FoodFormValues } from '../components/FoodForm';
 import { entryMeal, mealLabel, MEAL_SLOTS } from '../lib/meals';
 import { entryNeedsNutritionRepair } from '../lib/barcode';
 import { nanoid } from '../lib/nanoid';
+import { pickMicronutrients, scaleMicronutrients } from '../lib/micronutrients';
 
 interface DailyLogProps {
   log: FoodLogEntry[];
@@ -69,13 +70,7 @@ export function DailyLog({ log, savedFoods, onDelete, onEdit, onDuplicate, onSav
       sodiumMg: values.sodiumMg * m,
       potassiumMg: values.potassiumMg * m,
       magnesiumMg: values.magnesiumMg * m,
-      calciumMg: values.calciumMg === undefined ? undefined : values.calciumMg * m,
-      ironMg: values.ironMg === undefined ? undefined : values.ironMg * m,
-      zincMg: values.zincMg === undefined ? undefined : values.zincMg * m,
-      vitaminDMcg: values.vitaminDMcg === undefined ? undefined : values.vitaminDMcg * m,
-      vitaminB12Mcg: values.vitaminB12Mcg === undefined ? undefined : values.vitaminB12Mcg * m,
-      omega3G: values.omega3G === undefined ? undefined : values.omega3G * m,
-      omega6G: values.omega6G === undefined ? undefined : values.omega6G * m,
+      ...scaleMicronutrients(values, m),
     });
     if (saved) {
       setEditingId(null);
@@ -97,13 +92,7 @@ export function DailyLog({ log, savedFoods, onDelete, onEdit, onDuplicate, onSav
       sodiumMg: values.sodiumMg,
       potassiumMg: values.potassiumMg,
       magnesiumMg: values.magnesiumMg,
-      calciumMg: values.calciumMg,
-      ironMg: values.ironMg,
-      zincMg: values.zincMg,
-      vitaminDMcg: values.vitaminDMcg,
-      vitaminB12Mcg: values.vitaminB12Mcg,
-      omega3G: values.omega3G,
-      omega6G: values.omega6G,
+      ...pickMicronutrients(values),
       createdAt: new Date().toISOString(),
     })) {
       showMessage(`Saved "${values.name}" to foods.`);
@@ -125,13 +114,7 @@ export function DailyLog({ log, savedFoods, onDelete, onEdit, onDuplicate, onSav
       sodiumMg: entry.sodiumMg / divisor,
       potassiumMg: entry.potassiumMg / divisor,
       magnesiumMg: entry.magnesiumMg / divisor,
-      calciumMg: entry.calciumMg === undefined ? undefined : entry.calciumMg / divisor,
-      ironMg: entry.ironMg === undefined ? undefined : entry.ironMg / divisor,
-      zincMg: entry.zincMg === undefined ? undefined : entry.zincMg / divisor,
-      vitaminDMcg: entry.vitaminDMcg === undefined ? undefined : entry.vitaminDMcg / divisor,
-      vitaminB12Mcg: entry.vitaminB12Mcg === undefined ? undefined : entry.vitaminB12Mcg / divisor,
-      omega3G: entry.omega3G === undefined ? undefined : entry.omega3G / divisor,
-      omega6G: entry.omega6G === undefined ? undefined : entry.omega6G / divisor,
+      ...scaleMicronutrients(entry, 1 / divisor),
     };
   }
 

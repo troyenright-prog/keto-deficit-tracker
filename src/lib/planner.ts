@@ -3,6 +3,7 @@ import { nanoid } from './nanoid';
 import { calcNetCarbs, safePositive } from './nutrition';
 import { calcTemplateTotals } from './meal-templates';
 import { calcRecipePerServing } from './recipes';
+import { pickMicronutrients, scaleMicronutrients } from './micronutrients';
 
 const now = () => new Date().toISOString();
 
@@ -13,9 +14,7 @@ export function foodToPlanEntry(food: FoodItem, date: string): MealPlanEntry {
     fibreG: food.fibreG, sugarAlcoholsG: food.sugarAlcoholsG,
     netCarbsG: calcNetCarbs(food.totalCarbsG, food.fibreG, food.sugarAlcoholsG),
     sodiumMg: food.sodiumMg, potassiumMg: food.potassiumMg, magnesiumMg: food.magnesiumMg,
-    calciumMg: food.calciumMg, ironMg: food.ironMg, zincMg: food.zincMg,
-    vitaminDMcg: food.vitaminDMcg, vitaminB12Mcg: food.vitaminB12Mcg,
-    omega3G: food.omega3G, omega6G: food.omega6G, converted: false, createdAt: now(),
+    ...pickMicronutrients(food), converted: false, createdAt: now(),
   };
 }
 
@@ -36,9 +35,6 @@ export function recipeToPlanEntry(recipe: Recipe, servings: number, date: string
     fibreG: perServing.fibreG * count, sugarAlcoholsG: perServing.sugarAlcoholsG * count,
     netCarbsG: perServing.netCarbsG * count, sodiumMg: perServing.sodiumMg * count,
     potassiumMg: perServing.potassiumMg * count, magnesiumMg: perServing.magnesiumMg * count,
-    calciumMg: (perServing.calciumMg ?? 0) * count, ironMg: (perServing.ironMg ?? 0) * count,
-    zincMg: (perServing.zincMg ?? 0) * count, vitaminDMcg: (perServing.vitaminDMcg ?? 0) * count,
-    vitaminB12Mcg: (perServing.vitaminB12Mcg ?? 0) * count, omega3G: (perServing.omega3G ?? 0) * count,
-    omega6G: (perServing.omega6G ?? 0) * count, converted: false, createdAt: now(),
+    ...scaleMicronutrients(perServing, count), converted: false, createdAt: now(),
   };
 }

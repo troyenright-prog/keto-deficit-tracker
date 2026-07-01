@@ -5,6 +5,7 @@ import { FoodForm, type FoodFormValues } from '../components/FoodForm';
 import { nanoid } from '../lib/nanoid';
 import { getStarterFoods } from '../lib/australianFoods';
 import { foodSignature } from '../lib/quick-add';
+import { hasAnyMicronutrients, pickMicronutrients } from '../lib/micronutrients';
 
 interface SavedFoodsProps {
   foods: FoodItem[];
@@ -88,13 +89,7 @@ export function SavedFoods({ foods, onSave, onDelete, onAddToLog }: SavedFoodsPr
         sodiumMg: editing.sodiumMg,
         potassiumMg: editing.potassiumMg,
         magnesiumMg: editing.magnesiumMg,
-        calciumMg: editing.calciumMg,
-        ironMg: editing.ironMg,
-        zincMg: editing.zincMg,
-        vitaminDMcg: editing.vitaminDMcg,
-        vitaminB12Mcg: editing.vitaminB12Mcg,
-        omega3G: editing.omega3G,
-        omega6G: editing.omega6G,
+        ...pickMicronutrients(editing),
       }
     : undefined;
 
@@ -168,6 +163,11 @@ export function SavedFoods({ foods, onSave, onDelete, onAddToLog }: SavedFoodsPr
                       {(food.sodiumMg > 0 || food.potassiumMg > 0 || food.magnesiumMg > 0) && (
                         <span className="saved-food-electrolytes">
                           Na {food.sodiumMg}mg - K {food.potassiumMg}mg - Mg {food.magnesiumMg}mg
+                        </span>
+                      )}
+                      {hasAnyMicronutrients(food) && (
+                        <span className="saved-food-electrolytes">
+                          Micronutrients logged
                         </span>
                       )}
                     </div>

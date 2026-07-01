@@ -6,6 +6,7 @@ import { localDateString } from '../lib/date';
 import { APP_VERSION, formatBuildDate } from '../lib/version';
 import { hardRefreshApp } from '../lib/app-update';
 import { sendTestReminder, type ReminderScheduleResult } from '../lib/reminders';
+import { MICRONUTRIENT_FIELDS } from '../lib/micronutrients';
 
 interface SettingsProps {
   profile: UserProfile;
@@ -61,9 +62,21 @@ export function Settings({ profile, targets, reminders, onSaveProfile, onSaveTar
 
   function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    const invalidTarget = Object.entries(tgts).find(([key, value]) => key !== 'manualNetCarbs' && key !== 'dietMode' && (typeof value !== 'number' || !Number.isFinite(value) || value <= 0));
+    const requiredTargetKeys = ['calories', 'proteinG', 'fatG', 'netCarbsG', 'sodiumMg', 'potassiumMg', 'magnesiumMg'] as const;
+    const invalidTarget = requiredTargetKeys.find((key) => {
+      const value = tgts[key];
+      return typeof value !== 'number' || !Number.isFinite(value) || value <= 0;
+    });
     if (invalidTarget) {
       setValidationError('All nutrition and electrolyte targets must be greater than zero.');
+      return;
+    }
+    const invalidMicronutrientTarget = MICRONUTRIENT_FIELDS.find((field) => {
+      const value = tgts[field.key] ?? 0;
+      return typeof value !== 'number' || !Number.isFinite(value) || value < 0;
+    });
+    if (invalidMicronutrientTarget) {
+      setValidationError('Micronutrient targets must be zero or greater.');
       return;
     }
     setValidationError('');
@@ -282,6 +295,24 @@ export function Settings({ profile, targets, reminders, onSaveProfile, onSaveTar
             <label htmlFor="t-magnesium">Magnesium (mg)</label>
             <input id="t-magnesium" type="number" min="0" value={tgts.magnesiumMg} onChange={(e) => numTarget('magnesiumMg', e.target.value)} />
           </div>
+        </div>
+
+        <div className="section-title">Micronutrient &amp; vitamin targets</div>
+
+        <div className="form-row form-row--wrap">
+          {MICRONUTRIENT_FIELDS.map((field) => (
+            <div className="form-group" key={field.key}>
+              <label htmlFor={`t-${field.key}`}>{field.label} ({field.unit})</label>
+              <input
+                id={`t-${field.key}`}
+                type="number"
+                min="0"
+                step={field.unit === 'g' ? '0.01' : '0.1'}
+                value={tgts[field.key] ?? 0}
+                onChange={(e) => numTarget(field.key, e.target.value)}
+              />
+            </div>
+          ))}
         </div>
 
         <div className="form-actions">

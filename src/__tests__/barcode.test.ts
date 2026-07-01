@@ -33,6 +33,12 @@ const openFoodFactsResponse = {
       potassium_unit: 'mg',
       magnesium_serving: 55,
       magnesium_unit: 'mg',
+      'vitamin-c_serving': 12,
+      'vitamin-c_unit': 'mg',
+      iodine_serving: 150,
+      iodine_unit: 'mcg',
+      'vitamin-b12_serving': 2.4,
+      'vitamin-b12_unit': 'mcg',
     },
   },
 };
@@ -73,6 +79,9 @@ describe('barcode food mapping', () => {
       sugarAlcoholsG: 1,
       sodiumMg: 120,
       potassiumMg: 180,
+      vitaminCMg: 12,
+      iodineMcg: 150,
+      vitaminB12Mcg: 2.4,
     });
   });
 

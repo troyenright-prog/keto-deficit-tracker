@@ -2,8 +2,7 @@ import type { BarcodeFood } from './barcode';
 import type { FoodDatabaseItem, FoodItem } from '../types';
 import { calcNetCarbs } from './nutrition';
 import { nanoid } from './nanoid';
-
-const MICRO_KEYS = ['calciumMg', 'ironMg', 'zincMg', 'vitaminDMcg', 'vitaminB12Mcg', 'omega3G', 'omega6G'] as const;
+import { MICRONUTRIENT_KEYS, pickMicronutrients } from './micronutrients';
 
 function barcodeFoodSource(food: BarcodeFood, userEdited: boolean): FoodDatabaseItem['source'] {
   if (userEdited) return 'barcode';
@@ -38,7 +37,7 @@ export function foodDatabaseItemToSavedFood(item: FoodDatabaseItem): FoodItem {
     updatedAt: item.updatedAt,
     isFavourite: false,
   };
-  for (const key of MICRO_KEYS) {
+  for (const key of MICRONUTRIENT_KEYS) {
     if (item[key] !== undefined) food[key] = item[key];
   }
   return food;
@@ -63,13 +62,7 @@ export function savedFoodToFoodDatabaseItem(food: FoodItem, existing?: FoodDatab
     sodiumMg: food.sodiumMg,
     potassiumMg: food.potassiumMg,
     magnesiumMg: food.magnesiumMg,
-    calciumMg: food.calciumMg,
-    ironMg: food.ironMg,
-    zincMg: food.zincMg,
-    vitaminDMcg: food.vitaminDMcg,
-    vitaminB12Mcg: food.vitaminB12Mcg,
-    omega3G: food.omega3G,
-    omega6G: food.omega6G,
+    ...pickMicronutrients(food),
     verified: existing?.verified,
     userEdited: existing?.userEdited ?? false,
     createdAt: existing?.createdAt ?? food.createdAt ?? now,
@@ -96,13 +89,7 @@ export function barcodeFoodToFoodDatabaseItem(food: BarcodeFood, existing?: Food
     sodiumMg: food.sodiumMg,
     potassiumMg: food.potassiumMg,
     magnesiumMg: food.magnesiumMg,
-    calciumMg: food.calciumMg,
-    ironMg: food.ironMg,
-    zincMg: food.zincMg,
-    vitaminDMcg: food.vitaminDMcg,
-    vitaminB12Mcg: food.vitaminB12Mcg,
-    omega3G: food.omega3G,
-    omega6G: food.omega6G,
+    ...pickMicronutrients(food),
     verified: existing?.verified ?? false,
     userEdited: existing?.userEdited || userEdited,
     createdAt: existing?.createdAt ?? now,
@@ -126,13 +113,7 @@ export function foodDatabaseItemToBarcodeFood(item: FoodDatabaseItem): BarcodeFo
     sodiumMg: item.sodiumMg,
     potassiumMg: item.potassiumMg,
     magnesiumMg: item.magnesiumMg,
-    calciumMg: item.calciumMg,
-    ironMg: item.ironMg,
-    zincMg: item.zincMg,
-    vitaminDMcg: item.vitaminDMcg,
-    vitaminB12Mcg: item.vitaminB12Mcg,
-    omega3G: item.omega3G,
-    omega6G: item.omega6G,
+    ...pickMicronutrients(item),
   };
 }
 

@@ -6,6 +6,7 @@ import { barcodeFoodToFoodDatabaseItem, findFoodDatabaseByBarcode, foodDatabaseI
 import { inferMealSlot, MEAL_SLOTS } from '../lib/meals';
 import { calcNetCarbs, todayDateString } from '../lib/nutrition';
 import { isDateString } from '../lib/date';
+import { MICRONUTRIENT_FIELDS, MICRONUTRIENT_KEYS } from '../lib/micronutrients';
 
 interface BarcodeScannerProps {
   foodDatabase: FoodDatabaseItem[];
@@ -42,13 +43,7 @@ type NutritionProbe = Partial<Record<
   | 'sodiumMg'
   | 'potassiumMg'
   | 'magnesiumMg'
-  | 'calciumMg'
-  | 'ironMg'
-  | 'zincMg'
-  | 'vitaminDMcg'
-  | 'vitaminB12Mcg'
-  | 'omega3G'
-  | 'omega6G',
+  | typeof MICRONUTRIENT_KEYS[number],
   number | undefined
 >>;
 
@@ -62,13 +57,7 @@ const TRACKED_NUTRITION_KEYS = [
   'sodiumMg',
   'potassiumMg',
   'magnesiumMg',
-  'calciumMg',
-  'ironMg',
-  'zincMg',
-  'vitaminDMcg',
-  'vitaminB12Mcg',
-  'omega3G',
-  'omega6G',
+  ...MICRONUTRIENT_KEYS,
 ] as const;
 
 const MACRO_NUTRITION_KEYS = ['calories', 'proteinG', 'fatG', 'totalCarbsG'] as const;
@@ -422,6 +411,20 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
                 <label htmlFor="barcode-magnesium">Magnesium (mg)</label>
                 <input id="barcode-magnesium" type="number" min="0" value={food.magnesiumMg} onChange={(event) => updateFoodNumber('magnesiumMg', event.target.value)} />
               </div>
+              <div className="form-section-title form-section-title--wide">Micronutrients</div>
+              {MICRONUTRIENT_FIELDS.map((field) => (
+                <div className="form-group" key={field.key}>
+                  <label htmlFor={`barcode-${field.key}`}>{field.label} ({field.unit})</label>
+                  <input
+                    id={`barcode-${field.key}`}
+                    type="number"
+                    min="0"
+                    step={field.unit === 'g' ? '0.01' : '0.1'}
+                    value={food[field.key] ?? ''}
+                    onChange={(event) => updateFoodNumber(field.key, event.target.value)}
+                  />
+                </div>
+              ))}
             </div>
           )}
 

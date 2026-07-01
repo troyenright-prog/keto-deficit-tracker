@@ -27,6 +27,14 @@ describe('storage boundary normalisation', () => {
     expect(loadTargets().proteinG).toBeGreaterThan(0);
   });
 
+  it('normalises optional micronutrient targets without requiring every target', () => {
+    localStorage.setItem('keto_targets', JSON.stringify({ calories: 1800, proteinG: 120, vitaminCMg: 90, folateMcg: -10 }));
+    expect(loadTargets()).toMatchObject({
+      vitaminCMg: 90,
+      folateMcg: 0,
+    });
+  });
+
   it('reports storage write failures', () => {
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new DOMException('full', 'QuotaExceededError'); });
     expect(saveFoodLog([])).toBe(false);

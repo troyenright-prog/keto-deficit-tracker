@@ -9,6 +9,7 @@ import { isMealSlot } from './meals';
 import { calcNetCarbs, safeNonNegative, safePositive } from './nutrition';
 import { getStarterFoodOptions } from './australianFoods';
 import { DEFAULT_REMINDERS, hasEnabledReminders, normalizeReminderSettings } from './reminders';
+import { MICRONUTRIENT_KEYS, zeroMicronutrients } from './micronutrients';
 
 export const CURRENT_VERSION = 5;
 
@@ -132,6 +133,7 @@ export const DEFAULT_TARGETS: NutritionTargets = {
   calories: 1800, proteinG: 120, netCarbsG: 20, fatG: 140,
   sodiumMg: 2300, potassiumMg: 3500, magnesiumMg: 400,
   dietMode: 'strict-keto', manualNetCarbs: false,
+  ...zeroMicronutrients(),
 };
 
 export const DEFAULT_PROFILE: UserProfile = {
@@ -140,7 +142,7 @@ export const DEFAULT_PROFILE: UserProfile = {
 
 function micros(record: UnknownRecord): Micronutrients {
   const result: Micronutrients = {};
-  for (const key of ['calciumMg', 'ironMg', 'zincMg', 'vitaminDMcg', 'vitaminB12Mcg', 'omega3G', 'omega6G'] as const) {
+  for (const key of MICRONUTRIENT_KEYS) {
     if (typeof record[key] === 'number' && Number.isFinite(record[key]) && record[key] >= 0) result[key] = record[key];
   }
   return result;
@@ -175,6 +177,8 @@ function normalizeTargets(value: unknown): NutritionTargets {
     sodiumMg: safePositive(value.sodiumMg, DEFAULT_TARGETS.sodiumMg),
     potassiumMg: safePositive(value.potassiumMg, DEFAULT_TARGETS.potassiumMg),
     magnesiumMg: safePositive(value.magnesiumMg, DEFAULT_TARGETS.magnesiumMg),
+    ...zeroMicronutrients(),
+    ...micros(value),
     dietMode: mode, manualNetCarbs: value.manualNetCarbs === true,
   };
 }

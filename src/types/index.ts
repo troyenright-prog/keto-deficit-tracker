@@ -8,7 +8,7 @@ export interface UserProfile {
   createdAt: string;
 }
 
-export interface NutritionTargets {
+export interface NutritionTargets extends Micronutrients {
   calories: number;
   proteinG: number;
   netCarbsG: number;
@@ -38,9 +38,23 @@ export interface NutritionTotals extends Micronutrients {
 // Optional micronutrients — most foods won't have all values
 export interface Micronutrients {
   calciumMg?: number;
+  phosphorusMg?: number;
   ironMg?: number;
   zincMg?: number;
+  copperMg?: number;
+  manganeseMg?: number;
+  iodineMcg?: number;
+  seleniumMcg?: number;
+  vitaminAMcg?: number;
+  vitaminCMg?: number;
   vitaminDMcg?: number;
+  vitaminEMg?: number;
+  vitaminKMcg?: number;
+  thiaminMg?: number;
+  riboflavinMg?: number;
+  niacinMg?: number;
+  vitaminB6Mg?: number;
+  folateMcg?: number;
   vitaminB12Mcg?: number;
   omega3G?: number;
   omega6G?: number;

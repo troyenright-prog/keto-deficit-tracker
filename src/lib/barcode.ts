@@ -1,6 +1,7 @@
 import type { FoodItem, FoodLogEntry, MealSlot, Micronutrients } from '../types';
 import { safeNonNegative, safePositive } from './nutrition';
 import { nanoid } from './nanoid';
+import { MICRONUTRIENT_KEYS, pickMicronutrients, scaleMicronutrients, type MicronutrientKey } from './micronutrients';
 
 export interface BarcodeFood extends Micronutrients {
   barcode: string;
@@ -53,9 +54,69 @@ function toMilligrams(nutriments: UnknownRecord, key: string, basis: 'serving' |
   return value;
 }
 
-function optionalMicro(nutriments: UnknownRecord, key: string, basis: 'serving' | '100g', defaultUnit: 'g' | 'mg'): number | undefined {
-  const value = toMilligrams(nutriments, key, basis, defaultUnit);
-  return value > 0 ? value : undefined;
+function normalizeNutrientUnit(unit: string): 'g' | 'mg' | 'mcg' {
+  const normalized = unit.toLowerCase().replace('μ', 'µ').replace('ug', 'mcg');
+  if (normalized === 'g') return 'g';
+  if (normalized === 'mcg' || normalized === 'µg' || normalized === 'Âµg'.toLowerCase()) return 'mcg';
+  return 'mg';
+}
+
+function nutrientAsUnit(
+  nutriments: UnknownRecord,
+  key: string,
+  basis: 'serving' | '100g',
+  targetUnit: 'mg' | 'mcg' | 'g',
+  defaultUnit: 'g' | 'mg' | 'mcg',
+): number | undefined {
+  const value = nutrient(nutriments, key, basis);
+  if (value === 0) return undefined;
+  const sourceUnit = normalizeNutrientUnit(asText(nutriments[`${key}_unit`]) ?? defaultUnit);
+  const valueMg = sourceUnit === 'g' ? value * 1000 : sourceUnit === 'mcg' ? value / 1000 : value;
+  const converted = targetUnit === 'g' ? valueMg / 1000 : targetUnit === 'mcg' ? valueMg * 1000 : valueMg;
+  return converted > 0 ? converted : undefined;
+}
+
+const OFF_MICRONUTRIENTS: Array<{
+  appKey: MicronutrientKey;
+  offKeys: string[];
+  targetUnit: 'mg' | 'mcg' | 'g';
+  defaultUnit: 'g' | 'mg' | 'mcg';
+}> = [
+  { appKey: 'calciumMg', offKeys: ['calcium'], targetUnit: 'mg', defaultUnit: 'mg' },
+  { appKey: 'phosphorusMg', offKeys: ['phosphorus'], targetUnit: 'mg', defaultUnit: 'mg' },
+  { appKey: 'ironMg', offKeys: ['iron'], targetUnit: 'mg', defaultUnit: 'mg' },
+  { appKey: 'zincMg', offKeys: ['zinc'], targetUnit: 'mg', defaultUnit: 'mg' },
+  { appKey: 'copperMg', offKeys: ['copper'], targetUnit: 'mg', defaultUnit: 'mg' },
+  { appKey: 'manganeseMg', offKeys: ['manganese'], targetUnit: 'mg', defaultUnit: 'mg' },
+  { appKey: 'iodineMcg', offKeys: ['iodine'], targetUnit: 'mcg', defaultUnit: 'mcg' },
+  { appKey: 'seleniumMcg', offKeys: ['selenium'], targetUnit: 'mcg', defaultUnit: 'mcg' },
+  { appKey: 'vitaminAMcg', offKeys: ['vitamin-a'], targetUnit: 'mcg', defaultUnit: 'mcg' },
+  { appKey: 'vitaminCMg', offKeys: ['vitamin-c'], targetUnit: 'mg', defaultUnit: 'mg' },
+  { appKey: 'vitaminDMcg', offKeys: ['vitamin-d'], targetUnit: 'mcg', defaultUnit: 'mcg' },
+  { appKey: 'vitaminEMg', offKeys: ['vitamin-e'], targetUnit: 'mg', defaultUnit: 'mg' },
+  { appKey: 'vitaminKMcg', offKeys: ['vitamin-k'], targetUnit: 'mcg', defaultUnit: 'mcg' },
+  { appKey: 'thiaminMg', offKeys: ['vitamin-b1'], targetUnit: 'mg', defaultUnit: 'mg' },
+  { appKey: 'riboflavinMg', offKeys: ['vitamin-b2'], targetUnit: 'mg', defaultUnit: 'mg' },
+  { appKey: 'niacinMg', offKeys: ['vitamin-pp', 'vitamin-b3'], targetUnit: 'mg', defaultUnit: 'mg' },
+  { appKey: 'vitaminB6Mg', offKeys: ['vitamin-b6'], targetUnit: 'mg', defaultUnit: 'mg' },
+  { appKey: 'folateMcg', offKeys: ['vitamin-b9', 'folates'], targetUnit: 'mcg', defaultUnit: 'mcg' },
+  { appKey: 'vitaminB12Mcg', offKeys: ['vitamin-b12'], targetUnit: 'mcg', defaultUnit: 'mcg' },
+  { appKey: 'omega3G', offKeys: ['omega-3-fat'], targetUnit: 'g', defaultUnit: 'g' },
+  { appKey: 'omega6G', offKeys: ['omega-6-fat'], targetUnit: 'g', defaultUnit: 'g' },
+];
+
+function nutrimentMicros(nutriments: UnknownRecord, basis: 'serving' | '100g'): Micronutrients {
+  const result: Micronutrients = {};
+  for (const field of OFF_MICRONUTRIENTS) {
+    for (const offKey of field.offKeys) {
+      const value = nutrientAsUnit(nutriments, offKey, basis, field.targetUnit, field.defaultUnit);
+      if (value !== undefined) {
+        result[field.appKey] = value;
+        break;
+      }
+    }
+  }
+  return result;
 }
 
 export function normalizeOpenFoodFactsProduct(value: unknown, barcodeFallback = ''): BarcodeFood | null {
@@ -84,13 +145,11 @@ export function normalizeOpenFoodFactsProduct(value: unknown, barcodeFallback = 
       sodiumMg: safeNonNegative(product.sodiumMg),
       potassiumMg: safeNonNegative(product.potassiumMg),
       magnesiumMg: safeNonNegative(product.magnesiumMg),
-      calciumMg: asNumber(product.calciumMg),
-      ironMg: asNumber(product.ironMg),
-      zincMg: asNumber(product.zincMg),
-      vitaminDMcg: asNumber(product.vitaminDMcg),
-      vitaminB12Mcg: asNumber(product.vitaminB12Mcg),
-      omega3G: asNumber(product.omega3G),
-      omega6G: asNumber(product.omega6G),
+      ...MICRONUTRIENT_KEYS.reduce((result, key) => {
+        const amount = asNumber(product[key]);
+        if (amount !== undefined) result[key] = amount;
+        return result;
+      }, {} as Micronutrients),
       attribution: asText(product.attribution),
       attributionUrl: asText(product.attributionUrl),
       sourceUrl: asText(product.sourceUrl),
@@ -117,13 +176,7 @@ export function normalizeOpenFoodFactsProduct(value: unknown, barcodeFallback = 
     sodiumMg: toMilligrams(nutriments, 'sodium', basis, 'g'),
     potassiumMg: toMilligrams(nutriments, 'potassium', basis, 'mg'),
     magnesiumMg: toMilligrams(nutriments, 'magnesium', basis, 'mg'),
-    calciumMg: optionalMicro(nutriments, 'calcium', basis, 'mg'),
-    ironMg: optionalMicro(nutriments, 'iron', basis, 'mg'),
-    zincMg: optionalMicro(nutriments, 'zinc', basis, 'mg'),
-    vitaminDMcg: asNumber(nutriments[`vitamin-d_${basis}`]),
-    vitaminB12Mcg: asNumber(nutriments[`vitamin-b12_${basis}`]),
-    omega3G: asNumber(nutriments[`omega-3-fat_${basis}`]),
-    omega6G: asNumber(nutriments[`omega-6-fat_${basis}`]),
+    ...nutrimentMicros(nutriments, basis),
     attribution: asText(product.attribution),
     attributionUrl: asText(product.attributionUrl),
     sourceUrl: asText(product.url),
@@ -242,13 +295,7 @@ export function barcodeFoodToLogEntry(food: BarcodeFood, date: string, multiplie
     sodiumMg: food.sodiumMg * amount,
     potassiumMg: food.potassiumMg * amount,
     magnesiumMg: food.magnesiumMg * amount,
-    calciumMg: food.calciumMg === undefined ? undefined : food.calciumMg * amount,
-    ironMg: food.ironMg === undefined ? undefined : food.ironMg * amount,
-    zincMg: food.zincMg === undefined ? undefined : food.zincMg * amount,
-    vitaminDMcg: food.vitaminDMcg === undefined ? undefined : food.vitaminDMcg * amount,
-    vitaminB12Mcg: food.vitaminB12Mcg === undefined ? undefined : food.vitaminB12Mcg * amount,
-    omega3G: food.omega3G === undefined ? undefined : food.omega3G * amount,
-    omega6G: food.omega6G === undefined ? undefined : food.omega6G * amount,
+    ...scaleMicronutrients(food, amount),
     loggedAt: new Date().toISOString(),
   };
 }
@@ -264,8 +311,10 @@ export function entryNeedsNutritionRepair(entry: Pick<FoodLogEntry, 'barcode' | 
 // the entry's identity, date, meal, and serving multiplier.
 export function applyBarcodeNutritionToEntry(entry: FoodLogEntry, food: BarcodeFood): FoodLogEntry {
   const amount = safePositive(entry.servingMultiplier);
-  const scale = (value: number | undefined, current: number | undefined) =>
-    value === undefined ? current : value * amount;
+  const scaledMicros = pickMicronutrients(entry);
+  for (const key of MICRONUTRIENT_KEYS) {
+    if (food[key] !== undefined) scaledMicros[key] = food[key]! * amount;
+  }
   return {
     ...entry,
     calories: food.calories * amount,
@@ -277,13 +326,7 @@ export function applyBarcodeNutritionToEntry(entry: FoodLogEntry, food: BarcodeF
     sodiumMg: food.sodiumMg * amount,
     potassiumMg: food.potassiumMg * amount,
     magnesiumMg: food.magnesiumMg * amount,
-    calciumMg: scale(food.calciumMg, entry.calciumMg),
-    ironMg: scale(food.ironMg, entry.ironMg),
-    zincMg: scale(food.zincMg, entry.zincMg),
-    vitaminDMcg: scale(food.vitaminDMcg, entry.vitaminDMcg),
-    vitaminB12Mcg: scale(food.vitaminB12Mcg, entry.vitaminB12Mcg),
-    omega3G: scale(food.omega3G, entry.omega3G),
-    omega6G: scale(food.omega6G, entry.omega6G),
+    ...scaledMicros,
   };
 }
 
@@ -302,13 +345,7 @@ export function barcodeFoodToSavedFood(food: BarcodeFood): FoodItem {
     sodiumMg: food.sodiumMg,
     potassiumMg: food.potassiumMg,
     magnesiumMg: food.magnesiumMg,
-    calciumMg: food.calciumMg,
-    ironMg: food.ironMg,
-    zincMg: food.zincMg,
-    vitaminDMcg: food.vitaminDMcg,
-    vitaminB12Mcg: food.vitaminB12Mcg,
-    omega3G: food.omega3G,
-    omega6G: food.omega6G,
+    ...pickMicronutrients(food),
     createdAt: new Date().toISOString(),
     isFavourite: false,
   };

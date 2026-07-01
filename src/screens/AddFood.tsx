@@ -11,6 +11,7 @@ import { inferMealSlot, MEAL_SLOTS } from '../lib/meals';
 import {
   buildQuickAddGroups, copyLogEntries, recentFoodsFromLog, type QuickAddItem,
 } from '../lib/quick-add';
+import { pickMicronutrients, scaleMicronutrients } from '../lib/micronutrients';
 
 interface AddFoodProps {
   savedFoods: FoodItem[];
@@ -116,13 +117,7 @@ export function AddFood({ savedFoods, foodDatabase, log, recipes, templates, onA
       totalCarbsG: values.totalCarbsG * m, fibreG: values.fibreG * m,
       sugarAlcoholsG: values.sugarAlcoholsG * m, sodiumMg: values.sodiumMg * m,
       potassiumMg: values.potassiumMg * m, magnesiumMg: values.magnesiumMg * m,
-      calciumMg: values.calciumMg === undefined ? undefined : values.calciumMg * m,
-      ironMg: values.ironMg === undefined ? undefined : values.ironMg * m,
-      zincMg: values.zincMg === undefined ? undefined : values.zincMg * m,
-      vitaminDMcg: values.vitaminDMcg === undefined ? undefined : values.vitaminDMcg * m,
-      vitaminB12Mcg: values.vitaminB12Mcg === undefined ? undefined : values.vitaminB12Mcg * m,
-      omega3G: values.omega3G === undefined ? undefined : values.omega3G * m,
-      omega6G: values.omega6G === undefined ? undefined : values.omega6G * m,
+      ...scaleMicronutrients(values, m),
       loggedAt: new Date().toISOString(),
     };
     if (onAdd(entry)) showSuccess(`"${values.name}" added to ${date === todayDateString() ? 'today' : date}.`);
@@ -134,9 +129,7 @@ export function AddFood({ savedFoods, foodDatabase, log, recipes, templates, onA
       calories: values.calories, proteinG: values.proteinG, fatG: values.fatG,
       totalCarbsG: values.totalCarbsG, fibreG: values.fibreG, sugarAlcoholsG: values.sugarAlcoholsG,
       sodiumMg: values.sodiumMg, potassiumMg: values.potassiumMg, magnesiumMg: values.magnesiumMg,
-      calciumMg: values.calciumMg, ironMg: values.ironMg, zincMg: values.zincMg,
-      vitaminDMcg: values.vitaminDMcg, vitaminB12Mcg: values.vitaminB12Mcg,
-      omega3G: values.omega3G, omega6G: values.omega6G,
+      ...pickMicronutrients(values),
       createdAt: new Date().toISOString(), isFavourite: false,
     };
     if (onSaveFood(food)) showSuccess(`"${values.name}" saved to your food library.`);

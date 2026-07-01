@@ -8,6 +8,7 @@ import type {
 } from '../types';
 import { localDateString } from './date';
 import { nanoid } from './nanoid';
+import { MICRONUTRIENT_KEYS, scaleMicronutrients, zeroMicronutrients } from './micronutrients';
 
 export function safeNonNegative(value: unknown, fallback = 0): number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : fallback;
@@ -29,44 +30,32 @@ export function calcNetCarbs(
 export function summariseDay(date: string, entries: FoodLogEntry[]): DailyNutritionSummary {
   const dayEntries = entries.filter((e) => e.date === date);
 
-  const sum = dayEntries.reduce(
-    (acc, e) => ({
-      calories: acc.calories + safeNonNegative(e.calories),
-      proteinG: acc.proteinG + safeNonNegative(e.proteinG),
-      fatG: acc.fatG + safeNonNegative(e.fatG),
-      totalCarbsG: acc.totalCarbsG + safeNonNegative(e.totalCarbsG),
-      fibreG: acc.fibreG + safeNonNegative(e.fibreG),
-      sugarAlcoholsG: acc.sugarAlcoholsG + safeNonNegative(e.sugarAlcoholsG),
-      sodiumMg: acc.sodiumMg + safeNonNegative(e.sodiumMg),
-      potassiumMg: acc.potassiumMg + safeNonNegative(e.potassiumMg),
-      magnesiumMg: acc.magnesiumMg + safeNonNegative(e.magnesiumMg),
-      calciumMg: acc.calciumMg + safeNonNegative(e.calciumMg),
-      ironMg: acc.ironMg + safeNonNegative(e.ironMg),
-      zincMg: acc.zincMg + safeNonNegative(e.zincMg),
-      vitaminDMcg: acc.vitaminDMcg + safeNonNegative(e.vitaminDMcg),
-      vitaminB12Mcg: acc.vitaminB12Mcg + safeNonNegative(e.vitaminB12Mcg),
-      omega3G: acc.omega3G + safeNonNegative(e.omega3G),
-      omega6G: acc.omega6G + safeNonNegative(e.omega6G),
-    }),
-    {
-      calories: 0,
-      proteinG: 0,
-      fatG: 0,
-      totalCarbsG: 0,
-      fibreG: 0,
-      sugarAlcoholsG: 0,
-      sodiumMg: 0,
-      potassiumMg: 0,
-      magnesiumMg: 0,
-      calciumMg: 0,
-      ironMg: 0,
-      zincMg: 0,
-      vitaminDMcg: 0,
-      vitaminB12Mcg: 0,
-      omega3G: 0,
-      omega6G: 0,
-    },
-  );
+  const sum = dayEntries.reduce((acc, e) => {
+    acc.calories += safeNonNegative(e.calories);
+    acc.proteinG += safeNonNegative(e.proteinG);
+    acc.fatG += safeNonNegative(e.fatG);
+    acc.totalCarbsG += safeNonNegative(e.totalCarbsG);
+    acc.fibreG += safeNonNegative(e.fibreG);
+    acc.sugarAlcoholsG += safeNonNegative(e.sugarAlcoholsG);
+    acc.sodiumMg += safeNonNegative(e.sodiumMg);
+    acc.potassiumMg += safeNonNegative(e.potassiumMg);
+    acc.magnesiumMg += safeNonNegative(e.magnesiumMg);
+    for (const key of MICRONUTRIENT_KEYS) {
+      acc[key] = (acc[key] ?? 0) + safeNonNegative(e[key]);
+    }
+    return acc;
+  }, {
+    calories: 0,
+    proteinG: 0,
+    fatG: 0,
+    totalCarbsG: 0,
+    fibreG: 0,
+    sugarAlcoholsG: 0,
+    sodiumMg: 0,
+    potassiumMg: 0,
+    magnesiumMg: 0,
+    ...zeroMicronutrients(),
+  });
 
   return {
     date,
@@ -117,13 +106,7 @@ export function savedFoodToLogEntry(food: FoodItem, date: string, multiplier = 1
     proteinG: food.proteinG * amount, fatG: food.fatG * amount, totalCarbsG: food.totalCarbsG * amount,
     fibreG: food.fibreG * amount, sugarAlcoholsG: food.sugarAlcoholsG * amount, sodiumMg: food.sodiumMg * amount,
     potassiumMg: food.potassiumMg * amount, magnesiumMg: food.magnesiumMg * amount,
-    calciumMg: food.calciumMg === undefined ? undefined : food.calciumMg * amount,
-    ironMg: food.ironMg === undefined ? undefined : food.ironMg * amount,
-    zincMg: food.zincMg === undefined ? undefined : food.zincMg * amount,
-    vitaminDMcg: food.vitaminDMcg === undefined ? undefined : food.vitaminDMcg * amount,
-    vitaminB12Mcg: food.vitaminB12Mcg === undefined ? undefined : food.vitaminB12Mcg * amount,
-    omega3G: food.omega3G === undefined ? undefined : food.omega3G * amount,
-    omega6G: food.omega6G === undefined ? undefined : food.omega6G * amount,
+    ...scaleMicronutrients(food, amount),
     loggedAt: new Date().toISOString(),
   };
 }

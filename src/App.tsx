@@ -57,6 +57,7 @@ import { applyBarcodeNutritionToEntry, entryNeedsNutritionRepair, lookupBarcodeF
 import { scheduleReminderNotifications } from './lib/reminders';
 import { isHealthConnectSupported, healthConnectAvailable, ensureWeightPermissions, fetchWeightHistory } from './lib/health-connect';
 import { toGarminReadings, mergeGarminReadings, summarizeMerge } from './lib/garmin-weight-sync';
+import { pickMicronutrients } from './lib/micronutrients';
 import type {
   FoodLogEntry,
   FoodItem,
@@ -469,9 +470,7 @@ function App() {
       sodiumMg: e.sodiumMg,
       potassiumMg: e.potassiumMg,
       magnesiumMg: e.magnesiumMg,
-      calciumMg: e.calciumMg, ironMg: e.ironMg, zincMg: e.zincMg,
-      vitaminDMcg: e.vitaminDMcg, vitaminB12Mcg: e.vitaminB12Mcg,
-      omega3G: e.omega3G, omega6G: e.omega6G,
+      ...pickMicronutrients(e),
       loggedAt: new Date().toISOString(),
     }));
     const nextLog = [...foodLogRef.current, ...logEntries];

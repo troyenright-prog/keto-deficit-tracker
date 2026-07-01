@@ -2,8 +2,7 @@ import type { FoodDatabaseItem, FoodItem, FoodLogEntry, MealTemplate, Recipe } f
 import { foodDatabaseItemToSavedFood, foodDatabaseSignature } from './food-database';
 import { nanoid } from './nanoid';
 import { safePositive } from './nutrition';
-
-const MICRO_KEYS = ['calciumMg', 'ironMg', 'zincMg', 'vitaminDMcg', 'vitaminB12Mcg', 'omega3G', 'omega6G'] as const;
+import { MICRONUTRIENT_KEYS } from './micronutrients';
 
 export function foodSignature(item: Pick<FoodItem, 'name' | 'servingSize'>): string {
   return `${item.name.trim().toLowerCase()}|${item.servingSize.trim().toLowerCase()}`;
@@ -26,7 +25,7 @@ export function recentFoodsFromLog(log: FoodLogEntry[], limit = 8): FoodItem[] {
       sodiumMg: entry.sodiumMg / multiplier, potassiumMg: entry.potassiumMg / multiplier,
       magnesiumMg: entry.magnesiumMg / multiplier, createdAt: entry.loggedAt,
     };
-    for (const micro of MICRO_KEYS) {
+    for (const micro of MICRONUTRIENT_KEYS) {
       if (entry[micro] !== undefined) food[micro] = entry[micro]! / multiplier;
     }
     result.push(food);

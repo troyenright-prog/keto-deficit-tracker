@@ -4,6 +4,7 @@ import type { DailyNutritionSummary, FoodLogEntry, NutritionTargets, Recommendat
 import { calcNetCarbs, carbStatus, carbStatusLabel, remainingCalories } from '../lib/nutrition';
 import { entryMeal, MEAL_SLOTS } from '../lib/meals';
 import { buildSmartSuggestions } from '../lib/suggestions';
+import { formatMicronutrientAmount, MICRONUTRIENT_FIELDS } from '../lib/micronutrients';
 
 interface DashboardProps {
   summary: DailyNutritionSummary;
@@ -22,6 +23,15 @@ export function Dashboard({ summary, entries, targets, recommendations, onAddFoo
   const displayRemaining = Math.round(remaining);
   const proteinGap = Math.max(0, targets.proteinG - summary.proteinG);
   const fatRemaining = Math.max(0, targets.fatG - summary.fatG);
+  const micronutrientProgress = MICRONUTRIENT_FIELDS
+    .map((field) => ({
+      field,
+      value: summary[field.key] ?? 0,
+      target: targets[field.key] ?? 0,
+    }))
+    .filter((item) => item.value > 0 || item.target > 0);
+  const targetedMicronutrients = micronutrientProgress.filter((item) => item.target > 0);
+  const untargetedMicronutrients = micronutrientProgress.filter((item) => item.target === 0 && item.value > 0);
 
   const suggestions = buildSmartSuggestions(summary, targets);
   const nextMove = suggestions[0] ?? recommendations.find((rec) => rec.priority !== 'success') ?? recommendations[0];
@@ -205,20 +215,32 @@ export function Dashboard({ summary, entries, targets, recommendations, onAddFoo
         />
       </div>
 
-      {((summary.calciumMg ?? 0) > 0 || (summary.ironMg ?? 0) > 0 || (summary.zincMg ?? 0) > 0 ||
-        (summary.vitaminDMcg ?? 0) > 0 || (summary.vitaminB12Mcg ?? 0) > 0 ||
-        (summary.omega3G ?? 0) > 0 || (summary.omega6G ?? 0) > 0) && (
+      {micronutrientProgress.length > 0 && (
         <>
-          <div className="section-title">Optional micronutrients logged</div>
-          <div className="template-totals">
-            {(summary.calciumMg ?? 0) > 0 && <span>Calcium {summary.calciumMg!.toFixed(1)}mg</span>}
-            {(summary.ironMg ?? 0) > 0 && <span>Iron {summary.ironMg!.toFixed(1)}mg</span>}
-            {(summary.zincMg ?? 0) > 0 && <span>Zinc {summary.zincMg!.toFixed(1)}mg</span>}
-            {(summary.vitaminDMcg ?? 0) > 0 && <span>Vitamin D {summary.vitaminDMcg!.toFixed(1)}mcg</span>}
-            {(summary.vitaminB12Mcg ?? 0) > 0 && <span>B12 {summary.vitaminB12Mcg!.toFixed(1)}mcg</span>}
-            {(summary.omega3G ?? 0) > 0 && <span>Omega-3 {summary.omega3G!.toFixed(2)}g</span>}
-            {(summary.omega6G ?? 0) > 0 && <span>Omega-6 {summary.omega6G!.toFixed(2)}g</span>}
-          </div>
+          <div className="section-title">Micronutrients &amp; vitamins</div>
+          {targetedMicronutrients.length > 0 && (
+            <div className="progress-panel progress-panel--micronutrients">
+              {targetedMicronutrients.map(({ field, value, target }) => (
+                <ProgressBar
+                  key={field.key}
+                  label={field.label}
+                  value={Number(value.toFixed(field.decimals))}
+                  max={target}
+                  unit={` ${field.unit}`}
+                  decimals={field.decimals}
+                  variant={value >= target ? 'success' : 'default'}
+                />
+              ))}
+            </div>
+          )}
+          {untargetedMicronutrients.length > 0 && (
+            <div className="template-totals">
+              <strong>Logged totals</strong>
+              {untargetedMicronutrients.map(({ field, value }) => (
+                <span key={field.key}>{field.label} {formatMicronutrientAmount(field, value)}</span>
+              ))}
+            </div>
+          )}
         </>
       )}
 
