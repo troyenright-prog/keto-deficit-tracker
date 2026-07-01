@@ -37,6 +37,18 @@ const openFoodFactsResponse = {
   },
 };
 
+const zeroNutritionResponse = {
+  code: '9311770608800',
+  product: {
+    code: '9311770608800',
+    product_name: 'Mens multivitamin',
+    brands: 'Swisse',
+    serving_size: '1 tablet',
+    url: 'https://world.openfoodfacts.org/product/9311770608800/test',
+    nutriments: {},
+  },
+};
+
 describe('barcode food mapping', () => {
   it('normalizes typed or scanned barcode text', () => {
     expect(normalizeBarcode(' 9300-6750 51132 ')).toBe('9300675051132');
@@ -61,6 +73,32 @@ describe('barcode food mapping', () => {
       sugarAlcoholsG: 1,
       sodiumMg: 120,
       potassiumMg: 180,
+    });
+  });
+
+  it('keeps found Open Food Facts products with zero macro nutrition valid', () => {
+    const food = normalizeOpenFoodFactsProduct(zeroNutritionResponse);
+    expect(food).toMatchObject({
+      barcode: '9311770608800',
+      name: 'Mens multivitamin',
+      brand: 'Swisse',
+      servingSize: '1 tablet',
+      dataBasis: 'serving',
+      calories: 0,
+      proteinG: 0,
+      fatG: 0,
+      totalCarbsG: 0,
+      sodiumMg: 0,
+    });
+
+    const entry = barcodeFoodToLogEntry(food!, '2026-07-01');
+    expect(entry).toMatchObject({
+      source: 'barcode',
+      barcode: '9311770608800',
+      calories: 0,
+      proteinG: 0,
+      fatG: 0,
+      totalCarbsG: 0,
     });
   });
 
@@ -96,6 +134,13 @@ describe('barcode food mapping', () => {
       barcode: '9300675051132',
       name: 'Test Almond Bar',
     });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it('reports not found when every barcode source misses', async () => {
+    const fetcher = vi.fn(async () => Response.json({ error: 'Not found' }, { status: 404 })) as unknown as typeof fetch;
+
+    await expect(lookupBarcodeFood('0000000000000', fetcher)).rejects.toThrow('No food was found');
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
 });

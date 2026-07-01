@@ -24,6 +24,25 @@ const localFood: FoodDatabaseItem = {
   updatedAt: '2026-01-01T00:00:00.000Z',
 };
 
+const zeroCacheFood: FoodDatabaseItem = {
+  ...localFood,
+  id: 'db-zero',
+  barcode: '9311770608800',
+  name: 'Cached Multivitamin',
+  brand: 'Swisse',
+  servingSize: '1 tablet',
+  calories: 0,
+  proteinG: 0,
+  fatG: 0,
+  totalCarbsG: 0,
+  fibreG: 0,
+  sugarAlcoholsG: 0,
+  netCarbsG: 0,
+  sodiumMg: 0,
+  potassiumMg: 0,
+  magnesiumMg: 0,
+};
+
 describe('Barcode scanner screen', () => {
   it('looks up a manually entered barcode and logs a reviewed snapshot', async () => {
     const fetchMock = vi.fn(async () => Response.json({
@@ -97,6 +116,49 @@ describe('Barcode scanner screen', () => {
     }));
   });
 
+  it('shows and logs a found product with zero macro nutrition', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({
+      barcode: '9311770608800',
+      name: 'Mens multivitamin',
+      brand: 'Swisse',
+      servingSize: '1 tablet',
+      dataBasis: 'serving',
+      calories: 0,
+      proteinG: 0,
+      fatG: 0,
+      totalCarbsG: 0,
+      fibreG: 0,
+      sugarAlcoholsG: 0,
+      sodiumMg: 0,
+      potassiumMg: 0,
+      magnesiumMg: 0,
+    })));
+    const onAdd = vi.fn(() => true);
+    const onSaveFoodDatabaseItem = vi.fn(() => true);
+    render(<BarcodeScanner foodDatabase={[]} onAdd={onAdd} onSaveFood={vi.fn(() => true)} onSaveFoodDatabaseItem={onSaveFoodDatabaseItem} />);
+
+    fireEvent.change(screen.getByLabelText('Barcode number'), { target: { value: '9311770608800' } });
+    fireEvent.click(screen.getByRole('button', { name: /Look up barcode/ }));
+
+    await screen.findByText('Mens multivitamin');
+    expect(screen.getByText('No macro nutrition found - values are zero or need manual adjustment.')).toBeTruthy();
+    expect(onSaveFoodDatabaseItem).toHaveBeenCalledWith(expect.objectContaining({
+      barcode: '9311770608800',
+      source: 'openFoodFacts',
+      calories: 0,
+    }));
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Add to log' })[0]);
+    await waitFor(() => expect(onAdd).toHaveBeenCalledWith(expect.objectContaining({
+      source: 'barcode',
+      barcode: '9311770608800',
+      calories: 0,
+      proteinG: 0,
+      fatG: 0,
+      totalCarbsG: 0,
+    })));
+  });
+
   it('uses a local barcode database hit without fetching', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
@@ -109,6 +171,53 @@ describe('Barcode scanner screen', () => {
     await screen.findByText('Local Cheese');
     expect(screen.getByText('Local database')).toBeTruthy();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('shows not found with manual creation available when no cache exists', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ error: 'Not found' }, { status: 404 })));
+    render(<BarcodeScanner foodDatabase={[]} onAdd={vi.fn(() => true)} onSaveFood={vi.fn(() => true)} onSaveFoodDatabaseItem={vi.fn(() => true)} />);
+
+    fireEvent.change(screen.getByLabelText('Barcode number'), { target: { value: '0000000000000' } });
+    fireEvent.click(screen.getByRole('button', { name: /Look up barcode/ }));
+
+    expect(await screen.findByText('No food was found for that barcode.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Create food for this barcode' })).toBeTruthy();
+    expect(screen.queryByText('Review before logging')).toBeNull();
+  });
+
+  it('falls back to an all-zero cached product when a fresh not-found lookup fails', async () => {
+    const fetchMock = vi.fn(async () => Response.json({ error: 'Not found' }, { status: 404 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const onSaveFoodDatabaseItem = vi.fn(() => true);
+    render(<BarcodeScanner foodDatabase={[zeroCacheFood]} onAdd={vi.fn(() => true)} onSaveFood={vi.fn(() => true)} onSaveFoodDatabaseItem={onSaveFoodDatabaseItem} />);
+
+    fireEvent.change(screen.getByLabelText('Barcode number'), { target: { value: '9311770608800' } });
+    fireEvent.click(screen.getByRole('button', { name: /Look up barcode/ }));
+
+    await screen.findByText('Cached Multivitamin');
+    expect(fetchMock).toHaveBeenCalled();
+    expect(screen.getByText('Local database')).toBeTruthy();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Create food for this barcode' })).toBeNull();
+    expect(onSaveFoodDatabaseItem).not.toHaveBeenCalled();
+  });
+
+  it('falls back to an all-zero cached product when the network fails', async () => {
+    const fetchMock = vi.fn(async () => {
+      throw new Error('offline');
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const onSaveFoodDatabaseItem = vi.fn(() => true);
+    render(<BarcodeScanner foodDatabase={[zeroCacheFood]} onAdd={vi.fn(() => true)} onSaveFood={vi.fn(() => true)} onSaveFoodDatabaseItem={onSaveFoodDatabaseItem} />);
+
+    fireEvent.change(screen.getByLabelText('Barcode number'), { target: { value: '9311770608800' } });
+    fireEvent.click(screen.getByRole('button', { name: /Look up barcode/ }));
+
+    await screen.findByText('Cached Multivitamin');
+    expect(fetchMock).toHaveBeenCalled();
+    expect(screen.getByText('Local database')).toBeTruthy();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(onSaveFoodDatabaseItem).not.toHaveBeenCalled();
   });
 
   it('allows manual creation when lookup fails', async () => {
@@ -131,6 +240,19 @@ describe('Barcode scanner screen', () => {
       userEdited: true,
     })));
     expect(onAdd).toHaveBeenCalledWith(expect.objectContaining({ name: 'Manual Bar', calories: 150 }));
+  });
+
+  it('reuses a manually created barcode food on future scans', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    render(<BarcodeScanner foodDatabase={[{ ...zeroCacheFood, barcode: '5555', name: 'Manual Bar', calories: 150, userEdited: true, source: 'barcode' }]} onAdd={vi.fn(() => true)} onSaveFood={vi.fn(() => true)} onSaveFoodDatabaseItem={vi.fn(() => true)} />);
+
+    fireEvent.change(screen.getByLabelText('Barcode number'), { target: { value: '5555' } });
+    fireEvent.click(screen.getByRole('button', { name: /Look up barcode/ }));
+
+    await screen.findByText('Manual Bar');
+    expect(screen.getByText('User-corrected food')).toBeTruthy();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('rejects reviewed barcode nutrition with impossible carb components', async () => {

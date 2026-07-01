@@ -32,6 +32,59 @@ function remoteFoodOrigin(food: BarcodeFood): FoodOrigin {
 
 const canUseCamera = (): boolean => typeof navigator !== 'undefined' && Boolean(navigator.mediaDevices?.getUserMedia);
 
+type NutritionProbe = Partial<Record<
+  | 'calories'
+  | 'proteinG'
+  | 'fatG'
+  | 'totalCarbsG'
+  | 'fibreG'
+  | 'sugarAlcoholsG'
+  | 'sodiumMg'
+  | 'potassiumMg'
+  | 'magnesiumMg'
+  | 'calciumMg'
+  | 'ironMg'
+  | 'zincMg'
+  | 'vitaminDMcg'
+  | 'vitaminB12Mcg'
+  | 'omega3G'
+  | 'omega6G',
+  number | undefined
+>>;
+
+const TRACKED_NUTRITION_KEYS = [
+  'calories',
+  'proteinG',
+  'fatG',
+  'totalCarbsG',
+  'fibreG',
+  'sugarAlcoholsG',
+  'sodiumMg',
+  'potassiumMg',
+  'magnesiumMg',
+  'calciumMg',
+  'ironMg',
+  'zincMg',
+  'vitaminDMcg',
+  'vitaminB12Mcg',
+  'omega3G',
+  'omega6G',
+] as const;
+
+const MACRO_NUTRITION_KEYS = ['calories', 'proteinG', 'fatG', 'totalCarbsG'] as const;
+
+function hasPositiveNutrition(food: NutritionProbe): boolean {
+  return TRACKED_NUTRITION_KEYS.some((key) => (food[key] ?? 0) > 0);
+}
+
+function hasPositiveMacros(food: NutritionProbe): boolean {
+  return MACRO_NUTRITION_KEYS.some((key) => (food[key] ?? 0) > 0);
+}
+
+function shouldSkipEmptyRemoteCacheWrite(existing: FoodDatabaseItem | undefined, food: BarcodeFood, userEdited: boolean): boolean {
+  return Boolean(existing && !userEdited && hasPositiveNutrition(existing) && !hasPositiveNutrition(food));
+}
+
 export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodDatabaseItem, onAddManually, autoStart = false }: BarcodeScannerProps) {
   const [barcode, setBarcode] = useState('');
   const [date, setDate] = useState(todayDateString());
@@ -78,10 +131,10 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
     if (!normalized) { setError('Enter or scan a valid barcode.'); return; }
 
     const local = findFoodDatabaseByBarcode(foodDatabase, normalized);
-    // Use the cached copy only when it has real nutrition or the user edited it;
+    // Use the cached copy only when it has tracked nutrition or the user edited it;
     // a cached 0-calorie row (e.g. saved during the OFF v3 empty-nutriments bug)
     // is treated as a miss so we re-fetch fresh data.
-    if (local && (local.userEdited || local.calories > 0)) {
+    if (local && (local.userEdited || hasPositiveNutrition(local))) {
       setFood(foodDatabaseItemToBarcodeFood(local));
       setOrigin(local.userEdited ? 'corrected' : 'local');
       setError('');
@@ -94,9 +147,19 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
       const remoteFood = await lookupBarcodeFood(normalized);
       setFood(remoteFood);
       setOrigin(remoteFoodOrigin(remoteFood));
-      onSaveFoodDatabaseItem(barcodeFoodToFoodDatabaseItem(remoteFood));
+      if (!shouldSkipEmptyRemoteCacheWrite(local, remoteFood, false)) {
+        onSaveFoodDatabaseItem(barcodeFoodToFoodDatabaseItem(remoteFood, local));
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Barcode lookup failed.');
+      if (local) {
+        // The fresh lookup failed but we have a cached copy (e.g. a supplement
+        // Open Food Facts doesn't carry) - show it rather than a dead "not found".
+        setFood(foodDatabaseItemToBarcodeFood(local));
+        setOrigin(local.userEdited ? 'corrected' : 'local');
+        setError('');
+      } else {
+        setError(err instanceof Error ? err.message : 'Barcode lookup failed.');
+      }
     } finally {
       setLoading(false);
     }
@@ -195,6 +258,7 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
   function persistReviewedFood(userEdited = origin === 'corrected' || origin === 'manual') {
     if (!food) return false;
     const existing = findFoodDatabaseByBarcode(foodDatabase, food.barcode);
+    if (shouldSkipEmptyRemoteCacheWrite(existing, food, userEdited)) return true;
     return onSaveFoodDatabaseItem(barcodeFoodToFoodDatabaseItem(food, existing, userEdited));
   }
 
@@ -296,6 +360,9 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
             {food.brand && <span>{food.brand}</span>}
             <small>{food.servingSize} - {food.dataBasis === '100g' ? 'nutrition per 100g' : 'nutrition per serving'} - {food.barcode}</small>
           </div>
+          {!hasPositiveMacros(food) && (
+            <p className="privacy-note">No macro nutrition found - values are zero or need manual adjustment.</p>
+          )}
 
           <button className="btn btn--primary" onClick={addToLog} disabled={!food.name.trim()}>
             Add to log

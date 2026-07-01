@@ -44,6 +44,32 @@ describe('barcode lookup endpoint', () => {
     });
   });
 
+  it('returns found Open Food Facts products with zero macro nutrition', async () => {
+    const fetcher = vi.fn(async () => Response.json({
+      code: '9311770608800',
+      product: {
+        code: '9311770608800',
+        product_name: 'Mens multivitamin',
+        brands: 'Swisse',
+        serving_size: '1 tablet',
+        nutriments: {},
+      },
+    })) as unknown as typeof fetch;
+    const response = await handleLookupBarcode(new Request('https://example.com/api/lookup-barcode?code=9311770608800'), {}, fetcher);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      barcode: '9311770608800',
+      name: 'Mens multivitamin',
+      brand: 'Swisse',
+      servingSize: '1 tablet',
+      calories: 0,
+      proteinG: 0,
+      fatG: 0,
+      totalCarbsG: 0,
+      attribution: 'Open Food Facts',
+    });
+  });
+
   it('falls back to USDA FoodData Central when Open Food Facts misses and a key is configured', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);

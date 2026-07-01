@@ -97,8 +97,10 @@ export function normalizeOpenFoodFactsProduct(value: unknown, barcodeFallback = 
     };
   }
 
-  const hasServingNutrition = ['energy-kcal', 'proteins', 'fat', 'carbohydrates'].some((key) => asNumber(nutriments[`${key}_serving`]) !== undefined);
-  const basis: 'serving' | '100g' = hasServingNutrition ? 'serving' : '100g';
+  const coreNutritionKeys = ['energy-kcal', 'proteins', 'fat', 'carbohydrates'];
+  const hasServingNutrition = coreNutritionKeys.some((key) => asNumber(nutriments[`${key}_serving`]) !== undefined);
+  const has100gNutrition = coreNutritionKeys.some((key) => asNumber(nutriments[`${key}_100g`]) !== undefined);
+  const basis: 'serving' | '100g' = hasServingNutrition || !has100gNutrition ? 'serving' : '100g';
 
   return {
     barcode,
