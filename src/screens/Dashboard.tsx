@@ -15,6 +15,49 @@ interface DashboardProps {
   onAddFood: () => void;
 }
 
+const SMART_SUGGESTION_HEADLINES: Record<string, string> = {
+  'sugg-zero-carb': 'Choose zero-carb foods next.',
+  'sugg-protein': 'Prioritise protein next.',
+  'sugg-balanced': 'Add protein and healthy fats.',
+  'sugg-small-meal': 'Fit a small protein snack.',
+  'sugg-sodium': 'Top up sodium.',
+  'sugg-potassium': 'Top up potassium.',
+  'sugg-magnesium': 'Top up magnesium.',
+  'calories-exceeded': 'Reset around protein at the next meal.',
+  'calories-low-late': 'Add a simple protein-forward meal.',
+  'protein-low': 'Prioritise protein next.',
+  'carbs-exceeded': 'Choose zero-carb foods next.',
+  'carbs-approaching': 'Choose very low-carb foods next.',
+  'sodium-low': 'Top up sodium.',
+  'potassium-low': 'Top up potassium.',
+  'magnesium-low': 'Top up magnesium.',
+  'on-track': 'Stay protein-first and low carb.',
+};
+
+function recommendationTopic(id: string): string {
+  if (id === 'sugg-zero-carb' || id.startsWith('carbs-')) return 'carbs';
+  if (id === 'sugg-balanced' || id === 'sugg-small-meal' || id.startsWith('calories-')) return 'calories';
+  if (id.includes('protein')) return 'protein';
+  if (id.includes('sodium')) return 'sodium';
+  if (id.includes('potassium')) return 'potassium';
+  if (id.includes('magnesium')) return 'magnesium';
+  return id;
+}
+
+function relatedTopicsForMove(rec: Recommendation): string[] {
+  const topic = recommendationTopic(rec.id);
+  const topics = [topic];
+  if (rec.id === 'sugg-protein' || rec.id === 'protein-low' || rec.id === 'sugg-balanced' || rec.id === 'sugg-small-meal') {
+    topics.push('calories');
+  }
+  if (rec.id === 'calories-low-late') topics.push('protein');
+  return topics;
+}
+
+function headlineForMove(rec: Recommendation): string {
+  return SMART_SUGGESTION_HEADLINES[rec.id] ?? rec.message;
+}
+
 export function Dashboard({ summary, entries, activity, targets, recommendations, onAddFood }: DashboardProps) {
   const status = carbStatus(summary, targets);
   const remaining = remainingCalories(summary, targets);
@@ -36,6 +79,11 @@ export function Dashboard({ summary, entries, activity, targets, recommendations
 
   const suggestions = buildSmartSuggestions(summary, targets);
   const nextMove = suggestions[0] ?? recommendations.find((rec) => rec.priority !== 'success') ?? recommendations[0];
+  const surfacedMoves = summary.entryCount > 0 && nextMove ? [nextMove] : [];
+  const surfacedTopics = new Set(surfacedMoves.flatMap(relatedTopicsForMove));
+  const visibleRecommendations = recommendations.filter(
+    (rec) => !surfacedMoves.some((move) => move.id === rec.id) && !surfacedTopics.has(recommendationTopic(rec.id)),
+  );
   const mealSummaries = MEAL_SLOTS.map((slot) => {
     const mealEntries = entries.filter((entry) => entryMeal(entry) === slot.id);
     return {
@@ -54,19 +102,10 @@ export function Dashboard({ summary, entries, activity, targets, recommendations
           {nextMove ? (
             <div className={`next-move next-move--${nextMove.priority}`}>
               <strong>{nextMove.priority === 'warning' ? 'Check this first' : 'Next move'}</strong>
-              <span>{nextMove.message}</span>
+              <span>{headlineForMove(nextMove)}</span>
             </div>
           ) : (
             <p className="empty-hint empty-hint--compact">You are on track - keep the next meal protein-first and low carb.</p>
-          )}
-          {suggestions.length > 1 && (
-            <ul className="recommendations recommendations--compact">
-              {suggestions.slice(1).map((s) => (
-                <li key={s.id} className={`rec rec--${s.priority}`}>
-                  {s.message}
-                </li>
-              ))}
-            </ul>
           )}
         </div>
       )}
@@ -93,11 +132,11 @@ export function Dashboard({ summary, entries, activity, targets, recommendations
         {carbStatusLabel(status)}
       </div>
 
-      {recommendations.length > 0 && (
+      {visibleRecommendations.length > 0 && (
         <>
           <div className="section-title">Needs attention</div>
           <ul className="recommendations">
-            {recommendations.map((r) => (
+            {visibleRecommendations.map((r) => (
               <li key={r.id} className={`rec rec--${r.priority}`}>
                 {r.message}
               </li>

@@ -313,12 +313,11 @@ export type ReminderKey = 'mealLogging' | 'weighIn' | 'electrolytes' | 'shopping
 export interface ReminderRule {
   enabled: boolean;
   time: string; // HH:mm
-}
-
-export interface WeeklyReminderRule extends ReminderRule {
-  weekday: number; // 1 Sunday - 7 Saturday — the first selected day, kept for backward compatibility
+  weekday: number; // 1 Sunday - 7 Saturday - the first selected day, kept for backward compatibility
   days: number[]; // full set of selected days (1-7), always includes `weekday`; all 7 = every day
 }
+
+export type WeeklyReminderRule = ReminderRule;
 
 export interface ReminderSettings {
   mealLogging: ReminderRule;

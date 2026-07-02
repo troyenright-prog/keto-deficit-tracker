@@ -3,7 +3,7 @@ import type { DailyActivityEntry, SleepEntry, VitalsEntry, WeightEntry } from '.
 import { todayDateString } from '../lib/nutrition';
 import { sevenDayAvgWeight } from '../lib/weekly';
 import { StatCard } from '../components/StatCard';
-import { buildWeightTrendChart, toSmoothAreaPath, toSmoothPath } from '../lib/weight-trend';
+import { WEIGHT_TREND_BOUNDS, buildWeightTrendChart, toSmoothAreaPath, toSmoothPath } from '../lib/weight-trend';
 
 interface GarminProps {
   entries: WeightEntry[];
@@ -16,7 +16,9 @@ interface GarminProps {
   onSyncGarmin?: () => Promise<string>;
 }
 
-const HISTORY_PREVIEW_COUNT = 5;
+const TREND_GRID_LINES = Array.from({ length: 5 }, (_, index) =>
+  WEIGHT_TREND_BOUNDS.minY + (index / 4) * (WEIGHT_TREND_BOUNDS.maxY - WEIGHT_TREND_BOUNDS.minY),
+);
 
 function formatDistance(meters: number): string {
   return meters >= 1000 ? `${(meters / 1000).toFixed(1)} km` : `${Math.round(meters)} m`;
@@ -47,7 +49,6 @@ const STAGE_CLASSES: Record<string, string> = {
 export function Garmin({ entries, weightUnit, dailyActivity, sleepEntries, vitalsEntries, onSyncGarmin }: GarminProps) {
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState('');
-  const [showFullHistory, setShowFullHistory] = useState(false);
 
   async function runGarminSync() {
     if (!onSyncGarmin || syncing) return;
@@ -107,7 +108,6 @@ export function Garmin({ entries, weightUnit, dailyActivity, sleepEntries, vital
   const hasAnyVitals = latestRestingHeartRate || latestHrv || latestVo2Max || latestOxygenSaturation || latestRespiratoryRate;
 
   const hasOverview = latestWeight || latestActivity || latestSleep || hasAnyVitals;
-  const historyEntries = showFullHistory ? sorted : sorted.slice(0, HISTORY_PREVIEW_COUNT);
 
   return (
     <div className="screen">
@@ -196,11 +196,16 @@ export function Garmin({ entries, weightUnit, dailyActivity, sleepEntries, vital
                     <stop offset="100%" stopColor="var(--green)" stopOpacity="0" />
                   </linearGradient>
                 </defs>
-                <line className="weight-trend-grid" x1="8" y1="10" x2="92" y2="10" />
-                <line className="weight-trend-grid" x1="8" y1="29.5" x2="92" y2="29.5" />
-                <line className="weight-trend-grid" x1="8" y1="49" x2="92" y2="49" />
-                <line className="weight-trend-grid" x1="8" y1="68.5" x2="92" y2="68.5" />
-                <line className="weight-trend-grid" x1="8" y1="88" x2="92" y2="88" />
+                {TREND_GRID_LINES.map((y) => (
+                  <line
+                    key={y}
+                    className="weight-trend-grid"
+                    x1={WEIGHT_TREND_BOUNDS.minX}
+                    y1={y}
+                    x2={WEIGHT_TREND_BOUNDS.maxX}
+                    y2={y}
+                  />
+                ))}
                 <path className="weight-trend-area" d={toSmoothAreaPath(trendChart.weightPoints)} fill="url(#weight-trend-area-fill)" />
                 <path className="weight-trend-line weight-trend-line--weight" d={toSmoothPath(trendChart.weightPoints)} />
                 {trendChart.bodyFatPoints.length >= 2 && (
@@ -331,30 +336,6 @@ export function Garmin({ entries, weightUnit, dailyActivity, sleepEntries, vital
         </>
       )}
 
-      <div className="section-title">History</div>
-      {sorted.length === 0 ? (
-        <p className="empty-hint">No weight entries yet. Sync from Garmin to start tracking.</p>
-      ) : (
-        <>
-          <ul className="weight-list">
-            {historyEntries.map((e) => (
-              <li key={e.id} className="weight-entry weight-entry--full">
-                <span className="weight-entry-date">{e.date}</span>
-                <span className="weight-entry-value">
-                  {e.weight} {e.unit}
-                  {e.bodyFat != null && <small className="dim"> · {e.bodyFat}% fat</small>}
-                  {e.source === 'garminHealthConnect' && <small className="source-pill"> Garmin</small>}
-                </span>
-              </li>
-            ))}
-          </ul>
-          {sorted.length > HISTORY_PREVIEW_COUNT && (
-            <button type="button" className="btn btn--ghost btn--sm history-toggle" onClick={() => setShowFullHistory((v) => !v)}>
-              {showFullHistory ? 'Show less' : `Show full history (${sorted.length})`}
-            </button>
-          )}
-        </>
-      )}
     </div>
   );
 }

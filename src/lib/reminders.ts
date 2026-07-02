@@ -1,17 +1,17 @@
 import { Capacitor } from '@capacitor/core';
 import type { LocalNotificationSchema, Weekday } from '@capacitor/local-notifications';
-import type { ReminderKey, ReminderSettings, WeeklyReminderRule } from '../types';
-
-export const DEFAULT_REMINDERS: ReminderSettings = {
-  mealLogging: { enabled: false, time: '19:00' },
-  weighIn: { enabled: false, time: '07:00', weekday: 2, days: [2] },
-  electrolytes: { enabled: false, time: '14:00' },
-  shopping: { enabled: false, time: '18:00', weekday: 6, days: [6] },
-};
+import type { ReminderKey, ReminderRule, ReminderSettings } from '../types';
 
 // All 7 weekdays (1 Sunday - 7 Saturday), used for the "every day" preset and
 // to enumerate every native notification id a weekly reminder could ever use.
 export const ALL_WEEKDAYS = [1, 2, 3, 4, 5, 6, 7];
+
+export const DEFAULT_REMINDERS: ReminderSettings = {
+  mealLogging: { enabled: false, time: '19:00', weekday: 1, days: ALL_WEEKDAYS },
+  weighIn: { enabled: false, time: '07:00', weekday: 2, days: [2] },
+  electrolytes: { enabled: false, time: '14:00', weekday: 1, days: ALL_WEEKDAYS },
+  shopping: { enabled: false, time: '18:00', weekday: 6, days: [6] },
+};
 
 export const REMINDER_NOTIFICATION_IDS: Record<ReminderKey, number> = {
   mealLogging: 1001,
@@ -32,8 +32,8 @@ function weeklyNotificationId(baseId: number, day: number, isFirst: boolean): nu
 // needed to fully clear stale notifications when the user changes which days
 // are selected (not just cancel today's set of ids).
 function allPossibleNotificationIds(): number[] {
-  const ids = [REMINDER_NOTIFICATION_IDS.mealLogging, REMINDER_NOTIFICATION_IDS.electrolytes];
-  for (const key of ['weighIn', 'shopping'] as const) {
+  const ids: number[] = [];
+  for (const key of Object.keys(REMINDER_NOTIFICATION_IDS) as ReminderKey[]) {
     const baseId = REMINDER_NOTIFICATION_IDS[key];
     ids.push(baseId, ...ALL_WEEKDAYS.map((day) => weeklyNotificationId(baseId, day, false)));
   }
@@ -67,11 +67,16 @@ function normalizeWeekday(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 7 ? value : fallback;
 }
 
-function normalizeRule(value: unknown, fallback: ReminderSettings['mealLogging']) {
+function normalizeRule(value: unknown, fallback: ReminderRule): ReminderRule {
   const record = isRecord(value) ? value : {};
+  const weekday = normalizeWeekday(record.weekday, fallback.weekday);
+  const dayFallback = 'weekday' in record ? [weekday] : fallback.days;
+  const days = normalizeDays(record.days, dayFallback);
   return {
     enabled: record.enabled === true,
     time: normalizeTime(record.time, fallback.time),
+    weekday: days[0],
+    days,
   };
 }
 
@@ -83,24 +88,13 @@ function normalizeDays(value: unknown, fallback: number[]): number[] {
   return cleaned.length > 0 ? cleaned : fallback;
 }
 
-function normalizeWeeklyRule(value: unknown, fallback: WeeklyReminderRule): WeeklyReminderRule {
-  const record = isRecord(value) ? value : {};
-  const weekday = normalizeWeekday(record.weekday, fallback.weekday);
-  const days = normalizeDays(record.days, [weekday]);
-  return {
-    ...normalizeRule(value, fallback),
-    weekday: days[0],
-    days,
-  };
-}
-
 export function normalizeReminderSettings(value: unknown): ReminderSettings {
   const record = isRecord(value) ? value : {};
   return {
     mealLogging: normalizeRule(record.mealLogging, DEFAULT_REMINDERS.mealLogging),
-    weighIn: normalizeWeeklyRule(record.weighIn, DEFAULT_REMINDERS.weighIn),
+    weighIn: normalizeRule(record.weighIn, DEFAULT_REMINDERS.weighIn),
     electrolytes: normalizeRule(record.electrolytes, DEFAULT_REMINDERS.electrolytes),
-    shopping: normalizeWeeklyRule(record.shopping, DEFAULT_REMINDERS.shopping),
+    shopping: normalizeRule(record.shopping, DEFAULT_REMINDERS.shopping),
     updatedAt: typeof record.updatedAt === 'string' && Number.isFinite(Date.parse(record.updatedAt)) ? record.updatedAt : undefined,
   };
 }
@@ -116,27 +110,9 @@ function timeParts(time: string): { hour: number; minute: number } {
 
 export function buildReminderNotifications(settings: ReminderSettings): LocalNotificationSchema[] {
   const notifications: LocalNotificationSchema[] = [];
-  const addDaily = (
+  const addReminder = (
     key: ReminderKey,
-    enabled: boolean,
-    time: string,
-    title: string,
-    body: string,
-  ) => {
-    if (!enabled) return;
-    notifications.push({
-      id: REMINDER_NOTIFICATION_IDS[key],
-      title,
-      body,
-      channelId: 'keto-reminders',
-      autoCancel: true,
-      schedule: { on: timeParts(time), repeats: true, allowWhileIdle: true },
-      extra: { reminder: key },
-    });
-  };
-  const addWeekly = (
-    key: ReminderKey,
-    rule: WeeklyReminderRule,
+    rule: ReminderRule,
     title: string,
     body: string,
   ) => {
@@ -159,10 +135,10 @@ export function buildReminderNotifications(settings: ReminderSettings): LocalNot
     });
   };
 
-  addDaily('mealLogging', settings.mealLogging.enabled, settings.mealLogging.time, 'Log your keto day', 'Add meals while the details are still fresh.');
-  addWeekly('weighIn', settings.weighIn, 'Weigh-in reminder', 'Log your weight trend for the week.');
-  addDaily('electrolytes', settings.electrolytes.enabled, settings.electrolytes.time, 'Electrolyte check', 'Check sodium, potassium, magnesium, and hydration.');
-  addWeekly('shopping', settings.shopping, 'Shopping list check', 'Review your keto shopping list before the next shop.');
+  addReminder('mealLogging', settings.mealLogging, 'Log your keto day', 'Add meals while the details are still fresh.');
+  addReminder('weighIn', settings.weighIn, 'Weigh-in reminder', 'Log your weight trend for the week.');
+  addReminder('electrolytes', settings.electrolytes, 'Electrolyte check', 'Check sodium, potassium, magnesium, and hydration.');
+  addReminder('shopping', settings.shopping, 'Shopping list check', 'Review your keto shopping list before the next shop.');
 
   return notifications;
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { WeightEntry } from '../types';
-import { buildWeightTrendChart, toPolylinePoints } from '../lib/weight-trend';
+import { WEIGHT_TREND_BOUNDS, buildWeightTrendChart, toPolylinePoints } from '../lib/weight-trend';
 
 function entry(id: string, date: string, weight: number, bodyFat?: number): WeightEntry {
   return {
@@ -26,7 +26,9 @@ describe('buildWeightTrendChart', () => {
     expect(chart!.weightPoints).toHaveLength(3);
     expect(chart!.bodyFatPoints).toHaveLength(2);
     expect(chart!.bodyFatRange).not.toBeNull();
-    expect(toPolylinePoints(chart!.weightPoints)).toMatch(/8\.0,/);
+    expect(chart!.weightPoints[0].x).toBe(WEIGHT_TREND_BOUNDS.minX);
+    expect(chart!.weightPoints.at(-1)?.x).toBe(WEIGHT_TREND_BOUNDS.maxX);
+    expect(toPolylinePoints(chart!.weightPoints)).toMatch(/3\.0,/);
   });
 
   it('returns null until at least two matching weight entries are available', () => {

@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import type { FoodItem, MealSlot, MealTemplate, UserProfile, NutritionTargets, ReminderKey, ReminderRule, ReminderSettings, WeeklyReminderRule } from '../types';
+import type { FoodItem, MealSlot, MealTemplate, UserProfile, NutritionTargets, ReminderKey, ReminderRule, ReminderSettings } from '../types';
 import { dietModeDefaultNetCarbs } from '../lib/nutrition';
 import { exportAppData, validateAppBundle, importAppData } from '../lib/storage';
 import { localDateString } from '../lib/date';
@@ -171,11 +171,11 @@ export function Settings({
     }));
   }
 
-  function setReminderDays(key: 'weighIn' | 'shopping', days: number[]) {
+  function setReminderDays(key: ReminderKey, days: number[]) {
     updateReminder(key, { days, weekday: days[0] } as Partial<ReminderSettings[typeof key]>);
   }
 
-  function toggleReminderDay(key: 'weighIn' | 'shopping', day: number, currentDays: number[]) {
+  function toggleReminderDay(key: ReminderKey, day: number, currentDays: number[]) {
     const has = currentDays.includes(day);
     const next = has ? currentDays.filter((d) => d !== day) : [...currentDays, day].sort((a, b) => a - b);
     if (next.length === 0) return; // keep at least one day selected
@@ -198,9 +198,7 @@ export function Settings({
     key: ReminderKey,
     label: string,
     rule: ReminderRule,
-    weekly?: WeeklyReminderRule,
   ) {
-    const weeklyKey = weekly ? (key as 'weighIn' | 'shopping') : null;
     return (
       <div className="reminder-card">
         <label className="checkbox-label reminder-toggle">
@@ -218,43 +216,41 @@ export function Settings({
           aria-label={`${label} time`}
           onChange={(event) => updateReminder(key, { time: event.target.value } as Partial<ReminderSettings[typeof key]>)}
         />
-        {weekly && weeklyKey && (
-          <div className="reminder-days">
-            <div className="reminder-days-presets">
-              <button
-                type="button"
-                className={`btn btn--ghost btn--xs${sameDays(weekly.days, ALL_WEEKDAYS) ? ' btn--preset-active' : ''}`}
-                disabled={!rule.enabled}
-                onClick={() => setReminderDays(weeklyKey, ALL_WEEKDAYS)}
-              >
-                Every day
-              </button>
-              <button
-                type="button"
-                className={`btn btn--ghost btn--xs${sameDays(weekly.days, WEEKDAY_ONLY_DAYS) ? ' btn--preset-active' : ''}`}
-                disabled={!rule.enabled}
-                onClick={() => setReminderDays(weeklyKey, WEEKDAY_ONLY_DAYS)}
-              >
-                Weekdays
-              </button>
-            </div>
-            <div className="reminder-day-chips" role="group" aria-label={`${label} days`}>
-              {WEEKDAYS.map((day) => (
-                <button
-                  key={day.value}
-                  type="button"
-                  className={`day-chip${weekly.days.includes(day.value) ? ' day-chip--active' : ''}`}
-                  aria-pressed={weekly.days.includes(day.value)}
-                  aria-label={day.label}
-                  disabled={!rule.enabled}
-                  onClick={() => toggleReminderDay(weeklyKey, day.value, weekly.days)}
-                >
-                  {day.label.slice(0, 1)}
-                </button>
-              ))}
-            </div>
+        <div className="reminder-days">
+          <div className="reminder-days-presets">
+            <button
+              type="button"
+              className={`btn btn--ghost btn--xs${sameDays(rule.days, ALL_WEEKDAYS) ? ' btn--preset-active' : ''}`}
+              disabled={!rule.enabled}
+              onClick={() => setReminderDays(key, ALL_WEEKDAYS)}
+            >
+              Every day
+            </button>
+            <button
+              type="button"
+              className={`btn btn--ghost btn--xs${sameDays(rule.days, WEEKDAY_ONLY_DAYS) ? ' btn--preset-active' : ''}`}
+              disabled={!rule.enabled}
+              onClick={() => setReminderDays(key, WEEKDAY_ONLY_DAYS)}
+            >
+              Weekdays
+            </button>
           </div>
-        )}
+          <div className="reminder-day-chips" role="group" aria-label={`${label} days`}>
+            {WEEKDAYS.map((day) => (
+              <button
+                key={day.value}
+                type="button"
+                className={`day-chip${rule.days.includes(day.value) ? ' day-chip--active' : ''}`}
+                aria-pressed={rule.days.includes(day.value)}
+                aria-label={day.label}
+                disabled={!rule.enabled}
+                onClick={() => toggleReminderDay(key, day.value, rule.days)}
+              >
+                {day.label.slice(0, 1)}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
@@ -468,9 +464,9 @@ export function Settings({
       <div className="section-title">Native reminders</div>
       <div className="reminder-grid">
         {renderReminder('mealLogging', 'Meal logging', rem.mealLogging)}
-        {renderReminder('weighIn', 'Weigh-in', rem.weighIn, rem.weighIn)}
+        {renderReminder('weighIn', 'Weigh-in', rem.weighIn)}
         {renderReminder('electrolytes', 'Electrolytes', rem.electrolytes)}
-        {renderReminder('shopping', 'Shopping list', rem.shopping, rem.shopping)}
+        {renderReminder('shopping', 'Shopping list', rem.shopping)}
       </div>
       <div className="form-actions">
         <button type="button" className="btn btn--primary" onClick={() => void handleSaveReminders()}>

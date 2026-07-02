@@ -16,10 +16,17 @@ export interface WeightTrendChart {
   bodyFatRange: { min: number; max: number } | null;
 }
 
-const MIN_Y = 10;
-const MAX_Y = 88;
-const MIN_X = 8;
-const MAX_X = 92;
+export const WEIGHT_TREND_BOUNDS = {
+  minX: 3,
+  maxX: 97,
+  minY: 5,
+  maxY: 95,
+} as const;
+
+const MIN_Y = WEIGHT_TREND_BOUNDS.minY;
+const MAX_Y = WEIGHT_TREND_BOUNDS.maxY;
+const MIN_X = WEIGHT_TREND_BOUNDS.minX;
+const MAX_X = WEIGHT_TREND_BOUNDS.maxX;
 
 function paddedRange(values: number[], minimumRange: number): { min: number; max: number } {
   const min = Math.min(...values);

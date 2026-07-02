@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { Dashboard } from '../screens/Dashboard';
 import { summariseDay } from '../lib/nutrition';
 import { DEFAULT_TARGETS } from '../lib/storage';
+import type { DailyNutritionSummary } from '../types';
 
 describe('Dashboard screen', () => {
   it('shows needs-attention recommendations near the top of home', () => {
@@ -43,5 +44,43 @@ describe('Dashboard screen', () => {
 
     expect(screen.getByText('Steps today')).toBeTruthy();
     expect(screen.getByText('7,420')).toBeTruthy();
+  });
+
+  it('keeps next-move advice concise and removes duplicate needs-attention items', () => {
+    const summary: DailyNutritionSummary = {
+      date: '2026-01-01',
+      calories: 700,
+      proteinG: 40,
+      fatG: 50,
+      totalCarbsG: 10,
+      fibreG: 4,
+      sugarAlcoholsG: 0,
+      netCarbsG: 6,
+      sodiumMg: 500,
+      potassiumMg: 900,
+      magnesiumMg: 80,
+      entryCount: 2,
+    };
+
+    render(
+      <Dashboard
+        summary={summary}
+        entries={[]}
+        targets={DEFAULT_TARGETS}
+        recommendations={[
+          { id: 'protein-low', priority: 'info', message: '80g protein to go. Prioritise eggs, chicken, tuna, salmon, lean beef, or Greek yoghurt next.' },
+          { id: 'calories-low-late', priority: 'warning', message: '1200 kcal remain late in the day. Add a simple protein-forward meal if this is not intentional.' },
+          { id: 'sodium-low', priority: 'info', message: 'Sodium is low. Consider broth, salted meat, pickles, or an electrolyte drink.' },
+          { id: 'magnesium-low', priority: 'info', message: 'Magnesium is low. Spinach, pumpkin seeds, almonds, or avocado are useful options.' },
+        ]}
+        onAddFood={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Prioritise protein next.')).toBeTruthy();
+    expect(screen.queryByText(/80g protein to go/)).toBeNull();
+    expect(screen.queryByText(/protein-forward meal/)).toBeNull();
+    expect(screen.getByText('Sodium is low. Consider broth, salted meat, pickles, or an electrolyte drink.')).toBeTruthy();
+    expect(screen.getByText('Magnesium is low. Spinach, pumpkin seeds, almonds, or avocado are useful options.')).toBeTruthy();
   });
 });

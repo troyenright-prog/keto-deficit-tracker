@@ -1,5 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { loadFoodLog, loadSavedFoods, loadWeightEntries, saveFoodLog, seedDemoDataIfEmpty } from '../lib/storage';
+import {
+  loadDailyActivity,
+  loadFoodLog,
+  loadSavedFoods,
+  loadSleepEntries,
+  loadVitalsEntries,
+  loadWeightEntries,
+  saveFoodLog,
+  seedDemoDataIfEmpty,
+} from '../lib/storage';
 import type { FoodLogEntry } from '../types';
 
 beforeEach(() => {
@@ -31,6 +40,9 @@ describe('demo data seed', () => {
     expect(loadFoodLog()).toHaveLength(0);
     expect(loadSavedFoods()).toHaveLength(0);
     expect(loadWeightEntries()).toHaveLength(0);
+    expect(loadDailyActivity()).toHaveLength(0);
+    expect(loadSleepEntries()).toHaveLength(0);
+    expect(loadVitalsEntries()).toHaveLength(0);
   });
 
   it('populates demo data only when explicitly requested', () => {
@@ -39,6 +51,10 @@ describe('demo data seed', () => {
     expect(loadFoodLog().length).toBeGreaterThan(0);
     expect(loadSavedFoods().length).toBeGreaterThan(0);
     expect(loadWeightEntries().length).toBeGreaterThan(0);
+    expect(loadWeightEntries().some((entry) => entry.bodyFat != null && entry.source === 'garminHealthConnect')).toBe(true);
+    expect(loadDailyActivity().length).toBeGreaterThan(0);
+    expect(loadSleepEntries().some((entry) => entry.stages && entry.stages.length > 0)).toBe(true);
+    expect(loadVitalsEntries().length).toBeGreaterThan(0);
   });
 
   it('does not overwrite existing user data unless reset is explicit', () => {

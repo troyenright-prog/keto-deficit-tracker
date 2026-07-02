@@ -71,4 +71,15 @@ describe('Settings numeric input UX', () => {
     expect(onSaveTargets).not.toHaveBeenCalled();
     expect(screen.getByText(/must be greater than zero/)).toBeTruthy();
   });
+
+  it('renders day selection controls for all reminders', () => {
+    renderSettings();
+
+    expect(screen.getByRole('group', { name: 'Meal logging days' })).toBeTruthy();
+    expect(screen.getByRole('group', { name: 'Weigh-in days' })).toBeTruthy();
+    expect(screen.getByRole('group', { name: 'Electrolytes days' })).toBeTruthy();
+    expect(screen.getByRole('group', { name: 'Shopping list days' })).toBeTruthy();
+    expect(screen.getAllByRole('button', { name: 'Every day' })).toHaveLength(4);
+    expect(screen.getAllByRole('button', { name: 'Weekdays' })).toHaveLength(4);
+  });
 });

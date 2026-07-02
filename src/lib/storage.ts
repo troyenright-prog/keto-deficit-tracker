@@ -539,11 +539,19 @@ function hasUserData(): boolean {
 
 export const hasLocalUserData = hasUserData;
 
+function demoSeedAllowed(): boolean {
+  if (typeof window === 'undefined') return false;
+  if (import.meta.env.DEV || import.meta.env.MODE === 'test') return true;
+
+  const localPreviewHosts = new Set(['', 'localhost', '127.0.0.1', '::1', '[::1]']);
+  return localPreviewHosts.has(window.location.hostname);
+}
+
 export function seedDemoDataIfEmpty(): boolean {
   const demoParam = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('demo') : null;
   const forceDemoReset = demoParam === 'reset';
   const demoRequested = forceDemoReset || demoParam === '1' || demoParam === 'true';
-  if (!demoRequested) return false;
+  if (!demoRequested || !demoSeedAllowed()) return false;
 
   if (forceDemoReset) {
     for (const key of [...Object.values(KEYS), DEMO_SEED_KEY]) localStorage.removeItem(scopedKey(key));
@@ -630,11 +638,54 @@ export function seedDemoDataIfEmpty(): boolean {
     { id: 'demo-shop-spinach', name: 'Baby spinach', quantity: '1 bag', completed: true, source: 'manual', createdAt: now },
   ];
 
+  const garminMeta = {
+    source: 'garminHealthConnect' as const,
+    sourceLabel: 'Garmin via Health Connect',
+    importedAt: now,
+  };
+
   const weightEntries: WeightEntry[] = [
-    { id: 'demo-weight-1', date: addLocalDays(today, -10), weight: 92.4, unit: 'kg', loggedAt: now },
-    { id: 'demo-weight-2', date: addLocalDays(today, -7), weight: 91.8, unit: 'kg', loggedAt: now },
-    { id: 'demo-weight-3', date: addLocalDays(today, -4), weight: 91.1, unit: 'kg', loggedAt: now },
-    { id: 'demo-weight-4', date: today, weight: 90.7, unit: 'kg', loggedAt: now },
+    { id: 'demo-weight-1', date: addLocalDays(today, -21), weight: 93.0, unit: 'kg', bodyFat: 26.4, leanBodyMassKg: 68.4, boneMassKg: 3.2, bodyWaterMassKg: 48.2, loggedAt: now, ...garminMeta },
+    { id: 'demo-weight-2', date: addLocalDays(today, -14), weight: 92.2, unit: 'kg', bodyFat: 25.9, leanBodyMassKg: 68.3, boneMassKg: 3.2, bodyWaterMassKg: 48.6, loggedAt: now, ...garminMeta },
+    { id: 'demo-weight-3', date: addLocalDays(today, -7), weight: 91.5, unit: 'kg', bodyFat: 25.5, leanBodyMassKg: 68.1, boneMassKg: 3.1, bodyWaterMassKg: 48.9, loggedAt: now, ...garminMeta },
+    { id: 'demo-weight-4', date: addLocalDays(today, -3), weight: 91.1, unit: 'kg', bodyFat: 25.2, leanBodyMassKg: 68.0, boneMassKg: 3.1, bodyWaterMassKg: 49.1, loggedAt: now, ...garminMeta },
+    { id: 'demo-weight-5', date: today, weight: 90.7, unit: 'kg', bodyFat: 24.9, leanBodyMassKg: 68.1, boneMassKg: 3.1, bodyWaterMassKg: 49.4, loggedAt: now, ...garminMeta },
+  ];
+
+  const dailyActivity: DailyActivityEntry[] = [
+    { id: 'demo-activity-1', date: addLocalDays(today, -6), steps: 7120, activeCalories: 368, totalCalories: 2288, distanceMeters: 5450, floorsClimbed: 6, elevationGainedMeters: 34, ...garminMeta },
+    { id: 'demo-activity-2', date: addLocalDays(today, -5), steps: 9350, activeCalories: 512, totalCalories: 2440, distanceMeters: 7210, floorsClimbed: 10, elevationGainedMeters: 58, ...garminMeta },
+    { id: 'demo-activity-3', date: addLocalDays(today, -4), steps: 6040, activeCalories: 306, totalCalories: 2180, distanceMeters: 4520, floorsClimbed: 4, elevationGainedMeters: 22, ...garminMeta },
+    { id: 'demo-activity-4', date: yesterday, steps: 10880, activeCalories: 594, totalCalories: 2525, distanceMeters: 8350, floorsClimbed: 12, elevationGainedMeters: 74, ...garminMeta },
+    { id: 'demo-activity-5', date: today, steps: 8460, activeCalories: 445, totalCalories: 2368, distanceMeters: 6410, floorsClimbed: 8, elevationGainedMeters: 45, ...garminMeta },
+  ];
+
+  const sleepEntries: SleepEntry[] = [
+    {
+      id: 'demo-sleep-1',
+      date: today,
+      startTime: `${yesterday}T22:54:00.000Z`,
+      endTime: `${today}T06:30:00.000Z`,
+      totalMinutes: 456,
+      stages: [
+        { stage: 'awake', startTime: `${yesterday}T22:54:00.000Z`, endTime: `${yesterday}T23:06:00.000Z` },
+        { stage: 'light', startTime: `${yesterday}T23:06:00.000Z`, endTime: `${today}T00:45:00.000Z` },
+        { stage: 'deep', startTime: `${today}T00:45:00.000Z`, endTime: `${today}T02:05:00.000Z` },
+        { stage: 'rem', startTime: `${today}T02:05:00.000Z`, endTime: `${today}T03:20:00.000Z` },
+        { stage: 'light', startTime: `${today}T03:20:00.000Z`, endTime: `${today}T05:18:00.000Z` },
+        { stage: 'rem', startTime: `${today}T05:18:00.000Z`, endTime: `${today}T06:30:00.000Z` },
+      ],
+      ...garminMeta,
+    },
+    { id: 'demo-sleep-2', date: yesterday, startTime: `${twoDaysAgo}T23:08:00.000Z`, endTime: `${yesterday}T06:18:00.000Z`, totalMinutes: 430, ...garminMeta },
+    { id: 'demo-sleep-3', date: twoDaysAgo, startTime: `${addLocalDays(today, -3)}T22:36:00.000Z`, endTime: `${twoDaysAgo}T06:04:00.000Z`, totalMinutes: 448, ...garminMeta },
+  ];
+
+  const vitalsEntries: VitalsEntry[] = [
+    { id: 'demo-vitals-1', date: addLocalDays(today, -4), restingHeartRate: 61, hrv: 39, vo2Max: 41.8, oxygenSaturation: 97, respiratoryRate: 14.4, ...garminMeta },
+    { id: 'demo-vitals-2', date: addLocalDays(today, -3), restingHeartRate: 60, hrv: 41, vo2Max: 42.0, oxygenSaturation: 98, respiratoryRate: 14.1, ...garminMeta },
+    { id: 'demo-vitals-3', date: yesterday, restingHeartRate: 59, hrv: 44, vo2Max: 42.1, oxygenSaturation: 98, respiratoryRate: 13.9, ...garminMeta },
+    { id: 'demo-vitals-4', date: today, restingHeartRate: 58, hrv: 46, vo2Max: 42.3, oxygenSaturation: 98, respiratoryRate: 13.8, ...garminMeta },
   ];
 
   const cheeseDatabase: FoodDatabaseItem = {
@@ -667,9 +718,9 @@ export function seedDemoDataIfEmpty(): boolean {
     [KEYS.savedFoods, savedFoods],
     [KEYS.foodDatabase, [cheeseDatabase]],
     [KEYS.weightEntries, weightEntries],
-    [KEYS.dailyActivity, []],
-    [KEYS.sleepEntries, []],
-    [KEYS.vitalsEntries, []],
+    [KEYS.dailyActivity, dailyActivity],
+    [KEYS.sleepEntries, sleepEntries],
+    [KEYS.vitalsEntries, vitalsEntries],
     [KEYS.mealTemplates, mealTemplates],
     [KEYS.recipes, recipes],
     [KEYS.shoppingList, shoppingList],
