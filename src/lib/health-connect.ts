@@ -1,12 +1,14 @@
 import { Capacitor } from '@capacitor/core';
 import { HealthConnect, type Mass, type RecordType } from '@kiwi-health/capacitor-health-connect';
+import type { RawStepRecord } from './garmin-activity-sync';
 import type { RawWeightReading } from './garmin-weight-sync';
 
 // Read-only bridge to Android Health Connect, where Garmin Connect writes body
-// weight and body fat. Everything here is native-Android only; on the web the
+// weight, body fat, and steps. Everything here is native-Android only; on the web the
 // plugin is unavailable and `isHealthConnectSupported()` returns false so the UI
 // can hide the sync affordance entirely.
-const READ_TYPES: RecordType[] = ['Weight', 'BodyFat'];
+const WEIGHT_READ_TYPES: RecordType[] = ['Weight', 'BodyFat'];
+const STEP_READ_TYPES: RecordType[] = ['Steps'];
 const DEFAULT_HISTORY_DAYS = 730;
 const PAGE_SIZE = 1000;
 const MAX_PAGES = 50; // safety bound for the pagination loop
@@ -31,7 +33,7 @@ export async function healthConnectAvailable(): Promise<boolean> {
 // Ensure read access to Weight + BodyFat. Returns true when granted; throws a
 // user-facing message when the system dialog can't grant it automatically.
 export async function ensureWeightPermissions(): Promise<boolean> {
-  const request = { read: READ_TYPES, write: [] as RecordType[] };
+  const request = { read: WEIGHT_READ_TYPES, write: [] as RecordType[] };
   const check = await HealthConnect.checkHealthPermissions(request);
   if (check.hasAllPermissions) return true;
   const granted = await HealthConnect.requestHealthPermissions(request);
@@ -40,6 +42,16 @@ export async function ensureWeightPermissions(): Promise<boolean> {
   // Health Connect settings so the user can grant access manually.
   try { await HealthConnect.openHealthConnectSetting(); } catch { /* best effort */ }
   throw new Error('Grant Keto Tracker access in Health Connect → App permissions, then tap Sync again.');
+}
+
+export async function ensureStepPermissions(): Promise<boolean> {
+  const request = { read: STEP_READ_TYPES, write: [] as RecordType[] };
+  const check = await HealthConnect.checkHealthPermissions(request);
+  if (check.hasAllPermissions) return true;
+  const granted = await HealthConnect.requestHealthPermissions(request);
+  if (granted.hasAllPermissions || granted.grantedPermissions?.length) return true;
+  try { await HealthConnect.openHealthConnectSetting(); } catch { /* best effort */ }
+  throw new Error('Grant Keto Tracker access to Steps in Health Connect, then tap Sync again.');
 }
 
 function massToKg(mass: Mass | undefined): number | null {
@@ -112,4 +124,11 @@ export async function fetchWeightHistory(days = DEFAULT_HISTORY_DAYS): Promise<R
     readings.push({ date: day, kg, ...(fat != null ? { fat } : {}) });
   }
   return readings;
+}
+
+export async function fetchStepHistory(days = DEFAULT_HISTORY_DAYS): Promise<RawStepRecord[]> {
+  const end = new Date();
+  const start = new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
+  const records = await readAll('Steps', start, end);
+  return records as RawStepRecord[];
 }

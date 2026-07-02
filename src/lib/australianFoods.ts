@@ -7,6 +7,7 @@ import { nanoid } from './nanoid';
 export const AUSTRALIAN_STARTER_FOODS: Omit<FoodItem, 'id' | 'createdAt'>[] = [
   // Proteins
   { name: 'Eggs (whole, large)', servingSize: '1 egg (55g)', calories: 78, proteinG: 6.3, fatG: 5.3, totalCarbsG: 0.6, fibreG: 0, sugarAlcoholsG: 0, sodiumMg: 62, potassiumMg: 63, magnesiumMg: 6 },
+  { name: 'Boiled egg (large)', servingSize: '1 egg (55g)', calories: 78, proteinG: 6.3, fatG: 5.3, totalCarbsG: 0.6, fibreG: 0, sugarAlcoholsG: 0, sodiumMg: 62, potassiumMg: 63, magnesiumMg: 6 },
   { name: 'Chicken breast (raw, skinless)', servingSize: '100g', calories: 120, proteinG: 22.5, fatG: 2.6, totalCarbsG: 0, fibreG: 0, sugarAlcoholsG: 0, sodiumMg: 74, potassiumMg: 360, magnesiumMg: 29 },
   { name: 'Beef eye fillet (raw)', servingSize: '100g', calories: 143, proteinG: 21.4, fatG: 6.0, totalCarbsG: 0, fibreG: 0, sugarAlcoholsG: 0, sodiumMg: 55, potassiumMg: 315, magnesiumMg: 22 },
   { name: 'Beef mince 80/20 (raw)', servingSize: '100g', calories: 254, proteinG: 17.4, fatG: 20.0, totalCarbsG: 0, fibreG: 0, sugarAlcoholsG: 0, sodiumMg: 72, potassiumMg: 270, magnesiumMg: 19 },

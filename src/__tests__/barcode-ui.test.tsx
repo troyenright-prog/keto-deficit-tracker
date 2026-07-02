@@ -141,14 +141,15 @@ describe('Barcode scanner screen', () => {
     fireEvent.click(screen.getByRole('button', { name: /Look up barcode/ }));
 
     await screen.findByText('Mens multivitamin');
-    expect(screen.getByText('No macro nutrition found - values are zero or need manual adjustment.')).toBeTruthy();
+    expect(screen.getByText('Supplement found - no macro nutrition available.')).toBeTruthy();
+    expect(screen.getByText('No micronutrient data available from source.')).toBeTruthy();
     expect(onSaveFoodDatabaseItem).toHaveBeenCalledWith(expect.objectContaining({
       barcode: '9311770608800',
       source: 'openFoodFacts',
       calories: 0,
     }));
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Add to log' })[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Log supplement' }));
     await waitFor(() => expect(onAdd).toHaveBeenCalledWith(expect.objectContaining({
       source: 'barcode',
       barcode: '9311770608800',
@@ -187,8 +188,9 @@ describe('Barcode scanner screen', () => {
     fireEvent.click(screen.getByRole('button', { name: /Look up barcode/ }));
 
     await screen.findByText('Vitamin D drops');
-    // Macros are still zero, so the macro-specific note is expected...
-    expect(screen.getByText('No macro nutrition found - values are zero or need manual adjustment.')).toBeTruthy();
+    // Macros are still zero, so the supplement-specific note is expected...
+    expect(screen.getByText('Supplement found - no macro nutrition available.')).toBeTruthy();
+    expect(screen.getByText('Vitamin D 25.0mcg')).toBeTruthy();
     // ...but the supplement is real data, so it is cached rather than skipped.
     expect(onSaveFoodDatabaseItem).toHaveBeenCalledWith(expect.objectContaining({
       barcode: '9311770608817',

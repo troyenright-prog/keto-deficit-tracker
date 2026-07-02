@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { migrateIfNeeded, loadMealTemplates, loadRecipes, loadShoppingList, loadMealPlan } from '../lib/storage';
+import { migrateIfNeeded, loadDailyActivity, loadMealTemplates, loadRecipes, loadShoppingList, loadMealPlan } from '../lib/storage';
 
 // jsdom provides localStorage; reset between tests
 beforeEach(() => {
@@ -13,6 +13,7 @@ describe('migrateIfNeeded', () => {
     expect(loadRecipes()).toEqual([]);
     expect(loadShoppingList()).toEqual([]);
     expect(loadMealPlan()).toEqual([]);
+    expect(loadDailyActivity()).toEqual([]);
   });
 
   it('sets the version key after migration', () => {

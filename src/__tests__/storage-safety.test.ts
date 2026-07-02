@@ -2,7 +2,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import {
   claimLegacyDataForActiveScope, configureStorageScope,
   exportAppData, importAppData, loadFoodLog, loadMealTemplates, loadSavedFoods,
-  loadTargets, saveFoodLog, saveFoodLogAndMealPlan, validateAppBundle,
+  loadDailyActivity, loadTargets, saveFoodLog, saveFoodLogAndMealPlan, validateAppBundle,
 } from '../lib/storage';
 
 beforeEach(() => localStorage.clear());
@@ -64,6 +64,14 @@ describe('safe backup replacement', () => {
     bundle.savedFoods = [{ id: 'f1', name: 'Egg' } as never];
     expect(importAppData(bundle)).toBe(true);
     expect(loadSavedFoods()[0]).toMatchObject({ id: 'f1', calories: 0, servingSize: '1 serving' });
+  });
+
+  it('imports older backups that do not have daily activity yet', () => {
+    const bundle = exportAppData();
+    const older = { ...bundle };
+    delete (older as Partial<typeof bundle>).dailyActivity;
+    expect(importAppData(older)).toBe(true);
+    expect(loadDailyActivity()).toEqual([]);
   });
 
   it('rolls back an import when a replacement write fails', () => {

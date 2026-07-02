@@ -2,6 +2,7 @@ import type {
   UserProfile, NutritionTargets, FoodLogEntry, FoodItem, WeightEntry,
   MealTemplate, MealTemplateItem, Recipe, RecipeIngredient, ShoppingItem,
   MealPlanEntry, AppStateBundle, Micronutrients, FoodDatabaseItem, FoodDatabaseSource, ReminderSettings,
+  DailyActivityEntry,
 } from '../types';
 import { addLocalDays, isDateString, localDateString } from './date';
 import { dedupeFoodDatabase } from './food-database';
@@ -11,11 +12,12 @@ import { getStarterFoodOptions } from './australianFoods';
 import { DEFAULT_REMINDERS, hasEnabledReminders, normalizeReminderSettings } from './reminders';
 import { MICRONUTRIENT_KEYS, zeroMicronutrients } from './micronutrients';
 
-export const CURRENT_VERSION = 5;
+export const CURRENT_VERSION = 6;
 
 const KEYS = {
   version: 'keto_version', profile: 'keto_profile', targets: 'keto_targets',
   foodLog: 'keto_food_log', savedFoods: 'keto_saved_foods', weightEntries: 'keto_weight_entries',
+  dailyActivity: 'keto_daily_activity',
   mealTemplates: 'keto_meal_templates', recipes: 'keto_recipes', shoppingList: 'keto_shopping_list',
   mealPlan: 'keto_meal_plan', foodDatabase: 'keto_food_database', reminders: 'keto_reminders',
 } as const;
@@ -135,6 +137,7 @@ function hasRawUserData(prefix = ''): boolean {
       read(KEYS.foodLog) ||
       read(KEYS.savedFoods) ||
       read(KEYS.weightEntries) ||
+      read(KEYS.dailyActivity) ||
       read(KEYS.mealTemplates) ||
       read(KEYS.recipes) ||
       read(KEYS.shoppingList) ||
@@ -300,6 +303,20 @@ function normalizeWeight(value: unknown): WeightEntry | null {
   };
 }
 
+function normalizeDailyActivity(value: unknown): DailyActivityEntry | null {
+  if (!isRecord(value)) return null;
+  const steps = Math.round(safeNonNegative(value.steps));
+  if (steps <= 0) return null;
+  return {
+    id: text(value.id, crypto.randomUUID()),
+    date: date(value.date),
+    steps,
+    source: 'garminHealthConnect',
+    sourceLabel: optionalText(value.sourceLabel) ?? 'Garmin via Health Connect',
+    importedAt: timestamp(value.importedAt),
+  };
+}
+
 function normalizeTemplateItem(value: unknown): MealTemplateItem | null {
   if (!isRecord(value)) return null;
   return {
@@ -364,7 +381,7 @@ export function migrateIfNeeded(): void {
   const version = safeNonNegative(safeRead(KEYS.version));
   if (version >= CURRENT_VERSION) return;
   try {
-    for (const key of [KEYS.mealTemplates, KEYS.recipes, KEYS.shoppingList, KEYS.mealPlan, KEYS.foodDatabase]) {
+    for (const key of [KEYS.mealTemplates, KEYS.recipes, KEYS.shoppingList, KEYS.mealPlan, KEYS.foodDatabase, KEYS.dailyActivity]) {
       if (localStorage.getItem(scopedKey(key)) === null && !safeWrite(key, [])) return;
     }
     if (localStorage.getItem(scopedKey(KEYS.reminders)) === null && !safeWrite(KEYS.reminders, DEFAULT_REMINDERS)) return;
@@ -386,6 +403,8 @@ export const loadFoodDatabase = () => dedupeFoodDatabase(normalizeArray(safeRead
 export const saveFoodDatabase = (value: FoodDatabaseItem[]) => safeWrite(KEYS.foodDatabase, dedupeFoodDatabase(value));
 export const loadWeightEntries = () => normalizeArray(safeRead(KEYS.weightEntries), normalizeWeight);
 export const saveWeightEntries = (value: WeightEntry[]) => safeWrite(KEYS.weightEntries, value);
+export const loadDailyActivity = () => normalizeArray(safeRead(KEYS.dailyActivity), normalizeDailyActivity);
+export const saveDailyActivity = (value: DailyActivityEntry[]) => safeWrite(KEYS.dailyActivity, value);
 export const loadMealTemplates = () => normalizeArray(safeRead(KEYS.mealTemplates), normalizeTemplate);
 export const saveMealTemplates = (value: MealTemplate[]) => safeWrite(KEYS.mealTemplates, value);
 export const loadRecipes = () => normalizeArray(safeRead(KEYS.recipes), normalizeRecipe);
@@ -425,6 +444,7 @@ function hasUserData(): boolean {
   return loadFoodLog().length > 0 ||
     loadSavedFoods().length > 0 ||
     loadWeightEntries().length > 0 ||
+    loadDailyActivity().length > 0 ||
     loadMealTemplates().length > 0 ||
     loadRecipes().length > 0 ||
     loadShoppingList().length > 0 ||
@@ -563,6 +583,7 @@ export function seedDemoDataIfEmpty(): boolean {
     [KEYS.savedFoods, savedFoods],
     [KEYS.foodDatabase, [cheeseDatabase]],
     [KEYS.weightEntries, weightEntries],
+    [KEYS.dailyActivity, []],
     [KEYS.mealTemplates, mealTemplates],
     [KEYS.recipes, recipes],
     [KEYS.shoppingList, shoppingList],
@@ -576,6 +597,7 @@ export function exportAppData(): AppStateBundle {
   return {
     version: CURRENT_VERSION, exportedAt: new Date().toISOString(), profile: loadProfile(), targets: loadTargets(),
     foodLog: loadFoodLog(), savedFoods: loadSavedFoods(), weightEntries: loadWeightEntries(),
+    dailyActivity: loadDailyActivity(),
     foodDatabase: loadFoodDatabase(),
     mealTemplates: loadMealTemplates(), recipes: loadRecipes(), shoppingList: loadShoppingList(), mealPlan: loadMealPlan(),
     reminders: loadReminders(),
@@ -598,11 +620,14 @@ export function normalizeAppBundle(value: unknown): AppStateBundle | null {
   }
   const foodDatabaseValue = value.foodDatabase === undefined ? [] : value.foodDatabase;
   if (!Array.isArray(foodDatabaseValue) || foodDatabaseValue.some((item: unknown) => !isRecord(item))) return null;
+  const dailyActivityValue = value.dailyActivity === undefined ? [] : value.dailyActivity;
+  if (!Array.isArray(dailyActivityValue) || dailyActivityValue.some((item: unknown) => !isRecord(item))) return null;
   return {
     version: CURRENT_VERSION, exportedAt: timestamp(value.exportedAt), profile: normalizeProfile(value.profile), targets: normalizeTargets(value.targets),
     foodLog: normalizeArray(value.foodLog, normalizeLogEntry), savedFoods: normalizeArray(value.savedFoods, normalizeFood),
     foodDatabase: dedupeFoodDatabase(normalizeArray(foodDatabaseValue, normalizeFoodDatabaseItem)),
-    weightEntries: normalizeArray(value.weightEntries, normalizeWeight), mealTemplates: normalizeArray(value.mealTemplates, normalizeTemplate),
+    weightEntries: normalizeArray(value.weightEntries, normalizeWeight), dailyActivity: normalizeArray(dailyActivityValue, normalizeDailyActivity),
+    mealTemplates: normalizeArray(value.mealTemplates, normalizeTemplate),
     recipes: normalizeArray(value.recipes, normalizeRecipe), shoppingList: normalizeArray(value.shoppingList, normalizeShoppingItem),
     mealPlan: normalizeArray(value.mealPlan, normalizePlanEntry),
     reminders: normalizeReminderSettings(value.reminders),
@@ -619,6 +644,7 @@ export function importAppData(value: unknown): boolean {
   const writes: [string, unknown][] = [
     [KEYS.profile, bundle.profile], [KEYS.targets, bundle.targets], [KEYS.foodLog, bundle.foodLog],
     [KEYS.savedFoods, bundle.savedFoods], [KEYS.foodDatabase, bundle.foodDatabase], [KEYS.weightEntries, bundle.weightEntries],
+    [KEYS.dailyActivity, bundle.dailyActivity],
     [KEYS.mealTemplates, bundle.mealTemplates], [KEYS.recipes, bundle.recipes],
     [KEYS.shoppingList, bundle.shoppingList], [KEYS.mealPlan, bundle.mealPlan], [KEYS.reminders, bundle.reminders],
     [KEYS.version, CURRENT_VERSION],

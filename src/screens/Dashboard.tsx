@@ -1,6 +1,6 @@
 import { ProgressBar } from '../components/ProgressBar';
 import { StatCard } from '../components/StatCard';
-import type { DailyNutritionSummary, FoodLogEntry, NutritionTargets, Recommendation } from '../types';
+import type { DailyActivityEntry, DailyNutritionSummary, FoodLogEntry, NutritionTargets, Recommendation } from '../types';
 import { calcNetCarbs, carbStatus, carbStatusLabel, remainingCalories } from '../lib/nutrition';
 import { entryMeal, MEAL_SLOTS } from '../lib/meals';
 import { buildSmartSuggestions } from '../lib/suggestions';
@@ -9,12 +9,13 @@ import { formatMicronutrientAmount, MICRONUTRIENT_FIELDS } from '../lib/micronut
 interface DashboardProps {
   summary: DailyNutritionSummary;
   entries: FoodLogEntry[];
+  activity?: DailyActivityEntry;
   targets: NutritionTargets;
   recommendations: Recommendation[];
   onAddFood: () => void;
 }
 
-export function Dashboard({ summary, entries, targets, recommendations, onAddFood }: DashboardProps) {
+export function Dashboard({ summary, entries, activity, targets, recommendations, onAddFood }: DashboardProps) {
   const status = carbStatus(summary, targets);
   const remaining = remainingCalories(summary, targets);
   const statusVariant = status === 'aligned' ? 'success' : status === 'approaching' ? 'warning' : 'danger';
@@ -111,6 +112,13 @@ export function Dashboard({ summary, entries, targets, recommendations, onAddFoo
           sub={summary.entryCount === 1 ? 'entry today' : 'entries today'}
           variant={summary.entryCount > 0 ? 'success' : 'default'}
         />
+        {activity && (
+          <StatCard
+            label={activity.date === summary.date ? 'Steps today' : 'Latest steps'}
+            value={activity.steps.toLocaleString()}
+            sub={activity.date === summary.date ? 'Garmin via Health Connect' : activity.date}
+          />
+        )}
       </div>
 
       {summary.entryCount > 0 && (

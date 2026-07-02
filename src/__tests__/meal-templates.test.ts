@@ -57,6 +57,11 @@ describe('templateToLogEntries', () => {
     expect(entries[0].templateId).toBe('t1');
   });
 
+  it('applies the selected meal to each generated entry', () => {
+    const entries = templateToLogEntries(template, '2024-06-01', 1, 'lunch');
+    expect(entries.every((entry) => entry.meal === 'lunch')).toBe(true);
+  });
+
   it('applies quantity to calories', () => {
     const entries = templateToLogEntries(template, '2024-06-01');
     // item i2 has quantity=2, calories=100 → entry calories = 200

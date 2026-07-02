@@ -170,6 +170,19 @@ export interface WeightEntry {
   importedAt?: string; // ISO timestamp of the last Health Connect import
 }
 
+// Daily activity imported from Garmin via Health Connect. Kept separate from
+// nutrition targets so activity can be displayed without changing calorie goals.
+export type DailyActivitySource = 'garminHealthConnect';
+
+export interface DailyActivityEntry {
+  id: string;
+  date: string; // YYYY-MM-DD
+  steps: number;
+  source: DailyActivitySource;
+  sourceLabel?: string;
+  importedAt: string;
+}
+
 // ── Meal templates ─────────────────────────────────────────────────────────────
 
 export interface MealTemplateItem extends Micronutrients {
@@ -305,6 +318,7 @@ export interface AppStateBundle {
   savedFoods: FoodItem[];
   foodDatabase: FoodDatabaseItem[];
   weightEntries: WeightEntry[];
+  dailyActivity: DailyActivityEntry[];
   mealTemplates: MealTemplate[];
   recipes: Recipe[];
   shoppingList: ShoppingItem[];

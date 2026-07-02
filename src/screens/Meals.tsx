@@ -1,19 +1,21 @@
 import { useState } from 'react';
-import type { MealTemplate, MealTemplateItem, FoodItem } from '../types';
+import type { MealSlot, MealTemplate, MealTemplateItem, FoodItem } from '../types';
 import { calcTemplateTotals, foodItemToTemplateItem } from '../lib/meal-templates';
 import { nanoid } from '../lib/nanoid';
+import { MEAL_SLOTS } from '../lib/meals';
 
 interface MealsProps {
   templates: MealTemplate[];
   savedFoods: FoodItem[];
   onSave: (template: MealTemplate) => boolean;
   onDelete: (id: string) => void;
-  onAddToLog: (template: MealTemplate) => void;
+  onAddToLog: (template: MealTemplate, meal?: MealSlot) => void;
+  embedded?: boolean;
 }
 
 type View = 'list' | 'edit';
 
-export function Meals({ templates, savedFoods, onSave, onDelete, onAddToLog }: MealsProps) {
+export function Meals({ templates, savedFoods, onSave, onDelete, onAddToLog, embedded = false }: MealsProps) {
   const [view, setView] = useState<View>('list');
   const [editTarget, setEditTarget] = useState<MealTemplate | null>(null);
   const [draftName, setDraftName] = useState('');
@@ -21,6 +23,7 @@ export function Meals({ templates, savedFoods, onSave, onDelete, onAddToLog }: M
   const [foodSearch, setFoodSearch] = useState('');
   const [validationError, setValidationError] = useState('');
   const [draftMealType, setDraftMealType] = useState<MealTemplate['mealType']>(undefined);
+  const [applyMeals, setApplyMeals] = useState<Record<string, MealSlot>>({});
 
   function startNew() {
     setDraftName('');
@@ -79,13 +82,15 @@ export function Meals({ templates, savedFoods, onSave, onDelete, onAddToLog }: M
   const matchingFoods = foodSearch.length >= 1
     ? savedFoods.filter((f) => f.name.toLowerCase().includes(foodSearch.toLowerCase()))
     : [];
+  const shellClass = embedded ? 'settings-template-panel' : 'screen';
+  const applyMeal = (template: MealTemplate): MealSlot => applyMeals[template.id] ?? template.mealType ?? 'breakfast';
 
   if (view === 'edit') {
     const totals = calcTemplateTotals({ id: '', name: draftName, items: draftItems, createdAt: '' });
     return (
-      <div className="screen">
-        <div className="screen-header">
-          <h1>{editTarget ? 'Edit Template' : 'New Template'}</h1>
+      <div className={shellClass}>
+        <div className={`screen-header${embedded ? ' screen-header--embedded' : ''}`}>
+          {embedded ? <h2>{editTarget ? 'Edit template' : 'New template'}</h2> : <h1>{editTarget ? 'Edit Template' : 'New Template'}</h1>}
           <button className="btn btn--ghost btn--sm" onClick={cancel}>Cancel</button>
         </div>
 
@@ -181,9 +186,9 @@ export function Meals({ templates, savedFoods, onSave, onDelete, onAddToLog }: M
   }
 
   return (
-    <div className="screen">
-      <div className="screen-header">
-        <h1>Meal Templates</h1>
+    <div className={shellClass}>
+      <div className={`screen-header${embedded ? ' screen-header--embedded' : ''}`}>
+        {embedded ? <h2>Meal templates</h2> : <h1>Meal Templates</h1>}
         <button className="btn btn--primary btn--sm" onClick={startNew}>+ New</button>
       </div>
 
@@ -206,8 +211,16 @@ export function Meals({ templates, savedFoods, onSave, onDelete, onAddToLog }: M
                   </span>
                 </div>
                 <div className="saved-food-actions">
-                  <button className="btn btn--secondary btn--sm" onClick={() => onAddToLog(t)}>
-                    Log today
+                  <select
+                    className="template-apply-select"
+                    aria-label={`Meal for ${t.name}`}
+                    value={applyMeal(t)}
+                    onChange={(event) => setApplyMeals((current) => ({ ...current, [t.id]: event.target.value as MealSlot }))}
+                  >
+                    {MEAL_SLOTS.map((slot) => <option key={slot.id} value={slot.id}>{slot.label}</option>)}
+                  </select>
+                  <button className="btn btn--secondary btn--sm" onClick={() => onAddToLog(t, applyMeal(t))}>
+                    Apply
                   </button>
                   <button className="btn btn--ghost btn--sm" onClick={() => startEdit(t)}>
                     Edit

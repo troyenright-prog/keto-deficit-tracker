@@ -21,4 +21,27 @@ describe('Dashboard screen', () => {
     const text = container.textContent ?? '';
     expect(text.indexOf('Needs attention')).toBeLessThan(text.indexOf('Daily progress'));
   });
+
+  it('shows synced Garmin steps when activity is available', () => {
+    render(
+      <Dashboard
+        summary={summariseDay('2026-01-01', [])}
+        entries={[]}
+        activity={{
+          id: 'steps-1',
+          date: '2026-01-01',
+          steps: 7420,
+          source: 'garminHealthConnect',
+          sourceLabel: 'Garmin via Health Connect',
+          importedAt: '2026-01-01T08:00:00.000Z',
+        }}
+        targets={DEFAULT_TARGETS}
+        recommendations={[]}
+        onAddFood={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Steps today')).toBeTruthy();
+    expect(screen.getByText('7,420')).toBeTruthy();
+  });
 });

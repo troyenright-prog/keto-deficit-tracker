@@ -6,7 +6,7 @@ import { barcodeFoodToFoodDatabaseItem, findFoodDatabaseByBarcode, foodDatabaseI
 import { inferMealSlot, MEAL_SLOTS } from '../lib/meals';
 import { calcNetCarbs, todayDateString } from '../lib/nutrition';
 import { isDateString } from '../lib/date';
-import { MICRONUTRIENT_FIELDS, MICRONUTRIENT_KEYS } from '../lib/micronutrients';
+import { formatMicronutrientAmount, hasAnyMicronutrients, MICRONUTRIENT_FIELDS, MICRONUTRIENT_KEYS } from '../lib/micronutrients';
 
 interface BarcodeScannerProps {
   foodDatabase: FoodDatabaseItem[];
@@ -337,12 +337,27 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
             <small>{food.servingSize} - {food.dataBasis === '100g' ? 'nutrition per 100g' : 'nutrition per serving'} - {food.barcode}</small>
           </div>
           {!hasPositiveMacros(food) && (
-            <p className="privacy-note">No macro nutrition found - values are zero or need manual adjustment.</p>
+            <div className="supplement-notice" role="note">
+              <strong>Supplement found - no macro nutrition available.</strong>
+              {hasAnyMicronutrients(food) ? (
+                <div className="supplement-details">
+                  {MICRONUTRIENT_FIELDS
+                    .filter((field) => (food[field.key] ?? 0) > 0)
+                    .map((field) => (
+                      <span key={field.key}>{field.label} {formatMicronutrientAmount(field, food[field.key] ?? 0)}</span>
+                    ))}
+                </div>
+              ) : (
+                <span>No micronutrient data available from source.</span>
+              )}
+            </div>
           )}
 
-          <button className="btn btn--primary" onClick={addToLog} disabled={!food.name.trim()}>
+          {hasPositiveMacros(food) && (
+            <button className="btn btn--primary" onClick={addToLog} disabled={!food.name.trim()}>
             Add to log
-          </button>
+            </button>
+          )}
 
           <button className="btn btn--ghost btn--sm" onClick={() => setEditing((value) => !value)}>
             {editing ? 'Hide edits' : 'Edit nutrition'}
@@ -446,7 +461,9 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
           </div>
 
           <div className="form-actions">
-            <button className="btn btn--primary" onClick={addToLog} disabled={!food.name.trim()}>Add to log</button>
+            <button className="btn btn--primary" onClick={addToLog} disabled={!food.name.trim()}>
+              {hasPositiveMacros(food) ? 'Add to log' : 'Log supplement'}
+            </button>
             <button className="btn btn--secondary" onClick={saveFood} disabled={!food.name.trim()}>Save food</button>
           </div>
           <p className="privacy-note">Values are copied into your log so future database edits will not change history.</p>

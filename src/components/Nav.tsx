@@ -15,11 +15,8 @@ const homeTabs: Tab[] = [
 ];
 
 const planTabs: Tab[] = [
-  { id: 'planner', label: 'Planner' },
   { id: 'weekly', label: 'Week' },
   { id: 'saved-foods', label: 'Foods' },
-  { id: 'meals', label: 'Meals' },
-  { id: 'recipes', label: 'Recipes' },
   { id: 'shopping', label: 'Shop' },
 ];
 

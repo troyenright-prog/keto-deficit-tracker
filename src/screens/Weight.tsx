@@ -4,6 +4,7 @@ import { todayDateString } from '../lib/nutrition';
 import { sevenDayAvgWeight } from '../lib/weekly';
 import { StatCard } from '../components/StatCard';
 import { nanoid } from '../lib/nanoid';
+import { buildWeightTrendChart, toPolylinePoints } from '../lib/weight-trend';
 
 interface WeightProps {
   entries: WeightEntry[];
@@ -45,17 +46,9 @@ export function Weight({ entries, weightUnit, onSave, onSyncGarmin }: WeightProp
   );
 
   const latestWeight = sorted[0];
+  const latestBodyFat = sorted.find((entry) => entry.bodyFat != null);
   const sevenDayAvg = sevenDayAvgWeight(sorted, todayDateString());
-  const trendEntries = [...sorted].reverse().slice(-14);
-  const trendWeights = trendEntries.map((entry) => entry.weight);
-  const minTrend = trendWeights.length > 0 ? Math.min(...trendWeights) : 0;
-  const maxTrend = trendWeights.length > 0 ? Math.max(...trendWeights) : 0;
-  const trendRange = Math.max(0.1, maxTrend - minTrend);
-  const trendPoints = trendEntries.map((entry, index) => {
-    const x = trendEntries.length === 1 ? 50 : (index / (trendEntries.length - 1)) * 100;
-    const y = 84 - ((entry.weight - minTrend) / trendRange) * 68;
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(' ');
+  const trendChart = buildWeightTrendChart(sorted, weightUnit);
 
   const weightChange =
     sorted.length >= 2
@@ -144,6 +137,13 @@ export function Weight({ entries, weightUnit, onSave, onSyncGarmin }: WeightProp
               value={`${sevenDayAvg.toFixed(1)} ${weightUnit}`}
             />
           )}
+          {latestBodyFat?.bodyFat != null && (
+            <StatCard
+              label="Latest body fat"
+              value={`${latestBodyFat.bodyFat.toFixed(1)}%`}
+              sub={latestBodyFat.date}
+            />
+          )}
           {weightChange !== null && sorted.length >= 2 && (
             <StatCard
               label={`Change (${sorted.length} entries)`}
@@ -154,18 +154,50 @@ export function Weight({ entries, weightUnit, onSave, onSyncGarmin }: WeightProp
         </div>
       )}
 
-      {trendEntries.length >= 2 && (
-        <div className="weight-trend-panel" aria-label="Weight trend">
+      {trendChart && (
+        <div className="weight-trend-panel" aria-label="Weight and body fat trend">
           <div className="weight-trend-header">
             <strong>Trend</strong>
-            <span>Last {trendEntries.length} entries</span>
+            <span>Last {trendChart.entries.length} entries</span>
           </div>
-          <svg viewBox="0 0 100 100" role="img" aria-label={`Weight trend from ${trendEntries[0].weight} to ${trendEntries[trendEntries.length - 1].weight} ${weightUnit}`}>
-            <polyline points={trendPoints} />
+          <div className="weight-trend-legend" aria-hidden="true">
+            <span className="weight-trend-legend__item weight-trend-legend__item--weight">Weight ({weightUnit})</span>
+            {trendChart.bodyFatPoints.length > 0 && <span className="weight-trend-legend__item weight-trend-legend__item--body-fat">Body fat (%)</span>}
+          </div>
+          <svg viewBox="0 0 100 100" role="img" aria-label={`Weight trend from ${trendChart.entries[0].weight} ${weightUnit} to ${trendChart.entries[trendChart.entries.length - 1].weight} ${weightUnit}${trendChart.bodyFatPoints.length > 0 ? ', with body fat percentage where available' : ''}`}>
+            <line className="weight-trend-grid" x1="10" y1="18" x2="90" y2="18" />
+            <line className="weight-trend-grid" x1="10" y1="82" x2="90" y2="82" />
+            <polyline className="weight-trend-line weight-trend-line--weight" points={toPolylinePoints(trendChart.weightPoints)} />
+            {trendChart.bodyFatPoints.length >= 2 && (
+              <polyline className="weight-trend-line weight-trend-line--body-fat" points={toPolylinePoints(trendChart.bodyFatPoints)} />
+            )}
+            {trendChart.weightPoints.map((point) => {
+              const entry = trendChart.entries.find((item) => item.id === point.id);
+              return (
+                <circle key={`w-${point.id}`} className="weight-trend-dot weight-trend-dot--weight" cx={point.x} cy={point.y} r="1.8">
+                  <title>{`${point.date}: weight ${point.value.toFixed(1)} ${weightUnit}${entry?.bodyFat != null ? `; body fat ${entry.bodyFat.toFixed(1)}%` : ''}`}</title>
+                </circle>
+              );
+            })}
+            {trendChart.bodyFatPoints.map((point) => (
+              <circle key={`bf-${point.id}`} className="weight-trend-dot weight-trend-dot--body-fat" cx={point.x} cy={point.y} r="2.1">
+                <title>{`${point.date}: body fat ${point.value.toFixed(1)}%`}</title>
+              </circle>
+            ))}
           </svg>
+          <div className="weight-trend-scale">
+            <span>
+              Weight {trendChart.weightRange.min.toFixed(1)}-{trendChart.weightRange.max.toFixed(1)} {weightUnit}
+            </span>
+            {trendChart.bodyFatRange && (
+              <span>
+                Body fat {trendChart.bodyFatRange.min.toFixed(1)}-{trendChart.bodyFatRange.max.toFixed(1)}%
+              </span>
+            )}
+          </div>
           <div className="weight-trend-axis">
-            <span>{trendEntries[0].date}</span>
-            <span>{trendEntries[trendEntries.length - 1].date}</span>
+            <span>{trendChart.entries[0].date}</span>
+            <span>{trendChart.entries[trendChart.entries.length - 1].date}</span>
           </div>
         </div>
       )}

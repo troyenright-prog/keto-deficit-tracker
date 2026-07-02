@@ -17,9 +17,14 @@ function renderSettings(overrides: Partial<NutritionTargets> = {}, onSaveTargets
       profile={{ ...DEFAULT_PROFILE, name: 'Troy' }}
       targets={targets}
       reminders={DEFAULT_REMINDERS}
+      templates={[]}
+      savedFoods={[]}
       onSaveProfile={vi.fn(() => true)}
       onSaveTargets={onSaveTargets}
       onSaveReminders={vi.fn(async () => ({ ok: true, native: false, permission: 'granted' as const, scheduled: 0, message: 'ok' }))}
+      onSaveTemplate={vi.fn(() => true)}
+      onDeleteTemplate={vi.fn()}
+      onAddTemplateToLog={vi.fn()}
       onImportComplete={vi.fn()}
     />,
   );

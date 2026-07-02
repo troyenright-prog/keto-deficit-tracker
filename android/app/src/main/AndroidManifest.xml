@@ -53,9 +53,10 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
-    <!-- Health Connect (Garmin weight/body-fat via Health Connect) -->
+    <!-- Health Connect (Garmin weight/body-fat and steps via Health Connect) -->
     <uses-permission android:name="android.permission.health.READ_WEIGHT" />
     <uses-permission android:name="android.permission.health.READ_BODY_FAT" />
+    <uses-permission android:name="android.permission.health.READ_STEPS" />
 
     <queries>
         <package android:name="com.google.android.apps.healthdata" />

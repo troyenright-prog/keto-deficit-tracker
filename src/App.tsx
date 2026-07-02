@@ -21,6 +21,7 @@ import {
   loadSavedFoods, saveSavedFoods,
   loadFoodDatabase, saveFoodDatabase,
   loadWeightEntries, saveWeightEntries,
+  loadDailyActivity, saveDailyActivity,
   loadMealTemplates, saveMealTemplates,
   loadRecipes, saveRecipes,
   loadShoppingList, saveShoppingList,
@@ -60,8 +61,9 @@ import { duplicateLogEntry } from './lib/quick-add';
 import { barcodeFoodToFoodDatabaseItem, savedFoodToFoodDatabaseItem, upsertFoodDatabaseItem } from './lib/food-database';
 import { applyBarcodeNutritionToEntry, entryNeedsNutritionRepair, hasPositiveNutrition, lookupBarcodeFood, repairFailureMessage, type BarcodeFood, type RepairResult } from './lib/barcode';
 import { scheduleReminderNotifications } from './lib/reminders';
-import { isHealthConnectSupported, healthConnectAvailable, ensureWeightPermissions, fetchWeightHistory } from './lib/health-connect';
+import { isHealthConnectSupported, healthConnectAvailable, ensureStepPermissions, ensureWeightPermissions, fetchStepHistory, fetchWeightHistory } from './lib/health-connect';
 import { toGarminReadings, mergeGarminReadings, summarizeMerge } from './lib/garmin-weight-sync';
+import { mergeGarminStepReadings, summarizeStepMerge, toGarminStepReadings } from './lib/garmin-activity-sync';
 import { pickMicronutrients } from './lib/micronutrients';
 import type {
   FoodLogEntry,
@@ -70,12 +72,14 @@ import type {
   UserProfile,
   NutritionTargets,
   WeightEntry,
+  DailyActivityEntry,
   MealTemplate,
   Recipe,
   ShoppingItem,
   MealPlanEntry,
   ReminderSettings,
   AppStateBundle,
+  MealSlot,
 } from './types';
 
 export type Screen =
@@ -117,6 +121,7 @@ function reloadAll() {
     savedFoods: loadSavedFoods(),
     foodDatabase: loadFoodDatabase(),
     weightEntries: loadWeightEntries(),
+    dailyActivity: loadDailyActivity(),
     mealTemplates: loadMealTemplates(),
     recipes: loadRecipes(),
     shoppingList: loadShoppingList(),
@@ -145,6 +150,7 @@ function App() {
   const [savedFoods, setSavedFoods] = useState<FoodItem[]>(loadSavedFoods);
   const [foodDatabase, setFoodDatabase] = useState<FoodDatabaseItem[]>(loadFoodDatabase);
   const [weightEntries, setWeightEntries] = useState<WeightEntry[]>(loadWeightEntries);
+  const [dailyActivity, setDailyActivity] = useState<DailyActivityEntry[]>(loadDailyActivity);
   const [mealTemplates, setMealTemplates] = useState<MealTemplate[]>(loadMealTemplates);
   const [recipes, setRecipes] = useState<Recipe[]>(loadRecipes);
   const [shoppingList, setShoppingList] = useState<ShoppingItem[]>(loadShoppingList);
@@ -162,6 +168,7 @@ function App() {
   const savedFoodsRef = useRef(savedFoods);
   const foodDatabaseRef = useRef(foodDatabase);
   const weightEntriesRef = useRef(weightEntries);
+  const dailyActivityRef = useRef(dailyActivity);
   const mealTemplatesRef = useRef(mealTemplates);
   const recipesRef = useRef(recipes);
   const shoppingListRef = useRef(shoppingList);
@@ -175,6 +182,7 @@ function App() {
     setSavedFoods(data.savedFoods);
     setFoodDatabase(data.foodDatabase);
     setWeightEntries(data.weightEntries);
+    setDailyActivity(data.dailyActivity);
     setMealTemplates(data.mealTemplates);
     setRecipes(data.recipes);
     setShoppingList(data.shoppingList);
@@ -182,6 +190,7 @@ function App() {
     setReminders(data.reminders);
     profileRef.current = data.profile; targetsRef.current = data.targets; foodLogRef.current = data.foodLog;
     savedFoodsRef.current = data.savedFoods; foodDatabaseRef.current = data.foodDatabase; weightEntriesRef.current = data.weightEntries;
+    dailyActivityRef.current = data.dailyActivity;
     mealTemplatesRef.current = data.mealTemplates; recipesRef.current = data.recipes;
     shoppingListRef.current = data.shoppingList; mealPlanRef.current = data.mealPlan; remindersRef.current = data.reminders;
   }, []);
@@ -426,20 +435,45 @@ function App() {
     return persist(entries, weightEntriesRef, setWeightEntries, saveWeightEntries);
   }, [persist]);
 
-  // Garmin → Health Connect weight import (native Android only).
+  const handleSaveDailyActivity = useCallback((entries: DailyActivityEntry[]) => {
+    return persist(entries, dailyActivityRef, setDailyActivity, saveDailyActivity);
+  }, [persist]);
+
+  // Garmin → Health Connect import (native Android only).
   const handleSyncGarminWeight = useCallback(async (): Promise<string> => {
     if (!(await healthConnectAvailable())) {
       return "Health Connect isn't available on this device. Install it and connect Garmin Connect first.";
     }
     await ensureWeightPermissions(); // throws a user-facing message if not granted
     const raw = await fetchWeightHistory();
-    if (raw.length === 0) return 'No weight data found in Health Connect yet.';
+    const stepParts: string[] = [];
+    try {
+      await ensureStepPermissions();
+      const stepReadings = toGarminStepReadings(await fetchStepHistory());
+      if (stepReadings.length > 0) {
+        const importedAt = new Date().toISOString();
+        const stepResult = mergeGarminStepReadings(dailyActivityRef.current, stepReadings, importedAt, nanoid);
+        if (!handleSaveDailyActivity(stepResult.entries)) return 'Could not save the imported step entries.';
+        const stepSummary = summarizeStepMerge(stepResult);
+        if (stepSummary) stepParts.push(stepSummary);
+      } else {
+        stepParts.push('no Garmin step records found');
+      }
+    } catch (error) {
+      stepParts.push(error instanceof Error ? `steps unavailable: ${error.message}` : 'steps unavailable');
+    }
+    if (raw.length === 0) {
+      return stepParts.length > 0
+        ? `No weight data found in Health Connect yet; ${stepParts.join('; ')}.`
+        : 'No weight data found in Health Connect yet.';
+    }
     const unit = profileRef.current.weightUnit;
     const readings = toGarminReadings(raw, unit);
     const result = mergeGarminReadings(weightEntriesRef.current, readings, unit, new Date().toISOString(), nanoid);
     if (!handleSaveWeightEntries(result.entries)) return 'Could not save the imported weight entries.';
-    return summarizeMerge(result);
-  }, [handleSaveWeightEntries]);
+    const weightSummary = summarizeMerge(result);
+    return stepParts.length > 0 ? `${weightSummary} Steps: ${stepParts.join('; ')}.` : weightSummary;
+  }, [handleSaveDailyActivity, handleSaveWeightEntries]);
 
   // ── Meal templates ─────────────────────────────────────────────────────────
 
@@ -454,8 +488,8 @@ function App() {
     return persist(mealTemplatesRef.current.filter((t) => t.id !== id), mealTemplatesRef, setMealTemplates, saveMealTemplates);
   }, [persist]);
 
-  const handleAddTemplateToLog = useCallback((template: MealTemplate) => {
-    if (handleAddEntries(templateToLogEntries(template, today, 1, template.mealType ?? inferMealSlot()))) setScreen('dashboard');
+  const handleAddTemplateToLog = useCallback((template: MealTemplate, meal?: MealSlot) => {
+    if (handleAddEntries(templateToLogEntries(template, today, 1, meal ?? template.mealType ?? inferMealSlot()))) setScreen('dashboard');
   }, [today, handleAddEntries]);
 
   // ── Recipes ────────────────────────────────────────────────────────────────
@@ -547,6 +581,7 @@ function App() {
           <Dashboard
             summary={todaySummary}
             entries={foodLog.filter((entry) => entry.date === today)}
+            activity={dailyActivity.find((entry) => entry.date === today) ?? [...dailyActivity].sort((a, b) => b.date.localeCompare(a.date))[0]}
             targets={targets}
             recommendations={recommendations}
             onAddFood={() => setScreen('barcode')}
@@ -646,9 +681,14 @@ function App() {
             profile={profile}
             targets={targets}
             reminders={reminders}
+            templates={mealTemplates}
+            savedFoods={savedFoods}
             onSaveProfile={handleSaveProfile}
             onSaveTargets={handleSaveTargets}
             onSaveReminders={handleSaveReminders}
+            onSaveTemplate={handleSaveTemplate}
+            onDeleteTemplate={handleDeleteTemplate}
+            onAddTemplateToLog={handleAddTemplateToLog}
             onImportComplete={handleImportComplete}
           />
         )}

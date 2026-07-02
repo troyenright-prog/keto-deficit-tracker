@@ -54,6 +54,7 @@ describe('exportAppData / importAppData round-trip', () => {
     expect(bundle).toHaveProperty('foodLog');
     expect(bundle).toHaveProperty('savedFoods');
     expect(bundle).toHaveProperty('weightEntries');
+    expect(bundle).toHaveProperty('dailyActivity');
     expect(bundle).toHaveProperty('mealTemplates');
     expect(bundle).toHaveProperty('recipes');
     expect(bundle).toHaveProperty('shoppingList');

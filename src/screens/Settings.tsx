@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import type { UserProfile, NutritionTargets, ReminderKey, ReminderRule, ReminderSettings, WeeklyReminderRule } from '../types';
+import type { FoodItem, MealSlot, MealTemplate, UserProfile, NutritionTargets, ReminderKey, ReminderRule, ReminderSettings, WeeklyReminderRule } from '../types';
 import { dietModeDefaultNetCarbs } from '../lib/nutrition';
 import { exportAppData, validateAppBundle, importAppData } from '../lib/storage';
 import { localDateString } from '../lib/date';
@@ -8,6 +8,7 @@ import { hardRefreshApp } from '../lib/app-update';
 import { sendTestReminder, type ReminderScheduleResult } from '../lib/reminders';
 import { MICRONUTRIENT_FIELDS } from '../lib/micronutrients';
 import { displayNumericValue, parseNumericInput } from '../lib/numeric-field';
+import { Meals } from './Meals';
 
 // Every numeric target field is backed by raw input text so a 0 renders as an
 // empty placeholder the user can type straight into (no stuck "0" to delete).
@@ -24,9 +25,14 @@ interface SettingsProps {
   profile: UserProfile;
   targets: NutritionTargets;
   reminders: ReminderSettings;
+  templates: MealTemplate[];
+  savedFoods: FoodItem[];
   onSaveProfile: (p: UserProfile) => boolean;
   onSaveTargets: (t: NutritionTargets) => boolean;
   onSaveReminders: (settings: ReminderSettings) => Promise<ReminderScheduleResult>;
+  onSaveTemplate: (template: MealTemplate) => boolean;
+  onDeleteTemplate: (id: string) => void;
+  onAddTemplateToLog: (template: MealTemplate, meal?: MealSlot) => void;
   onImportComplete: () => void;
 }
 
@@ -40,7 +46,20 @@ const WEEKDAYS = [
   { value: 7, label: 'Saturday' },
 ];
 
-export function Settings({ profile, targets, reminders, onSaveProfile, onSaveTargets, onSaveReminders, onImportComplete }: SettingsProps) {
+export function Settings({
+  profile,
+  targets,
+  reminders,
+  templates,
+  savedFoods,
+  onSaveProfile,
+  onSaveTargets,
+  onSaveReminders,
+  onSaveTemplate,
+  onDeleteTemplate,
+  onAddTemplateToLog,
+  onImportComplete,
+}: SettingsProps) {
   const [prof, setProf] = useState<UserProfile>(profile);
   const [tgts, setTgts] = useState<NutritionTargets>(targets);
   const [targetTexts, setTargetTexts] = useState<Record<string, string>>(() => seedTargetTexts(targets));
@@ -355,6 +374,16 @@ export function Settings({ profile, targets, reminders, onSaveProfile, onSaveTar
       {reminderMsg && (
         <p className={`import-msg import-msg--${reminderMsg.type}`}>{reminderMsg.text}</p>
       )}
+
+      <div className="section-title">Meal templates</div>
+      <Meals
+        embedded
+        templates={templates}
+        savedFoods={savedFoods}
+        onSave={onSaveTemplate}
+        onDelete={onDeleteTemplate}
+        onAddToLog={onAddTemplateToLog}
+      />
 
       <div className="section-title">Backup &amp; Restore</div>
       <p className="empty-hint" style={{ marginTop: 0 }}>

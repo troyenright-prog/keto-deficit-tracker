@@ -45,6 +45,25 @@ describe('Add Food quick logging', () => {
     ]);
   });
 
+  it('quick-adds common boiled egg quantities to the selected meal', () => {
+    const onAddEntries = vi.fn(() => true);
+    render(<AddFood savedFoods={[]} foodDatabase={[]} log={[]} recipes={[]} templates={[]} onAdd={vi.fn(() => true)} onAddEntries={onAddEntries} onSaveFood={vi.fn(() => true)} />);
+
+    fireEvent.change(screen.getByLabelText('Meal'), { target: { value: 'lunch' } });
+    fireEvent.click(screen.getByRole('button', { name: '2 eggs' }));
+    expect(screen.getByLabelText('Selected food nutrition for chosen servings').textContent).toContain('156 kcal');
+    fireEvent.click(screen.getByRole('button', { name: /Add to today/ }));
+
+    expect(onAddEntries).toHaveBeenCalledWith([
+      expect.objectContaining({
+        name: 'Boiled egg (large)',
+        meal: 'lunch',
+        servingMultiplier: 2,
+        calories: 156,
+      }),
+    ]);
+  });
+
   it('searches Open Food Facts by name, logs the hit, and caches it locally', async () => {
     const onAddEntries = vi.fn(() => true);
     const onSaveFoodDatabaseItem = vi.fn(() => true);
