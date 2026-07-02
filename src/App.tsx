@@ -833,6 +833,7 @@ function App() {
             onDuplicate={(entry, targetDate) => handleAddEntry(duplicateLogEntry(entry, targetDate))}
             onSaveFood={handleSaveFood}
             onRepairScannedNutrition={handleRepairScannedNutrition}
+            onAddFood={() => setScreen('barcode')}
           />
         )}
         {screen === 'weekly' && (

@@ -30,23 +30,6 @@ interface AddFoodProps {
 }
 
 const QUICK_AMOUNTS = [0.5, 1, 1.5, 2];
-const BOILED_EGG_QUANTITIES = [1, 2, 3] as const;
-const BOILED_EGG_FOOD: FoodItem = {
-  id: 'quick-boiled-egg-large',
-  name: 'Boiled egg (large)',
-  servingSize: '1 egg (55g)',
-  calories: 78,
-  proteinG: 6.3,
-  fatG: 5.3,
-  totalCarbsG: 0.6,
-  fibreG: 0,
-  sugarAlcoholsG: 0,
-  sodiumMg: 62,
-  potassiumMg: 63,
-  magnesiumMg: 6,
-  createdAt: '2020-01-01T00:00:00.000Z',
-  isStarter: true,
-};
 
 export function AddFood({ savedFoods, foodDatabase, log, recipes, templates, onAdd, onAddEntries, onSaveFood, onSaveFoodDatabaseItem, onScanBarcode }: AddFoodProps) {
   const [date, setDate] = useState(todayDateString());
@@ -165,13 +148,6 @@ export function AddFood({ savedFoods, foodDatabase, log, recipes, templates, onA
     setQuery('');
   }
 
-  function selectBoiledEggs(quantity: number) {
-    setSelected({ kind: 'starter', id: BOILED_EGG_FOOD.id, name: BOILED_EGG_FOOD.name, food: BOILED_EGG_FOOD });
-    setMultiplier(String(quantity));
-    setQuickError('');
-    setQuery('');
-  }
-
   function copyEntries(entries: FoodLogEntry[]) {
     if (!validLogDate()) return;
     if (!onAddEntries(copyLogEntries(entries, date))) return;
@@ -231,21 +207,6 @@ export function AddFood({ savedFoods, foodDatabase, log, recipes, templates, onA
       </div>
 
       <div className="section-title">Quick add</div>
-      <div className="boiled-egg-quick" aria-label="Boiled eggs quick entry">
-        <span>Boiled eggs</span>
-        <div>
-          {BOILED_EGG_QUANTITIES.map((quantity) => (
-            <button
-              key={quantity}
-              type="button"
-              className="serving-chip"
-              onClick={() => selectBoiledEggs(quantity)}
-            >
-              {quantity} {quantity === 1 ? 'egg' : 'eggs'}
-            </button>
-          ))}
-        </div>
-      </div>
       <input
         type="search" className="search-input" placeholder="Search foods, recipes and meals..."
         value={query} onChange={(event) => { setQuery(event.target.value); setSelected(null); }}

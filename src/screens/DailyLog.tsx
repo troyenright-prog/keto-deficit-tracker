@@ -15,6 +15,7 @@ interface DailyLogProps {
   onDuplicate: (entry: FoodLogEntry, targetDate?: string) => boolean;
   onSaveFood: (food: FoodItem) => boolean;
   onRepairScannedNutrition?: () => Promise<RepairResult>;
+  onAddFood: () => void;
 }
 
 function formatLoggedTime(iso: string): string {
@@ -23,7 +24,7 @@ function formatLoggedTime(iso: string): string {
   return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
 }
 
-export function DailyLog({ log, savedFoods, onDelete, onEdit, onDuplicate, onSaveFood, onRepairScannedNutrition }: DailyLogProps) {
+export function DailyLog({ log, savedFoods, onDelete, onEdit, onDuplicate, onSaveFood, onRepairScannedNutrition, onAddFood }: DailyLogProps) {
   const [selectedDate, setSelectedDate] = useState(todayDateString());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -130,13 +131,16 @@ export function DailyLog({ log, savedFoods, onDelete, onEdit, onDuplicate, onSav
     <div className="screen">
       <div className="screen-header">
         <h1>Daily Log</h1>
-        <input
-          type="date"
-          value={selectedDate}
-          max={todayDateString()}
-          onChange={(e) => setSelectedDate(e.target.value)}
-          className="date-picker"
-        />
+        <div className="daily-log-header-actions">
+          <input
+            type="date"
+            value={selectedDate}
+            max={todayDateString()}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="date-picker"
+          />
+          <button type="button" className="btn btn--primary btn--sm" onClick={onAddFood}>+ Add food</button>
+        </div>
       </div>
 
       {message && (

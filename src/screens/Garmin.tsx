@@ -115,14 +115,14 @@ export function Garmin({ entries, weightUnit, dailyActivity, sleepEntries, vital
         <h1>Garmin</h1>
         {onSyncGarmin && (
           <button type="button" className="btn btn--secondary btn--sm" onClick={runGarminSync} disabled={syncing}>
-            {syncing ? 'Syncing…' : 'Sync from Garmin'}
+            {syncing ? 'Syncing…' : 'Sync Garmin'}
           </button>
         )}
       </div>
       {syncMessage && <p className="sync-status-line" role="status">{syncMessage}</p>}
 
       {!hasOverview ? (
-        <p className="empty-hint">No Garmin data yet. Tap "Sync from Garmin" to pull in weight, activity, sleep, and vitals.</p>
+        <p className="empty-hint">No Garmin data yet. Tap "Sync Garmin" to pull in weight, activity, sleep, and vitals.</p>
       ) : (
         <>
           <div className="section-title">Overview</div>
@@ -272,7 +272,7 @@ export function Garmin({ entries, weightUnit, dailyActivity, sleepEntries, vital
               )}
             </div>
           ) : (
-            <p className="empty-hint">No activity data yet. Sync from Garmin to pull in steps and calories burned.</p>
+            <p className="empty-hint">No activity data yet. Tap "Sync Garmin" to pull in steps and calories burned.</p>
           )}
 
           <div className="section-title">Sleep</div>
@@ -308,7 +308,7 @@ export function Garmin({ entries, weightUnit, dailyActivity, sleepEntries, vital
               )}
             </div>
           ) : (
-            <p className="empty-hint">No sleep data yet. Sync from Garmin to pull in last night's sleep.</p>
+            <p className="empty-hint">No sleep data yet. Tap "Sync Garmin" to pull in last night's sleep.</p>
           )}
 
           <div className="section-title">Vitals</div>
@@ -331,7 +331,7 @@ export function Garmin({ entries, weightUnit, dailyActivity, sleepEntries, vital
               )}
             </div>
           ) : (
-            <p className="empty-hint">No vitals yet. Sync from Garmin to pull in resting heart rate, HRV, and more.</p>
+            <p className="empty-hint">No vitals yet. Tap "Sync Garmin" to pull in resting heart rate, HRV, and more.</p>
           )}
         </>
       )}
