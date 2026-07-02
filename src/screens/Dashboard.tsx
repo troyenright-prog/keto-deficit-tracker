@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { ProgressBar } from '../components/ProgressBar';
 import { StatCard } from '../components/StatCard';
 import type { DailyActivityEntry, DailyNutritionSummary, FoodLogEntry, NutritionTargets, Recommendation } from '../types';
@@ -13,6 +14,7 @@ interface DashboardProps {
   targets: NutritionTargets;
   recommendations: Recommendation[];
   onAddFood: () => void;
+  onSyncGarmin?: () => Promise<string>;
 }
 
 const SMART_SUGGESTION_HEADLINES: Record<string, string> = {
@@ -58,7 +60,9 @@ function headlineForMove(rec: Recommendation): string {
   return SMART_SUGGESTION_HEADLINES[rec.id] ?? rec.message;
 }
 
-export function Dashboard({ summary, entries, activity, targets, recommendations, onAddFood }: DashboardProps) {
+export function Dashboard({ summary, entries, activity, targets, recommendations, onAddFood, onSyncGarmin }: DashboardProps) {
+  const [garminSyncing, setGarminSyncing] = useState(false);
+  const [garminSyncMessage, setGarminSyncMessage] = useState('');
   const status = carbStatus(summary, targets);
   const remaining = remainingCalories(summary, targets);
   const statusVariant = status === 'aligned' ? 'success' : status === 'approaching' ? 'warning' : 'danger';
@@ -94,6 +98,19 @@ export function Dashboard({ summary, entries, activity, targets, recommendations
     };
   });
 
+  async function runGarminSync() {
+    if (!onSyncGarmin || garminSyncing) return;
+    setGarminSyncing(true);
+    setGarminSyncMessage('');
+    try {
+      setGarminSyncMessage(await onSyncGarmin());
+    } catch (err) {
+      setGarminSyncMessage(err instanceof Error ? err.message : 'Could not sync from Garmin.');
+    } finally {
+      setGarminSyncing(false);
+    }
+  }
+
   return (
     <div className="screen">
       {summary.entryCount > 0 && (
@@ -117,8 +134,21 @@ export function Dashboard({ summary, entries, activity, targets, recommendations
             <h1>{displayRemaining >= 0 ? displayRemaining : Math.abs(displayRemaining)}</h1>
             <p>{displayRemaining >= 0 ? 'calories remaining' : 'calories over target'}</p>
           </div>
-          <button className="btn btn--primary" onClick={onAddFood}>+ Add food</button>
+          <div className="dashboard-hero__actions">
+            <button className="btn btn--primary" onClick={onAddFood}>+ Add food</button>
+            {onSyncGarmin && (
+              <button
+                type="button"
+                className="btn btn--secondary dashboard-hero__sync"
+                onClick={() => void runGarminSync()}
+                disabled={garminSyncing}
+              >
+                {garminSyncing ? 'Syncing...' : 'Sync Garmin'}
+              </button>
+            )}
+          </div>
         </div>
+        {garminSyncMessage && <p className="dashboard-garmin-sync-status" role="status">{garminSyncMessage}</p>}
         <div className="hero-meter" aria-label="Calories progress">
           <span style={{ width: `${caloriesPercent}%` }} />
         </div>

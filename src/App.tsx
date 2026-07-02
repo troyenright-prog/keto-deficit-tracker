@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { App as CapacitorApp } from '@capacitor/app';
 import './App.css';
 import { Nav } from './components/Nav';
 import { UserPicker } from './components/UserPicker';
@@ -67,7 +68,15 @@ import {
   isHealthConnectSupported, healthConnectAvailable,
   ensureStepPermissions, ensureWeightPermissions, ensureActivityExtrasPermissions, ensureSleepPermissions, ensureVitalsPermissions,
   fetchStepHistory, fetchWeightHistory, fetchActivityExtrasHistory, fetchSleepHistory, fetchVitalsHistory,
+  hasStepPermissions, hasWeightPermissions, hasActivityExtrasPermissions, hasSleepPermissions, hasVitalsPermissions,
 } from './lib/health-connect';
+import {
+  GARMIN_AUTO_SYNC_HISTORY_DAYS,
+  GARMIN_AUTO_SYNC_INTERVAL_MS,
+  GARMIN_AUTO_SYNC_STARTUP_DELAY_MS,
+  hasImportedGarminData,
+  shouldRunGarminAutoSync,
+} from './lib/garmin-auto-sync';
 import { toGarminReadings, mergeGarminReadings, summarizeMerge } from './lib/garmin-weight-sync';
 import {
   mergeGarminStepReadings, summarizeStepMerge, toGarminStepReadings,
@@ -114,6 +123,11 @@ type SyncStatus = {
   text: string;
 };
 
+type GarminSyncOptions = {
+  days?: number;
+  requestPermissions?: boolean;
+};
+
 // Cloud sync only runs when Firebase credentials and a database URL are present.
 // Without them, the app stays local-only instead of polling a database it can't
 // reach and showing a misleading "Offline" status.
@@ -124,6 +138,19 @@ function initialSyncStatus(hasUser: boolean): SyncStatus {
   if (!hasUser) return { tone: 'idle', text: 'Pick user' };
   if (SYNC_MISCONFIGURED) return { tone: 'error', text: 'Config' };
   return SYNC_ENABLED ? { tone: 'syncing', text: 'Connecting' } : { tone: 'idle', text: 'Local' };
+}
+
+function asSentence(value: string): string {
+  if (!value) return value;
+  return /[.!?]$/.test(value) ? value : `${value}.`;
+}
+
+async function canReadGarminGroup(
+  requestPermissions: boolean,
+  ensurePermissions: () => Promise<boolean>,
+  hasPermissions: () => Promise<boolean>,
+): Promise<boolean> {
+  return requestPermissions ? ensurePermissions() : hasPermissions();
 }
 
 function reloadAll() {
@@ -179,6 +206,8 @@ function App() {
   const applyingRemoteRef = useRef(false);
   const remoteStampRef = useRef<string | null>(null);
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const garminSyncInFlightRef = useRef(false);
+  const lastGarminSyncAttemptRef = useRef(0);
   const profileRef = useRef(profile);
   const targetsRef = useRef(targets);
   const foodLogRef = useRef(foodLog);
@@ -473,81 +502,190 @@ function App() {
   // Garmin → Health Connect import (native Android only). One button, one
   // combined summary — each metric group is independently fault-tolerant so a
   // device missing one data type (e.g. no floors sensor) doesn't block the rest.
-  const handleSyncGarmin = useCallback(async (): Promise<string> => {
-    if (!(await healthConnectAvailable())) {
-      return "Health Connect isn't available on this device. Install it and connect Garmin Connect first.";
-    }
-    await ensureWeightPermissions(); // throws a user-facing message if not granted
-    const raw = await fetchWeightHistory();
+  const runGarminSync = useCallback(async (options: GarminSyncOptions = {}): Promise<string> => {
+    if (garminSyncInFlightRef.current) return 'Garmin sync already running.';
+    garminSyncInFlightRef.current = true;
+    lastGarminSyncAttemptRef.current = Date.now();
+
+    const days = options.days;
+    const requestPermissions = options.requestPermissions ?? true;
     const activityParts: string[] = [];
+    let weightMessage = '';
+
     try {
-      await ensureStepPermissions();
-      const stepReadings = toGarminStepReadings(await fetchStepHistory());
-      if (stepReadings.length > 0) {
-        const importedAt = new Date().toISOString();
-        const stepResult = mergeGarminStepReadings(dailyActivityRef.current, stepReadings, importedAt, nanoid);
-        if (!handleSaveDailyActivity(stepResult.entries)) return 'Could not save the imported step entries.';
-        const stepSummary = summarizeStepMerge(stepResult);
-        if (stepSummary) activityParts.push(stepSummary);
-      } else {
-        activityParts.push('no Garmin step records found');
+      if (!(await healthConnectAvailable())) {
+        return "Health Connect isn't available on this device. Install it and connect Garmin Connect first.";
       }
-    } catch (error) {
-      activityParts.push(error instanceof Error ? `steps unavailable: ${error.message}` : 'steps unavailable');
-    }
-    try {
-      await ensureActivityExtrasPermissions();
-      const extras = toGarminActivityExtras(await fetchActivityExtrasHistory());
-      if (extras.length > 0) {
-        const importedAt = new Date().toISOString();
-        const extrasResult = mergeGarminActivityExtras(dailyActivityRef.current, extras, importedAt, nanoid);
-        if (!handleSaveDailyActivity(extrasResult.entries)) return 'Could not save the imported activity data.';
-        const extrasSummary = summarizeActivityExtrasMerge(extrasResult);
-        if (extrasSummary) activityParts.push(extrasSummary);
+
+      try {
+        const canReadWeight = await canReadGarminGroup(requestPermissions, ensureWeightPermissions, hasWeightPermissions);
+        if (canReadWeight) {
+          const raw = await fetchWeightHistory(days);
+          if (raw.length > 0) {
+            const unit = profileRef.current.weightUnit;
+            const readings = toGarminReadings(raw, unit);
+            const result = mergeGarminReadings(weightEntriesRef.current, readings, unit, new Date().toISOString(), nanoid);
+            if (!handleSaveWeightEntries(result.entries)) return 'Could not save the imported weight entries.';
+            weightMessage = summarizeMerge(result);
+          } else {
+            weightMessage = 'No weight data found in Health Connect yet.';
+          }
+        } else {
+          weightMessage = 'Weight permission is not granted yet.';
+        }
+      } catch (error) {
+        weightMessage = error instanceof Error ? `Weight unavailable: ${error.message}` : 'Weight unavailable.';
       }
-    } catch (error) {
-      activityParts.push(error instanceof Error ? `activity data unavailable: ${error.message}` : 'activity data unavailable');
-    }
-    try {
-      await ensureSleepPermissions();
-      const sleepReadings = toGarminSleepReadings(await fetchSleepHistory());
-      if (sleepReadings.length > 0) {
-        const importedAt = new Date().toISOString();
-        const sleepResult = mergeGarminSleepReadings(sleepEntriesRef.current, sleepReadings, importedAt, nanoid);
-        if (!handleSaveSleepEntries(sleepResult.entries)) return 'Could not save the imported sleep entries.';
-        const sleepSummary = summarizeSleepMerge(sleepResult);
-        if (sleepSummary) activityParts.push(`sleep: ${sleepSummary}`);
-      } else {
-        activityParts.push('no Garmin sleep records found');
+
+      try {
+        const canReadSteps = await canReadGarminGroup(requestPermissions, ensureStepPermissions, hasStepPermissions);
+        if (canReadSteps) {
+          const stepReadings = toGarminStepReadings(await fetchStepHistory(days));
+          if (stepReadings.length > 0) {
+            const importedAt = new Date().toISOString();
+            const stepResult = mergeGarminStepReadings(dailyActivityRef.current, stepReadings, importedAt, nanoid);
+            if (!handleSaveDailyActivity(stepResult.entries)) return 'Could not save the imported step entries.';
+            const stepSummary = summarizeStepMerge(stepResult);
+            if (stepSummary) activityParts.push(stepSummary);
+          } else {
+            activityParts.push('no Garmin step records found');
+          }
+        } else if (requestPermissions) {
+          activityParts.push('steps unavailable: permission not granted');
+        }
+      } catch (error) {
+        activityParts.push(error instanceof Error ? `steps unavailable: ${error.message}` : 'steps unavailable');
       }
-    } catch (error) {
-      activityParts.push(error instanceof Error ? `sleep unavailable: ${error.message}` : 'sleep unavailable');
-    }
-    try {
-      await ensureVitalsPermissions();
-      const vitalsReadings = toGarminVitalsReadings(await fetchVitalsHistory());
-      if (vitalsReadings.length > 0) {
-        const importedAt = new Date().toISOString();
-        const vitalsResult = mergeGarminVitalsReadings(vitalsEntriesRef.current, vitalsReadings, importedAt, nanoid);
-        if (!handleSaveVitalsEntries(vitalsResult.entries)) return 'Could not save the imported vitals.';
-        const vitalsSummary = summarizeVitalsMerge(vitalsResult);
-        if (vitalsSummary) activityParts.push(`vitals: ${vitalsSummary}`);
+
+      try {
+        const canReadActivityExtras = await canReadGarminGroup(
+          requestPermissions,
+          ensureActivityExtrasPermissions,
+          hasActivityExtrasPermissions,
+        );
+        if (canReadActivityExtras) {
+          const extras = toGarminActivityExtras(await fetchActivityExtrasHistory(days));
+          if (extras.length > 0) {
+            const importedAt = new Date().toISOString();
+            const extrasResult = mergeGarminActivityExtras(dailyActivityRef.current, extras, importedAt, nanoid);
+            if (!handleSaveDailyActivity(extrasResult.entries)) return 'Could not save the imported activity data.';
+            const extrasSummary = summarizeActivityExtrasMerge(extrasResult);
+            if (extrasSummary) activityParts.push(extrasSummary);
+          }
+        } else if (requestPermissions) {
+          activityParts.push('activity data unavailable: permission not granted');
+        }
+      } catch (error) {
+        activityParts.push(error instanceof Error ? `activity data unavailable: ${error.message}` : 'activity data unavailable');
       }
-    } catch (error) {
-      activityParts.push(error instanceof Error ? `vitals unavailable: ${error.message}` : 'vitals unavailable');
+
+      try {
+        const canReadSleep = await canReadGarminGroup(requestPermissions, ensureSleepPermissions, hasSleepPermissions);
+        if (canReadSleep) {
+          const sleepReadings = toGarminSleepReadings(await fetchSleepHistory(days));
+          if (sleepReadings.length > 0) {
+            const importedAt = new Date().toISOString();
+            const sleepResult = mergeGarminSleepReadings(sleepEntriesRef.current, sleepReadings, importedAt, nanoid);
+            if (!handleSaveSleepEntries(sleepResult.entries)) return 'Could not save the imported sleep entries.';
+            const sleepSummary = summarizeSleepMerge(sleepResult);
+            if (sleepSummary) activityParts.push(`sleep: ${sleepSummary}`);
+          } else {
+            activityParts.push('no Garmin sleep records found');
+          }
+        } else if (requestPermissions) {
+          activityParts.push('sleep unavailable: permission not granted');
+        }
+      } catch (error) {
+        activityParts.push(error instanceof Error ? `sleep unavailable: ${error.message}` : 'sleep unavailable');
+      }
+
+      try {
+        const canReadVitals = await canReadGarminGroup(requestPermissions, ensureVitalsPermissions, hasVitalsPermissions);
+        if (canReadVitals) {
+          const vitalsReadings = toGarminVitalsReadings(await fetchVitalsHistory(days));
+          if (vitalsReadings.length > 0) {
+            const importedAt = new Date().toISOString();
+            const vitalsResult = mergeGarminVitalsReadings(vitalsEntriesRef.current, vitalsReadings, importedAt, nanoid);
+            if (!handleSaveVitalsEntries(vitalsResult.entries)) return 'Could not save the imported vitals.';
+            const vitalsSummary = summarizeVitalsMerge(vitalsResult);
+            if (vitalsSummary) activityParts.push(`vitals: ${vitalsSummary}`);
+          }
+        } else if (requestPermissions) {
+          activityParts.push('vitals unavailable: permission not granted');
+        }
+      } catch (error) {
+        activityParts.push(error instanceof Error ? `vitals unavailable: ${error.message}` : 'vitals unavailable');
+      }
+
+      const weightPart = weightMessage ? asSentence(weightMessage) : 'No weight data found in Health Connect yet.';
+      return activityParts.length > 0 ? `${weightPart} Activity: ${activityParts.join('; ')}.` : weightPart;
+    } finally {
+      garminSyncInFlightRef.current = false;
     }
-    if (raw.length === 0) {
-      return activityParts.length > 0
-        ? `No weight data found in Health Connect yet; ${activityParts.join('; ')}.`
-        : 'No weight data found in Health Connect yet.';
-    }
-    const unit = profileRef.current.weightUnit;
-    const readings = toGarminReadings(raw, unit);
-    const result = mergeGarminReadings(weightEntriesRef.current, readings, unit, new Date().toISOString(), nanoid);
-    if (!handleSaveWeightEntries(result.entries)) return 'Could not save the imported weight entries.';
-    const weightSummary = summarizeMerge(result);
-    return activityParts.length > 0 ? `${weightSummary} Activity: ${activityParts.join('; ')}.` : weightSummary;
   }, [handleSaveDailyActivity, handleSaveSleepEntries, handleSaveVitalsEntries, handleSaveWeightEntries]);
+
+  const handleSyncGarmin = useCallback((): Promise<string> => {
+    return runGarminSync({ requestPermissions: true });
+  }, [runGarminSync]);
+
+  const hasGarminDataForAutoSync = useCallback(() => hasImportedGarminData({
+    weightEntries: weightEntriesRef.current,
+    dailyActivity: dailyActivityRef.current,
+    sleepEntries: sleepEntriesRef.current,
+    vitalsEntries: vitalsEntriesRef.current,
+  }), []);
+
+  const handleAutoSyncGarmin = useCallback(async () => {
+    const now = Date.now();
+    if (!shouldRunGarminAutoSync({
+      currentUserPresent: Boolean(currentUserRef.current),
+      healthConnectSupported: isHealthConnectSupported(),
+      importedGarminData: hasGarminDataForAutoSync(),
+      now,
+      lastAttemptAt: lastGarminSyncAttemptRef.current,
+    })) {
+      return;
+    }
+    try {
+      await runGarminSync({ days: GARMIN_AUTO_SYNC_HISTORY_DAYS, requestPermissions: false });
+    } catch {
+      // Auto-sync is best-effort; manual sync still surfaces detailed errors.
+    }
+  }, [hasGarminDataForAutoSync, runGarminSync]);
+
+  useEffect(() => {
+    if (!currentUser || !isHealthConnectSupported() || typeof document === 'undefined') return;
+
+    let cancelled = false;
+    let removeAppStateListener: (() => void) | undefined;
+    const runIfActive = () => {
+      if (cancelled || document.visibilityState === 'hidden') return;
+      void handleAutoSyncGarmin();
+    };
+
+    const startupTimer = setTimeout(runIfActive, GARMIN_AUTO_SYNC_STARTUP_DELAY_MS);
+    const interval = setInterval(runIfActive, GARMIN_AUTO_SYNC_INTERVAL_MS);
+    document.addEventListener('visibilitychange', runIfActive);
+    void CapacitorApp.addListener('appStateChange', ({ isActive }) => {
+      if (isActive) runIfActive();
+    }).then((handle) => {
+      if (cancelled) {
+        void handle.remove();
+      } else {
+        removeAppStateListener = () => { void handle.remove(); };
+      }
+    }).catch(() => {
+      // The visibility listener and interval still cover native fallbacks.
+    });
+
+    return () => {
+      cancelled = true;
+      clearTimeout(startupTimer);
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', runIfActive);
+      removeAppStateListener?.();
+    };
+  }, [currentUser, handleAutoSyncGarmin]);
 
   // ── Meal templates ─────────────────────────────────────────────────────────
 
@@ -659,6 +797,7 @@ function App() {
             targets={targets}
             recommendations={recommendations}
             onAddFood={() => setScreen('barcode')}
+            onSyncGarmin={isHealthConnectSupported() ? handleSyncGarmin : undefined}
           />
         )}
         {screen === 'add-food' && (

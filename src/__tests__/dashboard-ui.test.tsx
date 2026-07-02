@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { Dashboard } from '../screens/Dashboard';
 import { summariseDay } from '../lib/nutrition';
@@ -44,6 +44,25 @@ describe('Dashboard screen', () => {
 
     expect(screen.getByText('Steps today')).toBeTruthy();
     expect(screen.getByText('7,420')).toBeTruthy();
+  });
+
+  it('shows a Garmin sync action on home when native sync is available', async () => {
+    const onSyncGarmin = vi.fn(async () => 'Garmin sync complete.');
+    render(
+      <Dashboard
+        summary={summariseDay('2026-01-01', [])}
+        entries={[]}
+        targets={DEFAULT_TARGETS}
+        recommendations={[]}
+        onAddFood={vi.fn()}
+        onSyncGarmin={onSyncGarmin}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sync Garmin' }));
+
+    expect(onSyncGarmin).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Garmin sync complete.'));
   });
 
   it('keeps next-move advice concise and removes duplicate needs-attention items', () => {

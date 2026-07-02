@@ -611,6 +611,15 @@
   gap: 14px;
 }
 
+.dashboard-hero__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
 .dashboard-hero h1 {
   margin: 2px 0 0;
   font-size: clamp(42px, 10vw, 70px);
@@ -631,6 +640,15 @@
   background: rgba(255, 255, 255, 0.95);
   color: var(--gray-900);
   box-shadow: 0 12px 26px rgba(15, 23, 42, 0.18);
+}
+
+.dashboard-garmin-sync-status {
+  position: relative;
+  z-index: 1;
+  margin: -2px 0 0;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .dashboard-hero__meta {
@@ -1194,16 +1212,21 @@ input:disabled {
 
 /* ── Suggestions ── */
 .suggestions-section {
-  margin-top: 16px;
+  margin: 4px 0 8px;
+}
+
+.suggestions-section .section-title {
+  margin-top: 8px;
+  margin-bottom: 6px;
 }
 
 .next-move {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 14px;
+  gap: 3px;
+  padding: 12px;
   border: 1px solid var(--gray-200);
-  border-radius: 14px;
+  border-radius: 12px;
   background: var(--white);
   box-shadow: var(--shadow-soft);
 }
@@ -2320,6 +2343,8 @@ button.app-user {
 
 .dashboard-hero__top,
 .dashboard-hero__meta,
+.dashboard-hero__actions,
+.dashboard-garmin-sync-status,
 .hero-meter {
   position: relative;
   z-index: 1;
@@ -2335,6 +2360,13 @@ button.app-user {
   color: var(--green);
   min-height: 46px;
   padding-inline: 20px;
+}
+
+.dashboard-hero .btn.dashboard-hero__sync {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.38);
+  color: var(--white);
+  box-shadow: none;
 }
 
 .hero-meter {
@@ -2564,6 +2596,16 @@ select:focus {
 
   .dashboard-hero .btn {
     width: 100%;
+  }
+
+  .dashboard-hero__actions {
+    width: 100%;
+  }
+
+  .dashboard-hero__actions .btn {
+    flex: 1 1 0;
+    min-width: 0;
+    width: auto;
   }
 
   .app-header-meta {

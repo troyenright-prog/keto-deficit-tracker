@@ -35,6 +35,21 @@ export async function healthConnectAvailable(): Promise<boolean> {
   }
 }
 
+async function hasReadPermissions(read: RecordType[]): Promise<boolean> {
+  try {
+    const check = await HealthConnect.checkHealthPermissions({ read, write: [] as RecordType[] });
+    return check.hasAllPermissions;
+  } catch {
+    return false;
+  }
+}
+
+export const hasWeightPermissions = () => hasReadPermissions(WEIGHT_READ_TYPES);
+export const hasStepPermissions = () => hasReadPermissions(STEP_READ_TYPES);
+export const hasActivityExtrasPermissions = () => hasReadPermissions(ACTIVITY_EXTRAS_READ_TYPES);
+export const hasSleepPermissions = () => hasReadPermissions(SLEEP_READ_TYPES);
+export const hasVitalsPermissions = () => hasReadPermissions(VITALS_READ_TYPES);
+
 // Ensure read access to Weight + BodyFat. Returns true when granted; throws a
 // user-facing message when the system dialog can't grant it automatically.
 export async function ensureWeightPermissions(): Promise<boolean> {

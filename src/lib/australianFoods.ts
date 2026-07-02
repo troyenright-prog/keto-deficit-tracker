@@ -43,6 +43,37 @@ export const AUSTRALIAN_STARTER_FOODS: Omit<FoodItem, 'id' | 'createdAt'>[] = [
   { name: 'Macadamia nuts (raw)', servingSize: '30g', calories: 214, proteinG: 2.4, fatG: 22.5, totalCarbsG: 3.9, fibreG: 2.4, sugarAlcoholsG: 0, sodiumMg: 1, potassiumMg: 104, magnesiumMg: 37 },
   { name: 'Pumpkin seeds (pepitas)', servingSize: '30g', calories: 163, proteinG: 8.5, fatG: 13.0, totalCarbsG: 5.0, fibreG: 1.2, sugarAlcoholsG: 0, sodiumMg: 5, potassiumMg: 240, magnesiumMg: 156 },
   { name: 'Walnuts (raw)', servingSize: '30g', calories: 196, proteinG: 4.6, fatG: 19.6, totalCarbsG: 4.1, fibreG: 2.0, sugarAlcoholsG: 0, sodiumMg: 0, potassiumMg: 130, magnesiumMg: 45 },
+
+  // Supplements
+  {
+    name: "Swisse Ultivite Men's Multivitamin",
+    servingSize: '1 tablet',
+    calories: 0,
+    proteinG: 0,
+    fatG: 0,
+    totalCarbsG: 0,
+    fibreG: 0,
+    sugarAlcoholsG: 0,
+    sodiumMg: 0,
+    potassiumMg: 4,
+    magnesiumMg: 105,
+    calciumMg: 21,
+    ironMg: 3,
+    zincMg: 15,
+    copperMg: 0.058,
+    manganeseMg: 1.2,
+    iodineMcg: 50,
+    seleniumMcg: 26,
+    vitaminCMg: 165,
+    vitaminDMcg: 25,
+    vitaminEMg: 24.79,
+    thiaminMg: 22.03,
+    riboflavinMg: 30,
+    niacinMg: 25,
+    vitaminB6Mg: 24.68,
+    folateMcg: 500,
+    vitaminB12Mcg: 50,
+  },
 ];
 
 export function getStarterFoods(): FoodItem[] {
