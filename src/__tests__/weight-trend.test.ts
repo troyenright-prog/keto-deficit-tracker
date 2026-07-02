@@ -26,7 +26,7 @@ describe('buildWeightTrendChart', () => {
     expect(chart!.weightPoints).toHaveLength(3);
     expect(chart!.bodyFatPoints).toHaveLength(2);
     expect(chart!.bodyFatRange).not.toBeNull();
-    expect(toPolylinePoints(chart!.weightPoints)).toMatch(/10\.0,/);
+    expect(toPolylinePoints(chart!.weightPoints)).toMatch(/8\.0,/);
   });
 
   it('returns null until at least two matching weight entries are available', () => {

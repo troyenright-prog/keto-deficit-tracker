@@ -749,7 +749,6 @@ function App() {
             dailyActivity={dailyActivity}
             sleepEntries={sleepEntries}
             vitalsEntries={vitalsEntries}
-            onSave={handleSaveWeightEntries}
             onSyncGarmin={isHealthConnectSupported() ? handleSyncGarmin : undefined}
           />
         )}

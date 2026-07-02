@@ -16,10 +16,10 @@ export interface WeightTrendChart {
   bodyFatRange: { min: number; max: number } | null;
 }
 
-const MIN_Y = 18;
-const MAX_Y = 82;
-const MIN_X = 10;
-const MAX_X = 90;
+const MIN_Y = 10;
+const MAX_Y = 88;
+const MIN_X = 8;
+const MAX_X = 92;
 
 function paddedRange(values: number[], minimumRange: number): { min: number; max: number } {
   const min = Math.min(...values);
@@ -54,10 +54,10 @@ export function toSmoothPath(points: TrendPoint[]): string {
     const p1 = points[i];
     const p2 = points[i + 1];
     const p3 = points[i + 2] ?? p2;
-    const c1x = p1.x + (p2.x - p0.x) / 6;
-    const c1y = p1.y + (p2.y - p0.y) / 6;
-    const c2x = p2.x - (p3.x - p1.x) / 6;
-    const c2y = p2.y - (p3.y - p1.y) / 6;
+    const c1x = p1.x + (p2.x - p0.x) / 8;
+    const c1y = p1.y + (p2.y - p0.y) / 8;
+    const c2x = p2.x - (p3.x - p1.x) / 8;
+    const c2y = p2.y - (p3.y - p1.y) / 8;
     path += ` C ${c1x.toFixed(2)} ${c1y.toFixed(2)}, ${c2x.toFixed(2)} ${c2y.toFixed(2)}, ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`;
   }
   return path;

@@ -48,7 +48,30 @@ export function Dashboard({ summary, entries, activity, targets, recommendations
 
   return (
     <div className="screen">
-      <div className="dashboard-hero">
+      {summary.entryCount > 0 && (
+        <div className="suggestions-section" aria-label="What should I eat next">
+          <div className="section-title">What should I eat next?</div>
+          {nextMove ? (
+            <div className={`next-move next-move--${nextMove.priority}`}>
+              <strong>{nextMove.priority === 'warning' ? 'Check this first' : 'Next move'}</strong>
+              <span>{nextMove.message}</span>
+            </div>
+          ) : (
+            <p className="empty-hint empty-hint--compact">You are on track - keep the next meal protein-first and low carb.</p>
+          )}
+          {suggestions.length > 1 && (
+            <ul className="recommendations recommendations--compact">
+              {suggestions.slice(1).map((s) => (
+                <li key={s.id} className={`rec rec--${s.priority}`}>
+                  {s.message}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      <div className="dashboard-hero dashboard-hero--compact">
         <div className="dashboard-hero__top">
           <div>
             <span className="eyebrow">Today</span>
@@ -120,29 +143,6 @@ export function Dashboard({ summary, entries, activity, targets, recommendations
           />
         )}
       </div>
-
-      {summary.entryCount > 0 && (
-        <div className="suggestions-section" aria-label="What should I eat next">
-          <div className="section-title">What should I eat next?</div>
-          {nextMove ? (
-            <div className={`next-move next-move--${nextMove.priority}`}>
-              <strong>{nextMove.priority === 'warning' ? 'Check this first' : 'Next move'}</strong>
-              <span>{nextMove.message}</span>
-            </div>
-          ) : (
-            <p className="empty-hint empty-hint--compact">You are on track - keep the next meal protein-first and low carb.</p>
-          )}
-          {suggestions.length > 1 && (
-            <ul className="recommendations recommendations--compact">
-              {suggestions.slice(1).map((s) => (
-                <li key={s.id} className={`rec rec--${s.priority}`}>
-                  {s.message}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
 
       <div className="section-title">Daily progress</div>
 

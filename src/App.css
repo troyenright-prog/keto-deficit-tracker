@@ -870,37 +870,70 @@ input:disabled {
   background: var(--white);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius);
-  padding: 12px;
+  padding: 0;
   box-shadow: var(--shadow-soft);
+  overflow: hidden;
 }
 
 .log-item-row {
   display: flex;
-  gap: 10px;
-  align-items: flex-start;
-  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.log-item-time {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--gray-500);
+  min-width: 52px;
 }
 
 .log-item-info {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   flex: 1;
   min-width: 0;
 }
 
+.log-item-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .log-item-name {
   font-weight: 600;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--gray-900);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.log-item-serving {
+.log-item-kcal {
+  flex-shrink: 0;
   font-size: 12px;
+  font-weight: 700;
+  color: var(--green);
+}
+
+.log-item-sub,
+.log-item-serving {
+  font-size: 11px;
   color: var(--gray-500);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .log-item-macros {
@@ -908,10 +941,35 @@ input:disabled {
   color: var(--gray-700);
 }
 
+.log-item-chevron {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-right: 1.5px solid var(--gray-400);
+  border-bottom: 1.5px solid var(--gray-400);
+  transform: rotate(45deg);
+  transition: transform 0.15s ease;
+  margin-right: 2px;
+}
+
+.log-item-chevron--open {
+  transform: rotate(-135deg);
+  margin-top: 4px;
+}
+
+.log-item-full-macros {
+  flex-basis: 100%;
+  font-size: 11px;
+  color: var(--gray-500);
+}
+
 .log-item-actions {
   display: flex;
+  align-items: center;
   gap: 6px;
+  flex-wrap: wrap;
   flex-shrink: 0;
+  padding: 0 10px 10px;
 }
 
 .meal-select-label {
@@ -1522,6 +1580,19 @@ input:disabled {
   vertical-align: middle;
 }
 
+/* ── Garmin dashboard ── */
+.sync-status-line {
+  color: var(--gray-500);
+  font-size: 12px;
+  margin: 2px 0 12px;
+}
+
+.history-toggle {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+}
+
 /* ── Weight screen ── */
 .weight-add-row {
   display: flex;
@@ -1629,16 +1700,16 @@ input:disabled {
 .weight-trend-panel svg {
   display: block;
   width: 100%;
-  height: 132px;
+  height: 176px;
   margin: 8px 0 2px;
   border-radius: 12px;
   background: linear-gradient(180deg, #f7fbf7, #ffffff);
 }
 
 .weight-trend-grid {
-  stroke: rgba(148, 163, 184, 0.16);
+  stroke: rgba(148, 163, 184, 0.28);
   stroke-width: 0.5;
-  stroke-dasharray: 2 2;
+  stroke-dasharray: 1.5 2.5;
 }
 
 .weight-trend-area {
@@ -1670,7 +1741,7 @@ input:disabled {
 }
 
 .weight-trend-dot:hover {
-  r: 2.6;
+  r: 2.8;
 }
 
 .weight-trend-dot--weight {
@@ -1679,6 +1750,13 @@ input:disabled {
 
 .weight-trend-dot--body-fat {
   fill: var(--blue);
+}
+
+.weight-trend-dot--latest {
+  stroke: var(--green);
+  stroke-width: 2.5;
+  fill: #fff;
+  filter: drop-shadow(0 1px 2px rgba(15, 118, 90, 0.35));
 }
 
 /* Sleep */
@@ -1772,6 +1850,53 @@ input:disabled {
   justify-content: flex-start;
   color: var(--gray-900);
   font-weight: 800;
+}
+
+.reminder-days {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.reminder-days-presets {
+  display: flex;
+  gap: 6px;
+}
+
+.btn--preset-active {
+  background: var(--green-bg);
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.reminder-day-chips {
+  display: flex;
+  gap: 4px;
+}
+
+.day-chip {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  border: 1px solid var(--gray-200);
+  border-radius: 999px;
+  background: var(--white);
+  color: var(--gray-500);
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.day-chip--active {
+  background: var(--green);
+  border-color: var(--green);
+  color: var(--white);
+}
+
+.day-chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* ── Backup ── */
@@ -1981,7 +2106,6 @@ input:disabled {
 
 @media (max-width: 380px) {
   .quick-result-list { grid-template-columns: 1fr; }
-  .log-item-row { flex-direction: column; }
   .log-item-actions { width: 100%; flex-wrap: wrap; }
 }
 
@@ -2168,6 +2292,28 @@ button.app-user {
   height: 160px;
   border-radius: 999px;
   border: 28px solid rgba(255, 255, 255, 0.12);
+}
+
+.dashboard-hero--compact {
+  gap: 10px;
+  padding: 14px 16px;
+}
+
+.dashboard-hero--compact h1 {
+  font-size: clamp(34px, 8vw, 48px);
+}
+
+.dashboard-hero--compact::after {
+  width: 100px;
+  height: 100px;
+  right: -30px;
+  bottom: -36px;
+  border-width: 18px;
+}
+
+.dashboard-hero--compact .btn {
+  min-height: 38px;
+  padding-inline: 16px;
 }
 
 .dashboard-hero__top,
@@ -2429,16 +2575,37 @@ select:focus {
   }
 
   .form-row,
-  .cards-grid,
   .meal-summary-grid,
   .nutrition-grid,
   .reminder-grid {
     grid-template-columns: 1fr;
   }
 
+  /* Keep summary tiles two-up on narrow screens instead of stacking into a
+     long vertical list — shrink padding/type instead of dropping to 1 column. */
+  .cards-grid {
+    gap: 8px;
+  }
+
+  .stat-card {
+    min-height: 84px;
+    padding: 10px 12px;
+  }
+
+  .stat-card-label {
+    font-size: 10px;
+  }
+
+  .stat-card-value {
+    font-size: 19px;
+  }
+
+  .stat-card-sub {
+    font-size: 10px;
+  }
+
   .saved-food-item,
-  .template-list-item,
-  .log-item-row {
+  .template-list-item {
     flex-direction: column;
   }
 

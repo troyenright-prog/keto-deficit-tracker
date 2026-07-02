@@ -5,7 +5,7 @@ import { exportAppData, validateAppBundle, importAppData } from '../lib/storage'
 import { localDateString } from '../lib/date';
 import { APP_VERSION, formatBuildDate } from '../lib/version';
 import { hardRefreshApp } from '../lib/app-update';
-import { sendTestReminder, type ReminderScheduleResult } from '../lib/reminders';
+import { ALL_WEEKDAYS, sendTestReminder, type ReminderScheduleResult } from '../lib/reminders';
 import { MICRONUTRIENT_FIELDS } from '../lib/micronutrients';
 import { getRdaForAgeSex } from '../lib/rda';
 import { displayNumericValue, parseNumericInput } from '../lib/numeric-field';
@@ -46,6 +46,12 @@ const WEEKDAYS = [
   { value: 6, label: 'Friday' },
   { value: 7, label: 'Saturday' },
 ];
+
+const WEEKDAY_ONLY_DAYS = [2, 3, 4, 5, 6]; // Monday - Friday
+
+function sameDays(a: number[], b: number[]): boolean {
+  return a.length === b.length && a.every((d) => b.includes(d));
+}
 
 export function Settings({
   profile,
@@ -165,6 +171,17 @@ export function Settings({
     }));
   }
 
+  function setReminderDays(key: 'weighIn' | 'shopping', days: number[]) {
+    updateReminder(key, { days, weekday: days[0] } as Partial<ReminderSettings[typeof key]>);
+  }
+
+  function toggleReminderDay(key: 'weighIn' | 'shopping', day: number, currentDays: number[]) {
+    const has = currentDays.includes(day);
+    const next = has ? currentDays.filter((d) => d !== day) : [...currentDays, day].sort((a, b) => a - b);
+    if (next.length === 0) return; // keep at least one day selected
+    setReminderDays(key, next);
+  }
+
   async function handleSaveReminders() {
     const next = { ...rem, updatedAt: new Date().toISOString() };
     setRem(next);
@@ -183,6 +200,7 @@ export function Settings({
     rule: ReminderRule,
     weekly?: WeeklyReminderRule,
   ) {
+    const weeklyKey = weekly ? (key as 'weighIn' | 'shopping') : null;
     return (
       <div className="reminder-card">
         <label className="checkbox-label reminder-toggle">
@@ -200,15 +218,42 @@ export function Settings({
           aria-label={`${label} time`}
           onChange={(event) => updateReminder(key, { time: event.target.value } as Partial<ReminderSettings[typeof key]>)}
         />
-        {weekly && (
-          <select
-            value={weekly.weekday}
-            disabled={!rule.enabled}
-            aria-label={`${label} day`}
-            onChange={(event) => updateReminder(key, { weekday: Number(event.target.value) } as Partial<ReminderSettings[typeof key]>)}
-          >
-            {WEEKDAYS.map((day) => <option key={day.value} value={day.value}>{day.label}</option>)}
-          </select>
+        {weekly && weeklyKey && (
+          <div className="reminder-days">
+            <div className="reminder-days-presets">
+              <button
+                type="button"
+                className={`btn btn--ghost btn--xs${sameDays(weekly.days, ALL_WEEKDAYS) ? ' btn--preset-active' : ''}`}
+                disabled={!rule.enabled}
+                onClick={() => setReminderDays(weeklyKey, ALL_WEEKDAYS)}
+              >
+                Every day
+              </button>
+              <button
+                type="button"
+                className={`btn btn--ghost btn--xs${sameDays(weekly.days, WEEKDAY_ONLY_DAYS) ? ' btn--preset-active' : ''}`}
+                disabled={!rule.enabled}
+                onClick={() => setReminderDays(weeklyKey, WEEKDAY_ONLY_DAYS)}
+              >
+                Weekdays
+              </button>
+            </div>
+            <div className="reminder-day-chips" role="group" aria-label={`${label} days`}>
+              {WEEKDAYS.map((day) => (
+                <button
+                  key={day.value}
+                  type="button"
+                  className={`day-chip${weekly.days.includes(day.value) ? ' day-chip--active' : ''}`}
+                  aria-pressed={weekly.days.includes(day.value)}
+                  aria-label={day.label}
+                  disabled={!rule.enabled}
+                  onClick={() => toggleReminderDay(weeklyKey, day.value, weekly.days)}
+                >
+                  {day.label.slice(0, 1)}
+                </button>
+              ))}
+            </div>
+          </div>
         )}
       </div>
     );

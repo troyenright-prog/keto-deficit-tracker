@@ -17,9 +17,16 @@ interface DailyLogProps {
   onRepairScannedNutrition?: () => Promise<RepairResult>;
 }
 
+function formatLoggedTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+}
+
 export function DailyLog({ log, savedFoods, onDelete, onEdit, onDuplicate, onSaveFood, onRepairScannedNutrition }: DailyLogProps) {
   const [selectedDate, setSelectedDate] = useState(todayDateString());
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ text: string; tone: 'success' | 'error' } | null>(null);
   const [repairing, setRepairing] = useState(false);
 
@@ -203,59 +210,73 @@ export function DailyLog({ log, savedFoods, onDelete, onEdit, onDuplicate, onSav
                               </button>
                             </div>
                           ) : (
-                            <div className="log-item-row">
-                              <div className="log-item-info">
-                                <span className="log-item-name">{entry.name}</span>
-                                <span className="log-item-serving">
-                                  {entry.servingMultiplier !== 1
-                                    ? `${entry.servingMultiplier}x ${entry.servingSize}`
-                                    : entry.servingSize}
-                                </span>
-                                <span className="log-item-macros">
-                                  {Math.round(entry.calories)} kcal - {entry.proteinG.toFixed(1)}g protein -{' '}
-                                  {netCarbs.toFixed(1)}g net carbs - {entry.fatG.toFixed(1)}g fat
-                                </span>
-                              </div>
-                              <div className="log-item-actions">
-                                <label className="meal-select-label">
-                                  <span>Meal</span>
-                                  <select
-                                    value={entryMeal(entry)}
-                                    aria-label={`Meal for ${entry.name}`}
-                                    onChange={(event) => {
-                                      const nextMeal = event.target.value as MealSlot;
-                                      if (onEdit({ ...entry, meal: nextMeal })) {
-                                        showMessage(`Moved "${entry.name}" to ${mealLabel(nextMeal)}.`);
+                            <>
+                              <button
+                                type="button"
+                                className="log-item-row"
+                                aria-expanded={expandedId === entry.id}
+                                onClick={() => setExpandedId((cur) => (cur === entry.id ? null : entry.id))}
+                              >
+                                <span className="log-item-time">{formatLoggedTime(entry.loggedAt)}</span>
+                                <div className="log-item-info">
+                                  <div className="log-item-top">
+                                    <span className="log-item-name">{entry.name}</span>
+                                    <span className="log-item-kcal">{Math.round(entry.calories)} kcal</span>
+                                  </div>
+                                  <span className="log-item-sub">
+                                    {entry.servingMultiplier !== 1
+                                      ? `${entry.servingMultiplier}x ${entry.servingSize}`
+                                      : entry.servingSize}
+                                    {' · '}{netCarbs.toFixed(1)}g net carbs
+                                  </span>
+                                </div>
+                                <span className={`log-item-chevron${expandedId === entry.id ? ' log-item-chevron--open' : ''}`} aria-hidden="true" />
+                              </button>
+                              {expandedId === entry.id && (
+                                <div className="log-item-actions">
+                                  <span className="log-item-full-macros">
+                                    {entry.proteinG.toFixed(1)}g protein · {entry.fatG.toFixed(1)}g fat
+                                  </span>
+                                  <label className="meal-select-label">
+                                    <span>Meal</span>
+                                    <select
+                                      value={entryMeal(entry)}
+                                      aria-label={`Meal for ${entry.name}`}
+                                      onChange={(event) => {
+                                        const nextMeal = event.target.value as MealSlot;
+                                        if (onEdit({ ...entry, meal: nextMeal })) {
+                                          showMessage(`Moved "${entry.name}" to ${mealLabel(nextMeal)}.`);
+                                        }
+                                      }}
+                                    >
+                                      {MEAL_SLOTS.map((slot) => <option key={slot.id} value={slot.id}>{mealLabel(slot.id)}</option>)}
+                                    </select>
+                                  </label>
+                                  <button
+                                    className="btn btn--secondary btn--sm"
+                                    onClick={() => {
+                                      if (onDuplicate(entry, selectedDate)) showMessage(`Duplicated "${entry.name}".`);
+                                    }}
+                                  >
+                                    Duplicate
+                                  </button>
+                                  <button className="btn btn--ghost btn--sm" onClick={() => setEditingId(entry.id)}>
+                                    Edit
+                                  </button>
+                                  <button
+                                    className="btn btn--danger btn--sm"
+                                    onClick={() => {
+                                      if (confirm(`Delete "${entry.name}"?`)) {
+                                        onDelete(entry.id);
+                                        showMessage(`Deleted "${entry.name}".`);
                                       }
                                     }}
                                   >
-                                    {MEAL_SLOTS.map((slot) => <option key={slot.id} value={slot.id}>{mealLabel(slot.id)}</option>)}
-                                  </select>
-                                </label>
-                                <button
-                                  className="btn btn--secondary btn--sm"
-                                  onClick={() => {
-                                    if (onDuplicate(entry, selectedDate)) showMessage(`Duplicated "${entry.name}".`);
-                                  }}
-                                >
-                                  Duplicate
-                                </button>
-                                <button className="btn btn--ghost btn--sm" onClick={() => setEditingId(entry.id)}>
-                                  Edit
-                                </button>
-                                <button
-                                  className="btn btn--danger btn--sm"
-                                  onClick={() => {
-                                    if (confirm(`Delete "${entry.name}"?`)) {
-                                      onDelete(entry.id);
-                                      showMessage(`Deleted "${entry.name}".`);
-                                    }
-                                  }}
-                                >
-                                  Delete
-                                </button>
-                              </div>
-                            </div>
+                                    Delete
+                                  </button>
+                                </div>
+                              )}
+                            </>
                           )}
                         </li>
                       );

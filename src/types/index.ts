@@ -316,7 +316,8 @@ export interface ReminderRule {
 }
 
 export interface WeeklyReminderRule extends ReminderRule {
-  weekday: number; // 1 Sunday - 7 Saturday
+  weekday: number; // 1 Sunday - 7 Saturday — the first selected day, kept for backward compatibility
+  days: number[]; // full set of selected days (1-7), always includes `weekday`; all 7 = every day
 }
 
 export interface ReminderSettings {
