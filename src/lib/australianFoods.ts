@@ -25,6 +25,9 @@ export const AUSTRALIAN_STARTER_FOODS: Omit<FoodItem, 'id' | 'createdAt'>[] = [
   { name: 'Parmesan cheese', servingSize: '20g', calories: 88, proteinG: 7.3, fatG: 6.0, totalCarbsG: 0.8, fibreG: 0, sugarAlcoholsG: 0, sodiumMg: 260, potassiumMg: 24, magnesiumMg: 8 },
   { name: 'Butter (salted)', servingSize: '10g', calories: 72, proteinG: 0.1, fatG: 8.1, totalCarbsG: 0, fibreG: 0, sugarAlcoholsG: 0, sodiumMg: 82, potassiumMg: 2, magnesiumMg: 0 },
 
+  // Beverages
+  { name: 'Flat white (full cream milk, large)', servingSize: '1 large (350ml)', calories: 165, proteinG: 8.0, fatG: 8.5, totalCarbsG: 12.0, fibreG: 0, sugarAlcoholsG: 0, sodiumMg: 105, potassiumMg: 360, magnesiumMg: 26 },
+
   // Fats & oils
   { name: 'Olive oil (extra virgin)', servingSize: '1 tbsp (15ml)', calories: 133, proteinG: 0, fatG: 15.0, totalCarbsG: 0, fibreG: 0, sugarAlcoholsG: 0, sodiumMg: 0, potassiumMg: 0, magnesiumMg: 0 },
   { name: 'Coconut oil', servingSize: '1 tbsp (15ml)', calories: 130, proteinG: 0, fatG: 14.4, totalCarbsG: 0, fibreG: 0, sugarAlcoholsG: 0, sodiumMg: 0, potassiumMg: 0, magnesiumMg: 0 },

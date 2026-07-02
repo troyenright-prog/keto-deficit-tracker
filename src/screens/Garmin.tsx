@@ -74,6 +74,12 @@ export function Garmin({ entries, weightUnit, dailyActivity, sleepEntries, vital
   const latestWeight = sorted[0];
   const latestBodyFat = sorted.find((entry) => entry.bodyFat != null);
   const latestLeanMass = sorted.find((entry) => entry.leanBodyMassKg != null);
+  // Garmin/Health Connect only reports lean mass on scales that measure it directly.
+  // When that's absent, estimate muscle mass from the same-day weight + body-fat reading.
+  const estimatedLeanMass =
+    !latestLeanMass && latestBodyFat?.bodyFat != null
+      ? latestBodyFat.weight * (1 - latestBodyFat.bodyFat / 100)
+      : null;
   const latestBoneMass = sorted.find((entry) => entry.boneMassKg != null);
   const latestBodyWater = sorted.find((entry) => entry.bodyWaterMassKg != null);
   const sevenDayAvg = sevenDayAvgWeight(sorted, todayDateString());
@@ -156,7 +162,7 @@ export function Garmin({ entries, weightUnit, dailyActivity, sleepEntries, vital
           </div>
 
           <div className="section-title">Body composition</div>
-          {(latestLeanMass || latestBoneMass || latestBodyWater || weightChange !== null) ? (
+          {(latestLeanMass || estimatedLeanMass != null || latestBoneMass || latestBodyWater || weightChange !== null) ? (
             <div className="cards-grid">
               {weightChange !== null && sorted.length >= 2 && (
                 <StatCard
@@ -165,8 +171,10 @@ export function Garmin({ entries, weightUnit, dailyActivity, sleepEntries, vital
                   variant={weightChange < 0 ? 'success' : weightChange > 0 ? 'warning' : 'default'}
                 />
               )}
-              {latestLeanMass?.leanBodyMassKg != null && (
-                <StatCard label="Lean mass" value={`${latestLeanMass.leanBodyMassKg.toFixed(1)} kg`} sub={latestLeanMass.date} />
+              {latestLeanMass?.leanBodyMassKg != null ? (
+                <StatCard label="Muscle mass" value={`${latestLeanMass.leanBodyMassKg.toFixed(1)} kg`} sub={latestLeanMass.date} />
+              ) : estimatedLeanMass != null && (
+                <StatCard label="Muscle mass (est.)" value={`${estimatedLeanMass.toFixed(1)} kg`} sub={latestBodyFat?.date} />
               )}
               {latestBoneMass?.boneMassKg != null && (
                 <StatCard label="Bone mass" value={`${latestBoneMass.boneMassKg.toFixed(1)} kg`} sub={latestBoneMass.date} />

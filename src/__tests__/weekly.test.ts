@@ -61,11 +61,12 @@ describe('computeWeeklyStats', () => {
   });
 
   it('counts days within net carb limit', () => {
+    const targets = { ...DEFAULT_TARGETS, netCarbsG: 20 };
     const summaries = [
       makeSummary('2026-06-14', { netCarbsG: 18 }),
       makeSummary('2026-06-15', { netCarbsG: 25 }),
     ];
-    const stats = computeWeeklyStats(summaries, DEFAULT_TARGETS);
+    const stats = computeWeeklyStats(summaries, targets);
     expect(stats.daysWithinNetCarbLimit).toBe(1);
     expect(stats.ketoAlignmentPct).toBe(50);
   });

@@ -175,10 +175,14 @@ export function claimLegacyDataForActiveScope(): boolean {
   }
 }
 
+// Recomposition targets (maintain weight, build muscle, reduce body fat):
+// Katch-McArdle BMR from lean mass * moderate-activity multiplier ~2900 kcal TDEE,
+// ~2.2g protein/kg bodyweight for muscle retention/gain, remainder split between
+// a keto-range carb ceiling and fat to hit calories.
 export const DEFAULT_TARGETS: NutritionTargets = {
-  calories: 1800, proteinG: 120, netCarbsG: 20, fatG: 140,
+  calories: 2800, proteinG: 205, netCarbsG: 35, fatG: 200,
   sodiumMg: 2300, potassiumMg: 3500, magnesiumMg: 400,
-  dietMode: 'strict-keto', manualNetCarbs: false,
+  dietMode: 'high-protein-keto', manualNetCarbs: true,
   ...zeroMicronutrients(),
 };
 
