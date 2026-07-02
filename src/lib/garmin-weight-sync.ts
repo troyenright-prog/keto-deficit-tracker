@@ -15,6 +15,9 @@ export interface RawWeightReading {
   date: string; // YYYY-MM-DD (local day of the reading)
   kg: number;
   fat?: number; // body-fat percentage
+  leanKg?: number; // same-day body-composition companions, always kg regardless of display unit
+  boneKg?: number;
+  waterKg?: number;
 }
 
 // A reading normalised to the user's display unit, ready to merge.
@@ -22,6 +25,9 @@ export interface GarminWeightReading {
   date: string;
   weight: number; // in `unit`
   bodyFat?: number;
+  leanBodyMassKg?: number;
+  boneMassKg?: number;
+  bodyWaterMassKg?: number;
 }
 
 export type MergeOutcome = 'inserted' | 'refreshed' | 'filled' | 'preserved' | 'skipped';
@@ -54,7 +60,24 @@ export function toGarminReadings(raw: RawWeightReading[], unit: 'kg' | 'lbs'): G
       date: reading.date,
       weight: round1(unit === 'lbs' ? reading.kg * KG_TO_LB : reading.kg),
       ...(Number.isFinite(reading.fat) && (reading.fat as number) > 0 ? { bodyFat: round1(reading.fat as number) } : {}),
+      ...(Number.isFinite(reading.leanKg) && (reading.leanKg as number) > 0 ? { leanBodyMassKg: round1(reading.leanKg as number) } : {}),
+      ...(Number.isFinite(reading.boneKg) && (reading.boneKg as number) > 0 ? { boneMassKg: round1(reading.boneKg as number) } : {}),
+      ...(Number.isFinite(reading.waterKg) && (reading.waterKg as number) > 0 ? { bodyWaterMassKg: round1(reading.waterKg as number) } : {}),
     }));
+}
+
+// Body-composition fields that ride along with weight/body-fat — same fill
+// semantics as bodyFat: a manual weigh-in keeps its weight but can still pick
+// up these extras from Garmin if the user hasn't (and can't) enter them by hand.
+const BODY_COMP_KEYS = ['bodyFat', 'leanBodyMassKg', 'boneMassKg', 'bodyWaterMassKg'] as const;
+
+function pickBodyComp(reading: GarminWeightReading): Partial<Pick<WeightEntry, typeof BODY_COMP_KEYS[number]>> {
+  const result: Partial<Pick<WeightEntry, typeof BODY_COMP_KEYS[number]>> = {};
+  for (const key of BODY_COMP_KEYS) {
+    const value = reading[key];
+    if (value != null) result[key] = value;
+  }
+  return result;
 }
 
 // A row counts as manual unless it was written by a Garmin/Health Connect import.
@@ -86,16 +109,19 @@ function mergeOne(
       source: GARMIN_SOURCE,
       sourceLabel: GARMIN_SOURCE_LABEL,
       importedAt,
-      ...(reading.bodyFat != null ? { bodyFat: reading.bodyFat } : {}),
+      ...pickBodyComp(reading),
     };
     return { entries: [...entries, entry], outcome: 'inserted' };
   }
 
   const existing = entries[idx];
   if (isManualEntry(existing)) {
-    // Manual weight stays primary. Only fill a body-fat reading the user hasn't entered.
-    if (reading.bodyFat != null && existing.bodyFat == null) {
-      const updated: WeightEntry = { ...existing, bodyFat: reading.bodyFat, importedAt };
+    // Manual weight stays primary. Only fill body-composition fields the user hasn't entered.
+    const fillable = BODY_COMP_KEYS.filter((key) => reading[key] != null && existing[key] == null);
+    if (fillable.length > 0) {
+      const fill: Partial<Pick<WeightEntry, typeof BODY_COMP_KEYS[number]>> = {};
+      for (const key of fillable) fill[key] = reading[key];
+      const updated: WeightEntry = { ...existing, ...fill, importedAt };
       return { entries: entries.map((entry, i) => (i === idx ? updated : entry)), outcome: 'filled' };
     }
     return { entries, outcome: 'preserved' };
@@ -109,7 +135,7 @@ function mergeOne(
     source: GARMIN_SOURCE,
     sourceLabel: GARMIN_SOURCE_LABEL,
     importedAt,
-    ...(reading.bodyFat != null ? { bodyFat: reading.bodyFat } : {}),
+    ...pickBodyComp(reading),
   };
   return { entries: entries.map((entry, i) => (i === idx ? updated : entry)), outcome: 'refreshed' };
 }

@@ -41,6 +41,13 @@ describe('toGarminReadings', () => {
     ], 'kg');
     expect(readings).toEqual([{ date: '2026-06-28', weight: 88.2, bodyFat: 21.4 }]);
   });
+
+  it('carries lean mass, bone mass, and body water through', () => {
+    const [reading] = toGarminReadings([
+      { date: '2026-06-30', kg: 88.2, leanKg: 65.1, boneKg: 3.2, waterKg: 48.5 },
+    ], 'kg');
+    expect(reading).toEqual({ date: '2026-06-30', weight: 88.2, leanBodyMassKg: 65.1, boneMassKg: 3.2, bodyWaterMassKg: 48.5 });
+  });
 });
 
 describe('mergeGarminReadings', () => {
@@ -87,6 +94,15 @@ describe('mergeGarminReadings', () => {
     expect(result.entries).toHaveLength(1); // no duplicate
     expect(result.entries[0].weight).toBe(90.2);
     expect(result.entries[0].bodyFat).toBe(19.8);
+  });
+
+  it('fills lean mass, bone mass, and body water on a manual entry without touching the manual weight', () => {
+    const entries = [manual('2026-06-30', 89.9)];
+    const result = mergeGarminReadings(entries, [
+      { date: '2026-06-30', weight: 90.7, leanBodyMassKg: 65.1, boneMassKg: 3.2, bodyWaterMassKg: 48.5 },
+    ], 'kg', IMPORTED_AT, makeId);
+    expect(result.filled).toBe(1);
+    expect(result.entries[0]).toMatchObject({ weight: 89.9, leanBodyMassKg: 65.1, boneMassKg: 3.2, bodyWaterMassKg: 48.5 });
   });
 
   it('does not collide across different units on the same day', () => {

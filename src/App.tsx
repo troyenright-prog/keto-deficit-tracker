@@ -11,7 +11,7 @@ import { Meals } from './screens/Meals';
 import { Recipes } from './screens/Recipes';
 import { Planner } from './screens/Planner';
 import { Shopping } from './screens/Shopping';
-import { Weight } from './screens/Weight';
+import { Garmin } from './screens/Garmin';
 import { Settings } from './screens/Settings';
 import { BarcodeScanner } from './screens/BarcodeScanner';
 import {
@@ -22,6 +22,8 @@ import {
   loadFoodDatabase, saveFoodDatabase,
   loadWeightEntries, saveWeightEntries,
   loadDailyActivity, saveDailyActivity,
+  loadSleepEntries, saveSleepEntries,
+  loadVitalsEntries, saveVitalsEntries,
   loadMealTemplates, saveMealTemplates,
   loadRecipes, saveRecipes,
   loadShoppingList, saveShoppingList,
@@ -61,9 +63,18 @@ import { duplicateLogEntry } from './lib/quick-add';
 import { barcodeFoodToFoodDatabaseItem, savedFoodToFoodDatabaseItem, upsertFoodDatabaseItem } from './lib/food-database';
 import { applyBarcodeNutritionToEntry, entryNeedsNutritionRepair, hasPositiveNutrition, lookupBarcodeFood, repairFailureMessage, type BarcodeFood, type RepairResult } from './lib/barcode';
 import { scheduleReminderNotifications } from './lib/reminders';
-import { isHealthConnectSupported, healthConnectAvailable, ensureStepPermissions, ensureWeightPermissions, fetchStepHistory, fetchWeightHistory } from './lib/health-connect';
+import {
+  isHealthConnectSupported, healthConnectAvailable,
+  ensureStepPermissions, ensureWeightPermissions, ensureActivityExtrasPermissions, ensureSleepPermissions, ensureVitalsPermissions,
+  fetchStepHistory, fetchWeightHistory, fetchActivityExtrasHistory, fetchSleepHistory, fetchVitalsHistory,
+} from './lib/health-connect';
 import { toGarminReadings, mergeGarminReadings, summarizeMerge } from './lib/garmin-weight-sync';
-import { mergeGarminStepReadings, summarizeStepMerge, toGarminStepReadings } from './lib/garmin-activity-sync';
+import {
+  mergeGarminStepReadings, summarizeStepMerge, toGarminStepReadings,
+  mergeGarminActivityExtras, summarizeActivityExtrasMerge, toGarminActivityExtras,
+} from './lib/garmin-activity-sync';
+import { mergeGarminSleepReadings, summarizeSleepMerge, toGarminSleepReadings } from './lib/garmin-sleep-sync';
+import { mergeGarminVitalsReadings, summarizeVitalsMerge, toGarminVitalsReadings } from './lib/garmin-vitals-sync';
 import { pickMicronutrients } from './lib/micronutrients';
 import type {
   FoodLogEntry,
@@ -73,6 +84,8 @@ import type {
   NutritionTargets,
   WeightEntry,
   DailyActivityEntry,
+  SleepEntry,
+  VitalsEntry,
   MealTemplate,
   Recipe,
   ShoppingItem,
@@ -122,6 +135,8 @@ function reloadAll() {
     foodDatabase: loadFoodDatabase(),
     weightEntries: loadWeightEntries(),
     dailyActivity: loadDailyActivity(),
+    sleepEntries: loadSleepEntries(),
+    vitalsEntries: loadVitalsEntries(),
     mealTemplates: loadMealTemplates(),
     recipes: loadRecipes(),
     shoppingList: loadShoppingList(),
@@ -151,6 +166,8 @@ function App() {
   const [foodDatabase, setFoodDatabase] = useState<FoodDatabaseItem[]>(loadFoodDatabase);
   const [weightEntries, setWeightEntries] = useState<WeightEntry[]>(loadWeightEntries);
   const [dailyActivity, setDailyActivity] = useState<DailyActivityEntry[]>(loadDailyActivity);
+  const [sleepEntries, setSleepEntries] = useState<SleepEntry[]>(loadSleepEntries);
+  const [vitalsEntries, setVitalsEntries] = useState<VitalsEntry[]>(loadVitalsEntries);
   const [mealTemplates, setMealTemplates] = useState<MealTemplate[]>(loadMealTemplates);
   const [recipes, setRecipes] = useState<Recipe[]>(loadRecipes);
   const [shoppingList, setShoppingList] = useState<ShoppingItem[]>(loadShoppingList);
@@ -169,6 +186,8 @@ function App() {
   const foodDatabaseRef = useRef(foodDatabase);
   const weightEntriesRef = useRef(weightEntries);
   const dailyActivityRef = useRef(dailyActivity);
+  const sleepEntriesRef = useRef(sleepEntries);
+  const vitalsEntriesRef = useRef(vitalsEntries);
   const mealTemplatesRef = useRef(mealTemplates);
   const recipesRef = useRef(recipes);
   const shoppingListRef = useRef(shoppingList);
@@ -183,6 +202,8 @@ function App() {
     setFoodDatabase(data.foodDatabase);
     setWeightEntries(data.weightEntries);
     setDailyActivity(data.dailyActivity);
+    setSleepEntries(data.sleepEntries);
+    setVitalsEntries(data.vitalsEntries);
     setMealTemplates(data.mealTemplates);
     setRecipes(data.recipes);
     setShoppingList(data.shoppingList);
@@ -191,6 +212,8 @@ function App() {
     profileRef.current = data.profile; targetsRef.current = data.targets; foodLogRef.current = data.foodLog;
     savedFoodsRef.current = data.savedFoods; foodDatabaseRef.current = data.foodDatabase; weightEntriesRef.current = data.weightEntries;
     dailyActivityRef.current = data.dailyActivity;
+    sleepEntriesRef.current = data.sleepEntries;
+    vitalsEntriesRef.current = data.vitalsEntries;
     mealTemplatesRef.current = data.mealTemplates; recipesRef.current = data.recipes;
     shoppingListRef.current = data.shoppingList; mealPlanRef.current = data.mealPlan; remindersRef.current = data.reminders;
   }, []);
@@ -439,14 +462,24 @@ function App() {
     return persist(entries, dailyActivityRef, setDailyActivity, saveDailyActivity);
   }, [persist]);
 
-  // Garmin → Health Connect import (native Android only).
-  const handleSyncGarminWeight = useCallback(async (): Promise<string> => {
+  const handleSaveSleepEntries = useCallback((entries: SleepEntry[]) => {
+    return persist(entries, sleepEntriesRef, setSleepEntries, saveSleepEntries);
+  }, [persist]);
+
+  const handleSaveVitalsEntries = useCallback((entries: VitalsEntry[]) => {
+    return persist(entries, vitalsEntriesRef, setVitalsEntries, saveVitalsEntries);
+  }, [persist]);
+
+  // Garmin → Health Connect import (native Android only). One button, one
+  // combined summary — each metric group is independently fault-tolerant so a
+  // device missing one data type (e.g. no floors sensor) doesn't block the rest.
+  const handleSyncGarmin = useCallback(async (): Promise<string> => {
     if (!(await healthConnectAvailable())) {
       return "Health Connect isn't available on this device. Install it and connect Garmin Connect first.";
     }
     await ensureWeightPermissions(); // throws a user-facing message if not granted
     const raw = await fetchWeightHistory();
-    const stepParts: string[] = [];
+    const activityParts: string[] = [];
     try {
       await ensureStepPermissions();
       const stepReadings = toGarminStepReadings(await fetchStepHistory());
@@ -455,16 +488,57 @@ function App() {
         const stepResult = mergeGarminStepReadings(dailyActivityRef.current, stepReadings, importedAt, nanoid);
         if (!handleSaveDailyActivity(stepResult.entries)) return 'Could not save the imported step entries.';
         const stepSummary = summarizeStepMerge(stepResult);
-        if (stepSummary) stepParts.push(stepSummary);
+        if (stepSummary) activityParts.push(stepSummary);
       } else {
-        stepParts.push('no Garmin step records found');
+        activityParts.push('no Garmin step records found');
       }
     } catch (error) {
-      stepParts.push(error instanceof Error ? `steps unavailable: ${error.message}` : 'steps unavailable');
+      activityParts.push(error instanceof Error ? `steps unavailable: ${error.message}` : 'steps unavailable');
+    }
+    try {
+      await ensureActivityExtrasPermissions();
+      const extras = toGarminActivityExtras(await fetchActivityExtrasHistory());
+      if (extras.length > 0) {
+        const importedAt = new Date().toISOString();
+        const extrasResult = mergeGarminActivityExtras(dailyActivityRef.current, extras, importedAt, nanoid);
+        if (!handleSaveDailyActivity(extrasResult.entries)) return 'Could not save the imported activity data.';
+        const extrasSummary = summarizeActivityExtrasMerge(extrasResult);
+        if (extrasSummary) activityParts.push(extrasSummary);
+      }
+    } catch (error) {
+      activityParts.push(error instanceof Error ? `activity data unavailable: ${error.message}` : 'activity data unavailable');
+    }
+    try {
+      await ensureSleepPermissions();
+      const sleepReadings = toGarminSleepReadings(await fetchSleepHistory());
+      if (sleepReadings.length > 0) {
+        const importedAt = new Date().toISOString();
+        const sleepResult = mergeGarminSleepReadings(sleepEntriesRef.current, sleepReadings, importedAt, nanoid);
+        if (!handleSaveSleepEntries(sleepResult.entries)) return 'Could not save the imported sleep entries.';
+        const sleepSummary = summarizeSleepMerge(sleepResult);
+        if (sleepSummary) activityParts.push(`sleep: ${sleepSummary}`);
+      } else {
+        activityParts.push('no Garmin sleep records found');
+      }
+    } catch (error) {
+      activityParts.push(error instanceof Error ? `sleep unavailable: ${error.message}` : 'sleep unavailable');
+    }
+    try {
+      await ensureVitalsPermissions();
+      const vitalsReadings = toGarminVitalsReadings(await fetchVitalsHistory());
+      if (vitalsReadings.length > 0) {
+        const importedAt = new Date().toISOString();
+        const vitalsResult = mergeGarminVitalsReadings(vitalsEntriesRef.current, vitalsReadings, importedAt, nanoid);
+        if (!handleSaveVitalsEntries(vitalsResult.entries)) return 'Could not save the imported vitals.';
+        const vitalsSummary = summarizeVitalsMerge(vitalsResult);
+        if (vitalsSummary) activityParts.push(`vitals: ${vitalsSummary}`);
+      }
+    } catch (error) {
+      activityParts.push(error instanceof Error ? `vitals unavailable: ${error.message}` : 'vitals unavailable');
     }
     if (raw.length === 0) {
-      return stepParts.length > 0
-        ? `No weight data found in Health Connect yet; ${stepParts.join('; ')}.`
+      return activityParts.length > 0
+        ? `No weight data found in Health Connect yet; ${activityParts.join('; ')}.`
         : 'No weight data found in Health Connect yet.';
     }
     const unit = profileRef.current.weightUnit;
@@ -472,8 +546,8 @@ function App() {
     const result = mergeGarminReadings(weightEntriesRef.current, readings, unit, new Date().toISOString(), nanoid);
     if (!handleSaveWeightEntries(result.entries)) return 'Could not save the imported weight entries.';
     const weightSummary = summarizeMerge(result);
-    return stepParts.length > 0 ? `${weightSummary} Steps: ${stepParts.join('; ')}.` : weightSummary;
-  }, [handleSaveDailyActivity, handleSaveWeightEntries]);
+    return activityParts.length > 0 ? `${weightSummary} Activity: ${activityParts.join('; ')}.` : weightSummary;
+  }, [handleSaveDailyActivity, handleSaveSleepEntries, handleSaveVitalsEntries, handleSaveWeightEntries]);
 
   // ── Meal templates ─────────────────────────────────────────────────────────
 
@@ -669,11 +743,14 @@ function App() {
           />
         )}
         {screen === 'weight' && (
-          <Weight
+          <Garmin
             entries={weightEntries}
             weightUnit={profile.weightUnit}
+            dailyActivity={dailyActivity}
+            sleepEntries={sleepEntries}
+            vitalsEntries={vitalsEntries}
             onSave={handleSaveWeightEntries}
-            onSyncGarmin={isHealthConnectSupported() ? handleSyncGarminWeight : undefined}
+            onSyncGarmin={isHealthConnectSupported() ? handleSyncGarmin : undefined}
           />
         )}
         {screen === 'settings' && (

@@ -1,21 +1,47 @@
 import { useMemo, useState } from 'react';
-import type { WeightEntry } from '../types';
+import type { DailyActivityEntry, SleepEntry, VitalsEntry, WeightEntry } from '../types';
 import { todayDateString } from '../lib/nutrition';
 import { sevenDayAvgWeight } from '../lib/weekly';
 import { StatCard } from '../components/StatCard';
 import { nanoid } from '../lib/nanoid';
 import { buildWeightTrendChart, toSmoothAreaPath, toSmoothPath } from '../lib/weight-trend';
 
-interface WeightProps {
+interface GarminProps {
   entries: WeightEntry[];
   weightUnit: 'kg' | 'lbs';
+  dailyActivity: DailyActivityEntry[];
+  sleepEntries: SleepEntry[];
+  vitalsEntries: VitalsEntry[];
   onSave: (entries: WeightEntry[]) => boolean;
   // Provided only on platforms where Garmin/Health Connect is available.
   // Resolves to a status message to show the user.
   onSyncGarmin?: () => Promise<string>;
 }
 
-export function Weight({ entries, weightUnit, onSave, onSyncGarmin }: WeightProps) {
+function formatDistance(meters: number): string {
+  return meters >= 1000 ? `${(meters / 1000).toFixed(1)} km` : `${Math.round(meters)} m`;
+}
+
+function formatDuration(totalMinutes: number): string {
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${hours}h ${minutes}m`;
+}
+
+function formatClockTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+}
+
+const STAGE_LABELS: Record<string, string> = { awake: 'Awake', light: 'Light', deep: 'Deep', rem: 'REM', unknown: 'Unknown' };
+const STAGE_CLASSES: Record<string, string> = {
+  awake: 'sleep-stage-bar__seg--awake',
+  light: 'sleep-stage-bar__seg--light',
+  deep: 'sleep-stage-bar__seg--deep',
+  rem: 'sleep-stage-bar__seg--rem',
+  unknown: 'sleep-stage-bar__seg--unknown',
+};
+
+export function Garmin({ entries, weightUnit, dailyActivity, sleepEntries, vitalsEntries, onSave, onSyncGarmin }: GarminProps) {
   const [weightInput, setWeightInput] = useState('');
   const [dateInput, setDateInput] = useState(todayDateString());
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -47,6 +73,9 @@ export function Weight({ entries, weightUnit, onSave, onSyncGarmin }: WeightProp
 
   const latestWeight = sorted[0];
   const latestBodyFat = sorted.find((entry) => entry.bodyFat != null);
+  const latestLeanMass = sorted.find((entry) => entry.leanBodyMassKg != null);
+  const latestBoneMass = sorted.find((entry) => entry.boneMassKg != null);
+  const latestBodyWater = sorted.find((entry) => entry.bodyWaterMassKg != null);
   const sevenDayAvg = sevenDayAvgWeight(sorted, todayDateString());
   const trendChart = buildWeightTrendChart(sorted, weightUnit);
 
@@ -54,6 +83,28 @@ export function Weight({ entries, weightUnit, onSave, onSyncGarmin }: WeightProp
     sorted.length >= 2
       ? sorted[0].weight - sorted[sorted.length - 1].weight
       : null;
+
+  const latestActivity = useMemo(
+    () => [...dailyActivity].sort((a, b) => b.date.localeCompare(a.date))[0],
+    [dailyActivity],
+  );
+  const isActivityToday = latestActivity?.date === todayDateString();
+
+  const latestSleep = useMemo(
+    () => [...sleepEntries].sort((a, b) => b.date.localeCompare(a.date))[0],
+    [sleepEntries],
+  );
+
+  const sortedVitals = useMemo(
+    () => [...vitalsEntries].sort((a, b) => b.date.localeCompare(a.date)),
+    [vitalsEntries],
+  );
+  const latestRestingHeartRate = sortedVitals.find((entry) => entry.restingHeartRate != null);
+  const latestHrv = sortedVitals.find((entry) => entry.hrv != null);
+  const latestVo2Max = sortedVitals.find((entry) => entry.vo2Max != null);
+  const latestOxygenSaturation = sortedVitals.find((entry) => entry.oxygenSaturation != null);
+  const latestRespiratoryRate = sortedVitals.find((entry) => entry.respiratoryRate != null);
+  const hasAnyVitals = latestRestingHeartRate || latestHrv || latestVo2Max || latestOxygenSaturation || latestRespiratoryRate;
 
   function addEntry() {
     const w = parseFloat(weightInput);
@@ -95,7 +146,7 @@ export function Weight({ entries, weightUnit, onSave, onSyncGarmin }: WeightProp
   return (
     <div className="screen">
       <div className="screen-header">
-        <h1>Weight Tracking</h1>
+        <h1>Garmin</h1>
         {onSyncGarmin && (
           <button type="button" className="btn btn--secondary btn--sm" onClick={runGarminSync} disabled={syncing}>
             {syncing ? 'Syncing…' : 'Sync from Garmin'}
@@ -104,6 +155,8 @@ export function Weight({ entries, weightUnit, onSave, onSyncGarmin }: WeightProp
       </div>
       {syncMessage && <p className="empty-hint empty-hint--compact" role="status">{syncMessage}</p>}
       {validationError && <p className="form-error" role="alert">{validationError}</p>}
+
+      <div className="section-title">Weight and body composition</div>
 
       <div className="weight-add-row">
         <input
@@ -150,6 +203,15 @@ export function Weight({ entries, weightUnit, onSave, onSyncGarmin }: WeightProp
               value={`${weightChange >= 0 ? '+' : ''}${weightChange.toFixed(1)} ${weightUnit}`}
               variant={weightChange < 0 ? 'success' : weightChange > 0 ? 'warning' : 'default'}
             />
+          )}
+          {latestLeanMass?.leanBodyMassKg != null && (
+            <StatCard label="Lean mass" value={`${latestLeanMass.leanBodyMassKg.toFixed(1)} kg`} sub={latestLeanMass.date} />
+          )}
+          {latestBoneMass?.boneMassKg != null && (
+            <StatCard label="Bone mass" value={`${latestBoneMass.boneMassKg.toFixed(1)} kg`} sub={latestBoneMass.date} />
+          )}
+          {latestBodyWater?.bodyWaterMassKg != null && (
+            <StatCard label="Body water" value={`${latestBodyWater.bodyWaterMassKg.toFixed(1)} kg`} sub={latestBodyWater.date} />
           )}
         </div>
       )}
@@ -254,6 +316,93 @@ export function Weight({ entries, weightUnit, onSave, onSyncGarmin }: WeightProp
             </li>
           ))}
         </ul>
+      )}
+
+      <div className="section-title">Activity</div>
+      {latestActivity ? (
+        <div className="cards-grid">
+          <StatCard
+            label={isActivityToday ? 'Steps today' : 'Latest steps'}
+            value={latestActivity.steps.toLocaleString()}
+            sub={isActivityToday ? 'Garmin via Health Connect' : latestActivity.date}
+          />
+          {latestActivity.activeCalories != null && (
+            <StatCard label="Active calories" value={Math.round(latestActivity.activeCalories).toLocaleString()} sub="kcal" />
+          )}
+          {latestActivity.totalCalories != null && (
+            <StatCard label="Total calories burned" value={Math.round(latestActivity.totalCalories).toLocaleString()} sub="kcal" />
+          )}
+          {latestActivity.distanceMeters != null && (
+            <StatCard label="Distance" value={formatDistance(latestActivity.distanceMeters)} />
+          )}
+          {latestActivity.floorsClimbed != null && (
+            <StatCard label="Floors climbed" value={Math.round(latestActivity.floorsClimbed)} />
+          )}
+          {latestActivity.elevationGainedMeters != null && (
+            <StatCard label="Elevation gained" value={`${Math.round(latestActivity.elevationGainedMeters)} m`} />
+          )}
+        </div>
+      ) : (
+        <p className="empty-hint">No activity data yet. Sync from Garmin to pull in steps and calories burned.</p>
+      )}
+
+      <div className="section-title">Sleep</div>
+      {latestSleep ? (
+        <div className="sleep-card">
+          <div className="sleep-card-header">
+            <span className="sleep-card-duration">{formatDuration(latestSleep.totalMinutes)}</span>
+            <span className="sleep-card-times">{formatClockTime(latestSleep.startTime)} - {formatClockTime(latestSleep.endTime)}</span>
+          </div>
+          {latestSleep.stages && latestSleep.stages.length > 0 && (
+            <>
+              <div className="sleep-stage-bar">
+                {latestSleep.stages.map((segment, index) => {
+                  const start = new Date(segment.startTime).getTime();
+                  const end = new Date(segment.endTime).getTime();
+                  const widthPercent = Math.max(0, ((end - start) / 60000 / latestSleep.totalMinutes) * 100);
+                  return (
+                    <span
+                      key={index}
+                      className={`sleep-stage-bar__seg ${STAGE_CLASSES[segment.stage]}`}
+                      style={{ width: `${widthPercent}%` }}
+                      title={STAGE_LABELS[segment.stage]}
+                    />
+                  );
+                })}
+              </div>
+              <div className="sleep-stage-legend">
+                {(['awake', 'light', 'deep', 'rem'] as const).map((stage) => (
+                  <span key={stage} className="sleep-stage-legend__item" data-stage={stage}>{STAGE_LABELS[stage]}</span>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      ) : (
+        <p className="empty-hint">No sleep data yet. Sync from Garmin to pull in last night's sleep.</p>
+      )}
+
+      <div className="section-title">Vitals</div>
+      {hasAnyVitals ? (
+        <div className="cards-grid">
+          {latestRestingHeartRate?.restingHeartRate != null && (
+            <StatCard label="Resting heart rate" value={`${latestRestingHeartRate.restingHeartRate} bpm`} sub={latestRestingHeartRate.date} />
+          )}
+          {latestHrv?.hrv != null && (
+            <StatCard label="HRV" value={`${latestHrv.hrv} ms`} sub={latestHrv.date} />
+          )}
+          {latestVo2Max?.vo2Max != null && (
+            <StatCard label="VO2 max" value={latestVo2Max.vo2Max} sub={latestVo2Max.date} />
+          )}
+          {latestOxygenSaturation?.oxygenSaturation != null && (
+            <StatCard label="Oxygen saturation" value={`${latestOxygenSaturation.oxygenSaturation}%`} sub={latestOxygenSaturation.date} />
+          )}
+          {latestRespiratoryRate?.respiratoryRate != null && (
+            <StatCard label="Respiratory rate" value={`${latestRespiratoryRate.respiratoryRate}/min`} sub={latestRespiratoryRate.date} />
+          )}
+        </div>
+      ) : (
+        <p className="empty-hint">No vitals yet. Sync from Garmin to pull in resting heart rate, HRV, and more.</p>
       )}
     </div>
   );

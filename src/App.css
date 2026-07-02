@@ -1681,6 +1681,74 @@ input:disabled {
   fill: var(--blue);
 }
 
+/* Sleep */
+.sleep-card {
+  padding: 14px;
+  border: 1px solid rgba(223, 232, 223, 0.95);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: var(--shadow-soft);
+  margin-bottom: 16px;
+}
+
+.sleep-card-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.sleep-card-duration {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--gray-900);
+}
+
+.sleep-card-times {
+  font-size: 12px;
+  color: var(--gray-500);
+}
+
+.sleep-stage-bar {
+  display: flex;
+  height: 10px;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.sleep-stage-bar__seg--awake { background: #7f77dd; }
+.sleep-stage-bar__seg--light { background: #85b7eb; }
+.sleep-stage-bar__seg--deep { background: #185fa5; }
+.sleep-stage-bar__seg--rem { background: #5dcaa5; }
+.sleep-stage-bar__seg--unknown { background: var(--gray-300); }
+
+.sleep-stage-legend {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--gray-500);
+}
+
+.sleep-stage-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sleep-stage-legend__item::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.sleep-stage-legend__item[data-stage="awake"] { color: #7f77dd; }
+.sleep-stage-legend__item[data-stage="light"] { color: #85b7eb; }
+.sleep-stage-legend__item[data-stage="deep"] { color: #185fa5; }
+.sleep-stage-legend__item[data-stage="rem"] { color: #5dcaa5; }
+
 /* Native reminders */
 .reminder-grid {
   display: grid;

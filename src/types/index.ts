@@ -169,6 +169,9 @@ export interface WeightEntry {
   unit: 'kg' | 'lbs';
   loggedAt: string;
   bodyFat?: number; // body-fat percentage, when available (e.g. from a Garmin scale)
+  leanBodyMassKg?: number; // same-day body-composition companions to bodyFat, always in kg
+  boneMassKg?: number;
+  bodyWaterMassKg?: number;
   source?: WeightEntrySource; // absent/`manual` for hand-entered rows
   sourceLabel?: string; // human label for imported rows, e.g. "Garmin via Health Connect"
   importedAt?: string; // ISO timestamp of the last Health Connect import
@@ -182,7 +185,58 @@ export interface DailyActivityEntry {
   id: string;
   date: string; // YYYY-MM-DD
   steps: number;
+  activeCalories?: number;
+  totalCalories?: number;
+  distanceMeters?: number;
+  floorsClimbed?: number;
+  elevationGainedMeters?: number;
   source: DailyActivitySource;
+  sourceLabel?: string;
+  importedAt: string;
+}
+
+// ── Sleep ──────────────────────────────────────────────────────────────────────
+// Imported from Garmin via Health Connect. `date` buckets a session by its wake
+// date (the day the session ends), since sessions typically span midnight.
+
+export type SleepStage = 'awake' | 'light' | 'deep' | 'rem' | 'unknown';
+export type SleepEntrySource = 'garminHealthConnect';
+
+export interface SleepStageSegment {
+  stage: SleepStage;
+  startTime: string; // ISO
+  endTime: string; // ISO
+}
+
+export interface SleepEntry {
+  id: string;
+  date: string; // YYYY-MM-DD, the wake date
+  startTime: string; // ISO
+  endTime: string; // ISO
+  totalMinutes: number;
+  stages?: SleepStageSegment[];
+  source: SleepEntrySource;
+  sourceLabel?: string;
+  importedAt: string;
+}
+
+// ── Vitals ─────────────────────────────────────────────────────────────────────
+// Point-in-time physiological readings imported from Garmin via Health Connect.
+// One entry per day; each field is independently optional since Health Connect
+// returns each metric as its own record stream and not every Garmin device
+// produces every metric.
+
+export type VitalsEntrySource = 'garminHealthConnect';
+
+export interface VitalsEntry {
+  id: string;
+  date: string; // YYYY-MM-DD
+  restingHeartRate?: number; // bpm
+  hrv?: number; // ms (HRV RMSSD)
+  vo2Max?: number; // mL/(kg·min)
+  oxygenSaturation?: number; // percent
+  respiratoryRate?: number; // breaths/min
+  source: VitalsEntrySource;
   sourceLabel?: string;
   importedAt: string;
 }
@@ -323,6 +377,8 @@ export interface AppStateBundle {
   foodDatabase: FoodDatabaseItem[];
   weightEntries: WeightEntry[];
   dailyActivity: DailyActivityEntry[];
+  sleepEntries: SleepEntry[];
+  vitalsEntries: VitalsEntry[];
   mealTemplates: MealTemplate[];
   recipes: Recipe[];
   shoppingList: ShoppingItem[];

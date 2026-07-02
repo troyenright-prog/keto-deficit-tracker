@@ -2,7 +2,7 @@ import type {
   UserProfile, NutritionTargets, FoodLogEntry, FoodItem, WeightEntry,
   MealTemplate, MealTemplateItem, Recipe, RecipeIngredient, ShoppingItem,
   MealPlanEntry, AppStateBundle, Micronutrients, FoodDatabaseItem, FoodDatabaseSource, ReminderSettings,
-  DailyActivityEntry,
+  DailyActivityEntry, SleepEntry, SleepStage, SleepStageSegment, VitalsEntry,
 } from '../types';
 import { addLocalDays, isDateString, localDateString } from './date';
 import { dedupeFoodDatabase } from './food-database';
@@ -17,7 +17,7 @@ export const CURRENT_VERSION = 6;
 const KEYS = {
   version: 'keto_version', profile: 'keto_profile', targets: 'keto_targets',
   foodLog: 'keto_food_log', savedFoods: 'keto_saved_foods', weightEntries: 'keto_weight_entries',
-  dailyActivity: 'keto_daily_activity',
+  dailyActivity: 'keto_daily_activity', sleepEntries: 'keto_sleep_entries', vitalsEntries: 'keto_vitals_entries',
   mealTemplates: 'keto_meal_templates', recipes: 'keto_recipes', shoppingList: 'keto_shopping_list',
   mealPlan: 'keto_meal_plan', foodDatabase: 'keto_food_database', reminders: 'keto_reminders',
 } as const;
@@ -138,6 +138,8 @@ function hasRawUserData(prefix = ''): boolean {
       read(KEYS.savedFoods) ||
       read(KEYS.weightEntries) ||
       read(KEYS.dailyActivity) ||
+      read(KEYS.sleepEntries) ||
+      read(KEYS.vitalsEntries) ||
       read(KEYS.mealTemplates) ||
       read(KEYS.recipes) ||
       read(KEYS.shoppingList) ||
@@ -294,11 +296,17 @@ function normalizeWeight(value: unknown): WeightEntry | null {
   const weight = safePositive(value.weight, 0);
   if (weight === 0) return null;
   const bodyFat = safePositive(value.bodyFat, 0);
+  const leanBodyMassKg = optionalNonNegative(value.leanBodyMassKg);
+  const boneMassKg = optionalNonNegative(value.boneMassKg);
+  const bodyWaterMassKg = optionalNonNegative(value.bodyWaterMassKg);
   const isGarmin = value.source === 'garminHealthConnect';
   return {
     id: text(value.id, crypto.randomUUID()), date: date(value.date), weight,
     unit: value.unit === 'lbs' ? 'lbs' : 'kg', loggedAt: timestamp(value.loggedAt),
     ...(bodyFat > 0 ? { bodyFat } : {}),
+    ...(leanBodyMassKg !== undefined ? { leanBodyMassKg } : {}),
+    ...(boneMassKg !== undefined ? { boneMassKg } : {}),
+    ...(bodyWaterMassKg !== undefined ? { bodyWaterMassKg } : {}),
     ...(isGarmin ? {
       source: 'garminHealthConnect' as const,
       sourceLabel: optionalText(value.sourceLabel) ?? 'Garmin via Health Connect',
@@ -307,14 +315,80 @@ function normalizeWeight(value: unknown): WeightEntry | null {
   };
 }
 
+function optionalNonNegative(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
 function normalizeDailyActivity(value: unknown): DailyActivityEntry | null {
   if (!isRecord(value)) return null;
   const steps = Math.round(safeNonNegative(value.steps));
-  if (steps <= 0) return null;
+  const activeCalories = optionalNonNegative(value.activeCalories);
+  const totalCalories = optionalNonNegative(value.totalCalories);
+  const distanceMeters = optionalNonNegative(value.distanceMeters);
+  const floorsClimbed = optionalNonNegative(value.floorsClimbed);
+  const elevationGainedMeters = optionalNonNegative(value.elevationGainedMeters);
+  if (steps <= 0 && activeCalories === undefined && totalCalories === undefined
+    && distanceMeters === undefined && floorsClimbed === undefined && elevationGainedMeters === undefined) return null;
   return {
     id: text(value.id, crypto.randomUUID()),
     date: date(value.date),
     steps,
+    ...(activeCalories !== undefined ? { activeCalories } : {}),
+    ...(totalCalories !== undefined ? { totalCalories } : {}),
+    ...(distanceMeters !== undefined ? { distanceMeters } : {}),
+    ...(floorsClimbed !== undefined ? { floorsClimbed } : {}),
+    ...(elevationGainedMeters !== undefined ? { elevationGainedMeters } : {}),
+    source: 'garminHealthConnect',
+    sourceLabel: optionalText(value.sourceLabel) ?? 'Garmin via Health Connect',
+    importedAt: timestamp(value.importedAt),
+  };
+}
+
+const SLEEP_STAGES: readonly SleepStage[] = ['awake', 'light', 'deep', 'rem', 'unknown'];
+
+function normalizeSleepStage(value: unknown): SleepStageSegment | null {
+  if (!isRecord(value)) return null;
+  const stage = SLEEP_STAGES.includes(value.stage as SleepStage) ? (value.stage as SleepStage) : 'unknown';
+  return { stage, startTime: timestamp(value.startTime), endTime: timestamp(value.endTime) };
+}
+
+function normalizeSleepEntry(value: unknown): SleepEntry | null {
+  if (!isRecord(value)) return null;
+  const totalMinutes = Math.round(safeNonNegative(value.totalMinutes));
+  if (totalMinutes <= 0) return null;
+  const stages = Array.isArray(value.stages)
+    ? value.stages.map(normalizeSleepStage).filter((s): s is SleepStageSegment => s !== null)
+    : [];
+  return {
+    id: text(value.id, crypto.randomUUID()),
+    date: date(value.date),
+    startTime: timestamp(value.startTime),
+    endTime: timestamp(value.endTime),
+    totalMinutes,
+    ...(stages.length > 0 ? { stages } : {}),
+    source: 'garminHealthConnect',
+    sourceLabel: optionalText(value.sourceLabel) ?? 'Garmin via Health Connect',
+    importedAt: timestamp(value.importedAt),
+  };
+}
+
+function normalizeVitalsEntry(value: unknown): VitalsEntry | null {
+  if (!isRecord(value)) return null;
+  const restingHeartRate = optionalNonNegative(value.restingHeartRate);
+  const hrv = optionalNonNegative(value.hrv);
+  const vo2Max = optionalNonNegative(value.vo2Max);
+  const oxygenSaturation = optionalNonNegative(value.oxygenSaturation);
+  const respiratoryRate = optionalNonNegative(value.respiratoryRate);
+  if (restingHeartRate === undefined && hrv === undefined && vo2Max === undefined
+    && oxygenSaturation === undefined && respiratoryRate === undefined) return null;
+  return {
+    id: text(value.id, crypto.randomUUID()),
+    date: date(value.date),
+    ...(restingHeartRate !== undefined ? { restingHeartRate } : {}),
+    ...(hrv !== undefined ? { hrv } : {}),
+    ...(vo2Max !== undefined ? { vo2Max } : {}),
+    ...(oxygenSaturation !== undefined ? { oxygenSaturation } : {}),
+    ...(respiratoryRate !== undefined ? { respiratoryRate } : {}),
     source: 'garminHealthConnect',
     sourceLabel: optionalText(value.sourceLabel) ?? 'Garmin via Health Connect',
     importedAt: timestamp(value.importedAt),
@@ -385,7 +459,7 @@ export function migrateIfNeeded(): void {
   const version = safeNonNegative(safeRead(KEYS.version));
   if (version >= CURRENT_VERSION) return;
   try {
-    for (const key of [KEYS.mealTemplates, KEYS.recipes, KEYS.shoppingList, KEYS.mealPlan, KEYS.foodDatabase, KEYS.dailyActivity]) {
+    for (const key of [KEYS.mealTemplates, KEYS.recipes, KEYS.shoppingList, KEYS.mealPlan, KEYS.foodDatabase, KEYS.dailyActivity, KEYS.sleepEntries, KEYS.vitalsEntries]) {
       if (localStorage.getItem(scopedKey(key)) === null && !safeWrite(key, [])) return;
     }
     if (localStorage.getItem(scopedKey(KEYS.reminders)) === null && !safeWrite(KEYS.reminders, DEFAULT_REMINDERS)) return;
@@ -409,6 +483,10 @@ export const loadWeightEntries = () => normalizeArray(safeRead(KEYS.weightEntrie
 export const saveWeightEntries = (value: WeightEntry[]) => safeWrite(KEYS.weightEntries, value);
 export const loadDailyActivity = () => normalizeArray(safeRead(KEYS.dailyActivity), normalizeDailyActivity);
 export const saveDailyActivity = (value: DailyActivityEntry[]) => safeWrite(KEYS.dailyActivity, value);
+export const loadSleepEntries = () => normalizeArray(safeRead(KEYS.sleepEntries), normalizeSleepEntry);
+export const saveSleepEntries = (value: SleepEntry[]) => safeWrite(KEYS.sleepEntries, value);
+export const loadVitalsEntries = () => normalizeArray(safeRead(KEYS.vitalsEntries), normalizeVitalsEntry);
+export const saveVitalsEntries = (value: VitalsEntry[]) => safeWrite(KEYS.vitalsEntries, value);
 export const loadMealTemplates = () => normalizeArray(safeRead(KEYS.mealTemplates), normalizeTemplate);
 export const saveMealTemplates = (value: MealTemplate[]) => safeWrite(KEYS.mealTemplates, value);
 export const loadRecipes = () => normalizeArray(safeRead(KEYS.recipes), normalizeRecipe);
@@ -449,6 +527,8 @@ function hasUserData(): boolean {
     loadSavedFoods().length > 0 ||
     loadWeightEntries().length > 0 ||
     loadDailyActivity().length > 0 ||
+    loadSleepEntries().length > 0 ||
+    loadVitalsEntries().length > 0 ||
     loadMealTemplates().length > 0 ||
     loadRecipes().length > 0 ||
     loadShoppingList().length > 0 ||
@@ -588,6 +668,8 @@ export function seedDemoDataIfEmpty(): boolean {
     [KEYS.foodDatabase, [cheeseDatabase]],
     [KEYS.weightEntries, weightEntries],
     [KEYS.dailyActivity, []],
+    [KEYS.sleepEntries, []],
+    [KEYS.vitalsEntries, []],
     [KEYS.mealTemplates, mealTemplates],
     [KEYS.recipes, recipes],
     [KEYS.shoppingList, shoppingList],
@@ -601,7 +683,7 @@ export function exportAppData(): AppStateBundle {
   return {
     version: CURRENT_VERSION, exportedAt: new Date().toISOString(), profile: loadProfile(), targets: loadTargets(),
     foodLog: loadFoodLog(), savedFoods: loadSavedFoods(), weightEntries: loadWeightEntries(),
-    dailyActivity: loadDailyActivity(),
+    dailyActivity: loadDailyActivity(), sleepEntries: loadSleepEntries(), vitalsEntries: loadVitalsEntries(),
     foodDatabase: loadFoodDatabase(),
     mealTemplates: loadMealTemplates(), recipes: loadRecipes(), shoppingList: loadShoppingList(), mealPlan: loadMealPlan(),
     reminders: loadReminders(),
@@ -626,11 +708,17 @@ export function normalizeAppBundle(value: unknown): AppStateBundle | null {
   if (!Array.isArray(foodDatabaseValue) || foodDatabaseValue.some((item: unknown) => !isRecord(item))) return null;
   const dailyActivityValue = value.dailyActivity === undefined ? [] : value.dailyActivity;
   if (!Array.isArray(dailyActivityValue) || dailyActivityValue.some((item: unknown) => !isRecord(item))) return null;
+  const sleepEntriesValue = value.sleepEntries === undefined ? [] : value.sleepEntries;
+  if (!Array.isArray(sleepEntriesValue) || sleepEntriesValue.some((item: unknown) => !isRecord(item))) return null;
+  const vitalsEntriesValue = value.vitalsEntries === undefined ? [] : value.vitalsEntries;
+  if (!Array.isArray(vitalsEntriesValue) || vitalsEntriesValue.some((item: unknown) => !isRecord(item))) return null;
   return {
     version: CURRENT_VERSION, exportedAt: timestamp(value.exportedAt), profile: normalizeProfile(value.profile), targets: normalizeTargets(value.targets),
     foodLog: normalizeArray(value.foodLog, normalizeLogEntry), savedFoods: normalizeArray(value.savedFoods, normalizeFood),
     foodDatabase: dedupeFoodDatabase(normalizeArray(foodDatabaseValue, normalizeFoodDatabaseItem)),
     weightEntries: normalizeArray(value.weightEntries, normalizeWeight), dailyActivity: normalizeArray(dailyActivityValue, normalizeDailyActivity),
+    sleepEntries: normalizeArray(sleepEntriesValue, normalizeSleepEntry),
+    vitalsEntries: normalizeArray(vitalsEntriesValue, normalizeVitalsEntry),
     mealTemplates: normalizeArray(value.mealTemplates, normalizeTemplate),
     recipes: normalizeArray(value.recipes, normalizeRecipe), shoppingList: normalizeArray(value.shoppingList, normalizeShoppingItem),
     mealPlan: normalizeArray(value.mealPlan, normalizePlanEntry),
@@ -648,7 +736,7 @@ export function importAppData(value: unknown): boolean {
   const writes: [string, unknown][] = [
     [KEYS.profile, bundle.profile], [KEYS.targets, bundle.targets], [KEYS.foodLog, bundle.foodLog],
     [KEYS.savedFoods, bundle.savedFoods], [KEYS.foodDatabase, bundle.foodDatabase], [KEYS.weightEntries, bundle.weightEntries],
-    [KEYS.dailyActivity, bundle.dailyActivity],
+    [KEYS.dailyActivity, bundle.dailyActivity], [KEYS.sleepEntries, bundle.sleepEntries], [KEYS.vitalsEntries, bundle.vitalsEntries],
     [KEYS.mealTemplates, bundle.mealTemplates], [KEYS.recipes, bundle.recipes],
     [KEYS.shoppingList, bundle.shoppingList], [KEYS.mealPlan, bundle.mealPlan], [KEYS.reminders, bundle.reminders],
     [KEYS.version, CURRENT_VERSION],

@@ -11,7 +11,7 @@ type Tab = { id: Screen; label: string };
 const homeTabs: Tab[] = [
   { id: 'dashboard', label: 'Home' },
   { id: 'daily-log', label: 'Log' },
-  { id: 'weight', label: 'Weight' },
+  { id: 'weight', label: 'Garmin' },
 ];
 
 const planTabs: Tab[] = [
@@ -27,7 +27,7 @@ const endTabs: Tab[] = [
 const ICONS: Partial<Record<Screen, ReactNode>> = {
   dashboard: <><path d="M4 10.5 12 4l8 6.5" /><path d="M6 9.7V20h12V9.7" /></>,
   'daily-log': <><circle cx="4.6" cy="6" r="1" /><circle cx="4.6" cy="12" r="1" /><circle cx="4.6" cy="18" r="1" /><path d="M9 6h11" /><path d="M9 12h11" /><path d="M9 18h11" /></>,
-  weight: <><path d="M5.5 18a6.5 6.5 0 1 1 13 0" /><path d="M12 14.5l2.6-3" /></>,
+  weight: <><path d="M3.5 12h3.5l1.6-4.2 2.7 8.4 1.9-5.6 1.3 3h4.5" /></>,
   planner: <><rect x="3.6" y="5" width="16.8" height="15.4" rx="2.2" /><path d="M3.6 9.4h16.8" /><path d="M8 3.3v3.3" /><path d="M16 3.3v3.3" /></>,
   weekly: <><path d="M5 20V12" /><path d="M10 20V5.5" /><path d="M15 20v-6.5" /><path d="M20 20v-10.5" /></>,
   'saved-foods': <><path d="M6.5 4.5h11v15l-5.5-3.7-5.5 3.7z" /></>,
