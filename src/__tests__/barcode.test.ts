@@ -6,8 +6,10 @@ import {
   barcodeLookupUrls,
   entryNeedsNutritionRepair,
   lookupBarcodeFood,
+  hasPositiveNutrition,
   normalizeBarcode,
   normalizeOpenFoodFactsProduct,
+  repairFailureMessage,
   type BarcodeFood,
 } from '../lib/barcode';
 import type { FoodLogEntry } from '../types';
@@ -152,6 +154,12 @@ describe('barcode food mapping', () => {
     await expect(lookupBarcodeFood('0000000000000', fetcher)).rejects.toThrow('No food was found');
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
+
+  it('does not blame the connection when a fetch fails while online', async () => {
+    const fetcher = vi.fn(async () => { throw new Error('network layer'); }) as unknown as typeof fetch;
+
+    await expect(lookupBarcodeFood('9300675051132', fetcher)).rejects.toThrow(/barcode database is busy/);
+  });
 });
 
 describe('nutrition repair', () => {
@@ -167,10 +175,24 @@ describe('nutrition repair', () => {
     sodiumMg: 42, potassiumMg: 0, magnesiumMg: 0,
   };
 
-  it('flags scanned entries with no calories and ignores complete ones', () => {
+  it('flags scanned entries with no usable nutrition and ignores complete ones', () => {
     expect(entryNeedsNutritionRepair(zeroEntry)).toBe(true);
     expect(entryNeedsNutritionRepair({ ...zeroEntry, calories: 100 })).toBe(false);
     expect(entryNeedsNutritionRepair({ ...zeroEntry, barcode: undefined })).toBe(false);
+  });
+
+  it('does not flag a valid zero-calorie supplement that carries electrolytes or micros', () => {
+    // Electrolyte-only supplement: 0 kcal but real sodium/potassium is complete data.
+    expect(entryNeedsNutritionRepair({ ...zeroEntry, sodiumMg: 250, potassiumMg: 100 })).toBe(false);
+    // Micronutrient-only supplement: 0 kcal but a real vitamin is complete data.
+    expect(entryNeedsNutritionRepair({ ...zeroEntry, vitaminDMcg: 25 })).toBe(false);
+  });
+
+  it('hasPositiveNutrition recognises calories, macros, electrolytes, and micros', () => {
+    expect(hasPositiveNutrition({ calories: 200 })).toBe(true); // calorie-bearing food
+    expect(hasPositiveNutrition({ calories: 0, sodiumMg: 300 })).toBe(true); // zero-cal electrolyte
+    expect(hasPositiveNutrition({ calories: 0, iodineMcg: 150 })).toBe(true); // micronutrient-only
+    expect(hasPositiveNutrition({ calories: 0, proteinG: 0, sodiumMg: 0 })).toBe(false); // empty row → failed lookup
   });
 
   it('recomputes macros from fresh nutrition, scaled by the serving multiplier', () => {
@@ -180,5 +202,13 @@ describe('nutrition repair', () => {
     expect(repaired.calories).toBe(1078); // 539 * 2
     expect(repaired.totalCarbsG).toBe(115); // 57.5 * 2
     expect(entryNeedsNutritionRepair(repaired)).toBe(false);
+  });
+
+  it('rewords unresolvable-barcode errors and passes other reasons through', () => {
+    expect(repairFailureMessage(new Error('No food was found for that barcode.'))).toMatch(/edit the entry/);
+    expect(repairFailureMessage(new Error('Enter a valid barcode number.'))).toMatch(/edit the entry/);
+    expect(repairFailureMessage(new Error('Barcode lookup is temporarily rate-limited. Try again shortly.')))
+      .toBe('Barcode lookup is temporarily rate-limited. Try again shortly.');
+    expect(repairFailureMessage('not an error')).toBe('');
   });
 });

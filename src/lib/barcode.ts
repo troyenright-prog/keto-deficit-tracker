@@ -230,6 +230,16 @@ export function barcodeLookupUrl(code: string): string {
   return barcodeLookupUrls(code)[0] ?? `${OPEN_FOOD_FACTS_BASE}/${encodeURIComponent(normalizeBarcode(code))}.json`;
 }
 
+// Honest copy: only blame the user's connection when the browser is actually
+// offline; a failed upstream fetch is the barcode database being unreachable,
+// not them. Mirrors the same rule in food-search.
+function unreachableMessage(): string {
+  const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+  return offline
+    ? 'You appear to be offline — check your connection and try again.'
+    : 'The barcode database is busy right now — please try again in a moment.';
+}
+
 export async function lookupBarcodeFood(barcode: string, fetcher: typeof fetch = fetch): Promise<BarcodeFood> {
   const normalized = normalizeBarcode(barcode);
   if (!normalized) throw new Error('Enter a valid barcode number.');
@@ -242,7 +252,7 @@ export async function lookupBarcodeFood(barcode: string, fetcher: typeof fetch =
       // CORS-safelisted header so it does not trigger a preflight.
       response = await fetcher(url, { cache: 'no-store', headers: { accept: 'application/json' } });
     } catch {
-      lastError = 'Could not reach the barcode database. Check your connection and try again.';
+      lastError = unreachableMessage();
       continue;
     }
 
@@ -259,7 +269,7 @@ export async function lookupBarcodeFood(barcode: string, fetcher: typeof fetch =
     try {
       body = await response.json();
     } catch {
-      lastError = 'Could not reach the barcode database. Check your connection and try again.';
+      lastError = unreachableMessage();
       continue;
     }
     if (!response.ok) {
@@ -300,11 +310,43 @@ export function barcodeFoodToLogEntry(food: BarcodeFood, date: string, multiplie
   };
 }
 
+// Every macro, electrolyte, and micronutrient we track. A record is considered
+// to carry usable nutrition if any one of these is above zero — so a valid
+// zero-calorie supplement (electrolytes/vitamins only) still counts as real
+// data, not an empty row.
+export const TRACKED_NUTRITION_KEYS = [
+  'calories', 'proteinG', 'fatG', 'totalCarbsG', 'fibreG', 'sugarAlcoholsG',
+  'sodiumMg', 'potassiumMg', 'magnesiumMg', ...MICRONUTRIENT_KEYS,
+] as const;
+
+type NutritionProbe = Partial<Record<(typeof TRACKED_NUTRITION_KEYS)[number], number | undefined>>;
+
+export function hasPositiveNutrition(food: NutritionProbe): boolean {
+  return TRACKED_NUTRITION_KEYS.some((key) => (food[key] ?? 0) > 0);
+}
+
 // A logged barcode entry needs nutrition repair if it was scanned but stored no
-// calories (e.g. logged while the Open Food Facts lookup was returning empty
-// nutriments). See barcode-off-v2.
-export function entryNeedsNutritionRepair(entry: Pick<FoodLogEntry, 'barcode' | 'calories'>): boolean {
-  return Boolean(entry.barcode) && !(entry.calories > 0);
+// usable nutrition at all (e.g. logged while the Open Food Facts lookup was
+// returning empty nutriments). A zero-calorie supplement that still has real
+// electrolytes/micros is complete and must NOT be flagged. See barcode-off-v2.
+export function entryNeedsNutritionRepair(entry: Pick<FoodLogEntry, 'barcode'> & NutritionProbe): boolean {
+  return Boolean(entry.barcode) && !hasPositiveNutrition(entry);
+}
+
+export interface RepairResult {
+  ok: boolean;
+  message: string;
+}
+
+// Lookup errors are worded for the scanner's manual-entry flow; reword the ones
+// that mean a stored barcode can never resolve, so the repair banner doesn't
+// suggest retrying something that will always fail.
+export function repairFailureMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : '';
+  if (message === 'Enter a valid barcode number.' || message === 'No food was found for that barcode.') {
+    return 'A logged barcode is not in the food database — edit the entry to fill in nutrition manually.';
+  }
+  return message;
 }
 
 // Recompute a log entry's macros from a freshly-fetched barcode food, preserving

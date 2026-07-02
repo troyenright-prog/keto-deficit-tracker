@@ -49,6 +49,22 @@ export function buildDbRestUrl(path: string, { dbUrl = '', token }: { dbUrl?: st
   return appendFirebaseAuth(`${dbUrl}/${path}.json`, token);
 }
 
+// Thrown when auth is configured but no token is available. Callers treat this
+// as a sync failure (read fails safe, write queues) rather than silently
+// sending an unauthenticated request that could bypass database rules.
+export const AUTH_UNAVAILABLE_MESSAGE = 'Sync is signed out — not sending an unauthenticated request.';
+
+// Build the REST URL for a request, refusing to proceed unauthenticated when
+// auth is configured but the token could not be obtained. When auth is not
+// configured at all (no API key), an unauthenticated URL is expected and fine.
+export function resolveDbRequestUrl(
+  path: string,
+  { dbUrl = '', authActive, token }: { dbUrl?: string; authActive: boolean; token: string | null },
+): string {
+  if (authActive && !token) throw new Error(AUTH_UNAVAILABLE_MESSAGE);
+  return buildDbRestUrl(path, { dbUrl, token });
+}
+
 export const STORAGE_NAMESPACE = 'production';
 export const DB_BASE = KETO_DB_BASE;
 export const DB_URL = `${DB_BASE}/ketoDeficitTracker`;
@@ -112,7 +128,7 @@ export async function initAuth(): Promise<string | null> {
 }
 
 async function dbUrl(path: string): Promise<string> {
-  return buildDbRestUrl(path, { dbUrl: DB_URL, token: await getToken() });
+  return resolveDbRequestUrl(path, { dbUrl: DB_URL, authActive: FIREBASE_AUTH_ACTIVE, token: await getToken() });
 }
 
 async function readJson(path: string): Promise<unknown> {

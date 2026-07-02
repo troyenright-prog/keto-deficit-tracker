@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { IScannerControls } from '@zxing/browser';
 import type { FoodDatabaseItem, FoodItem, FoodLogEntry } from '../types';
-import { barcodeFoodToLogEntry, barcodeFoodToSavedFood, lookupBarcodeFood, normalizeBarcode, type BarcodeFood } from '../lib/barcode';
+import { barcodeFoodToLogEntry, barcodeFoodToSavedFood, hasPositiveNutrition, lookupBarcodeFood, normalizeBarcode, type BarcodeFood } from '../lib/barcode';
 import { barcodeFoodToFoodDatabaseItem, findFoodDatabaseByBarcode, foodDatabaseItemToBarcodeFood } from '../lib/food-database';
 import { inferMealSlot, MEAL_SLOTS } from '../lib/meals';
 import { calcNetCarbs, todayDateString } from '../lib/nutrition';
@@ -47,24 +47,7 @@ type NutritionProbe = Partial<Record<
   number | undefined
 >>;
 
-const TRACKED_NUTRITION_KEYS = [
-  'calories',
-  'proteinG',
-  'fatG',
-  'totalCarbsG',
-  'fibreG',
-  'sugarAlcoholsG',
-  'sodiumMg',
-  'potassiumMg',
-  'magnesiumMg',
-  ...MICRONUTRIENT_KEYS,
-] as const;
-
 const MACRO_NUTRITION_KEYS = ['calories', 'proteinG', 'fatG', 'totalCarbsG'] as const;
-
-function hasPositiveNutrition(food: NutritionProbe): boolean {
-  return TRACKED_NUTRITION_KEYS.some((key) => (food[key] ?? 0) > 0);
-}
 
 function hasPositiveMacros(food: NutritionProbe): boolean {
   return MACRO_NUTRITION_KEYS.some((key) => (food[key] ?? 0) > 0);
@@ -244,6 +227,10 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
     updateFood(key, (Number.isFinite(next) && next >= 0 ? next : 0) as never);
   }
 
+  // Select the field's contents on focus so a placeholder-like "0" is replaced by
+  // the first keystroke instead of leaving the caret stuck after the 0 (mobile).
+  const selectOnFocus = (event: React.FocusEvent<HTMLInputElement>) => event.currentTarget.select();
+
   function persistReviewedFood(userEdited = origin === 'corrected' || origin === 'manual') {
     if (!food) return false;
     const existing = findFoodDatabaseByBarcode(foodDatabase, food.barcode);
@@ -377,39 +364,39 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
               </div>
               <div className="form-group">
                 <label htmlFor="barcode-calories">Calories</label>
-                <input id="barcode-calories" type="number" min="0" value={food.calories} onChange={(event) => updateFoodNumber('calories', event.target.value)} />
+                <input id="barcode-calories" type="number" min="0" value={food.calories} onFocus={selectOnFocus} onChange={(event) => updateFoodNumber('calories', event.target.value)} />
               </div>
               <div className="form-group">
                 <label htmlFor="barcode-protein">Protein (g)</label>
-                <input id="barcode-protein" type="number" min="0" step="0.1" value={food.proteinG} onChange={(event) => updateFoodNumber('proteinG', event.target.value)} />
+                <input id="barcode-protein" type="number" min="0" step="0.1" value={food.proteinG} onFocus={selectOnFocus} onChange={(event) => updateFoodNumber('proteinG', event.target.value)} />
               </div>
               <div className="form-group">
                 <label htmlFor="barcode-fat">Fat (g)</label>
-                <input id="barcode-fat" type="number" min="0" step="0.1" value={food.fatG} onChange={(event) => updateFoodNumber('fatG', event.target.value)} />
+                <input id="barcode-fat" type="number" min="0" step="0.1" value={food.fatG} onFocus={selectOnFocus} onChange={(event) => updateFoodNumber('fatG', event.target.value)} />
               </div>
               <div className="form-group">
                 <label htmlFor="barcode-carbs">Total carbs (g)</label>
-                <input id="barcode-carbs" type="number" min="0" step="0.1" value={food.totalCarbsG} onChange={(event) => updateFoodNumber('totalCarbsG', event.target.value)} />
+                <input id="barcode-carbs" type="number" min="0" step="0.1" value={food.totalCarbsG} onFocus={selectOnFocus} onChange={(event) => updateFoodNumber('totalCarbsG', event.target.value)} />
               </div>
               <div className="form-group">
                 <label htmlFor="barcode-fibre">Fibre (g)</label>
-                <input id="barcode-fibre" type="number" min="0" step="0.1" value={food.fibreG} onChange={(event) => updateFoodNumber('fibreG', event.target.value)} />
+                <input id="barcode-fibre" type="number" min="0" step="0.1" value={food.fibreG} onFocus={selectOnFocus} onChange={(event) => updateFoodNumber('fibreG', event.target.value)} />
               </div>
               <div className="form-group">
                 <label htmlFor="barcode-sugar-alcohols">Sugar alcohols (g)</label>
-                <input id="barcode-sugar-alcohols" type="number" min="0" step="0.1" value={food.sugarAlcoholsG} onChange={(event) => updateFoodNumber('sugarAlcoholsG', event.target.value)} />
+                <input id="barcode-sugar-alcohols" type="number" min="0" step="0.1" value={food.sugarAlcoholsG} onFocus={selectOnFocus} onChange={(event) => updateFoodNumber('sugarAlcoholsG', event.target.value)} />
               </div>
               <div className="form-group">
                 <label htmlFor="barcode-sodium">Sodium (mg)</label>
-                <input id="barcode-sodium" type="number" min="0" value={food.sodiumMg} onChange={(event) => updateFoodNumber('sodiumMg', event.target.value)} />
+                <input id="barcode-sodium" type="number" min="0" value={food.sodiumMg} onFocus={selectOnFocus} onChange={(event) => updateFoodNumber('sodiumMg', event.target.value)} />
               </div>
               <div className="form-group">
                 <label htmlFor="barcode-potassium">Potassium (mg)</label>
-                <input id="barcode-potassium" type="number" min="0" value={food.potassiumMg} onChange={(event) => updateFoodNumber('potassiumMg', event.target.value)} />
+                <input id="barcode-potassium" type="number" min="0" value={food.potassiumMg} onFocus={selectOnFocus} onChange={(event) => updateFoodNumber('potassiumMg', event.target.value)} />
               </div>
               <div className="form-group">
                 <label htmlFor="barcode-magnesium">Magnesium (mg)</label>
-                <input id="barcode-magnesium" type="number" min="0" value={food.magnesiumMg} onChange={(event) => updateFoodNumber('magnesiumMg', event.target.value)} />
+                <input id="barcode-magnesium" type="number" min="0" value={food.magnesiumMg} onFocus={selectOnFocus} onChange={(event) => updateFoodNumber('magnesiumMg', event.target.value)} />
               </div>
               <div className="form-section-title form-section-title--wide">Micronutrients</div>
               {MICRONUTRIENT_FIELDS.map((field) => (
@@ -421,6 +408,7 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
                     min="0"
                     step={field.unit === 'g' ? '0.01' : '0.1'}
                     value={food[field.key] ?? ''}
+                    onFocus={selectOnFocus}
                     onChange={(event) => updateFoodNumber(field.key, event.target.value)}
                   />
                 </div>
@@ -444,7 +432,7 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
           <div className="form-row">
             <div className="form-group">
               <label htmlFor="barcode-servings">Servings</label>
-              <input id="barcode-servings" type="number" min="0.1" step="0.1" value={servings} onChange={(event) => setServings(event.target.value)} />
+              <input id="barcode-servings" type="number" min="0.1" step="0.1" value={servings} onFocus={selectOnFocus} onChange={(event) => setServings(event.target.value)} />
             </div>
           </div>
 

@@ -62,6 +62,43 @@ function notifyLocalDataChanged(): void {
   }
 }
 
+// Per-user marker of when local data last changed from a *user* action (not from
+// applying a remote sync). Stored as a raw ISO string scoped to the active user
+// so sync can compare local freshness against a remote bundle's exportedAt and
+// avoid an older remote clobbering newer local edits. See firebase-db sync.
+const LOCAL_MODIFIED_KEY = 'keto_local_modified_at';
+
+export function markLocalDataModified(at: string = new Date().toISOString()): string {
+  try {
+    localStorage.setItem(scopedKey(LOCAL_MODIFIED_KEY), at);
+  } catch {
+    // Best-effort; freshness comparison falls back to "no marker" behaviour.
+  }
+  return at;
+}
+
+export function getLocalDataModifiedAt(): string {
+  try {
+    return localStorage.getItem(scopedKey(LOCAL_MODIFIED_KEY)) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+// Give existing on-device data a freshness baseline the first time this runs, so
+// a stale remote bundle can't overwrite local data that predates the marker.
+export function ensureLocalModifiedBaseline(): void {
+  if (!getLocalDataModifiedAt() && hasUserData()) markLocalDataModified();
+}
+
+// Decide whether an incoming remote bundle should replace local data. Remote
+// wins only when it is provably newer than the local marker; with no marker we
+// only accept remote if there is no local data to lose (e.g. a fresh install).
+export function remoteBundleShouldReplaceLocal(remoteExportedAt: string, localModifiedAt: string, localHasData: boolean): boolean {
+  if (!localModifiedAt) return !localHasData;
+  return remoteExportedAt > localModifiedAt;
+}
+
 type UnknownRecord = Record<string, unknown>;
 const isRecord = (value: unknown): value is UnknownRecord => typeof value === 'object' && value !== null && !Array.isArray(value);
 const text = (value: unknown, fallback = '') => typeof value === 'string' ? value : fallback;

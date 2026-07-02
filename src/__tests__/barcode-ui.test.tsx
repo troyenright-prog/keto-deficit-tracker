@@ -159,6 +159,43 @@ describe('Barcode scanner screen', () => {
     })));
   });
 
+  it('treats a micronutrient-only supplement as usable and caches it', async () => {
+    // 0 calories and 0 macros, but a real vitamin — this is complete data for a
+    // supplement, not an empty row, so it must be shown and written to the cache.
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({
+      barcode: '9311770608817',
+      name: 'Vitamin D drops',
+      brand: 'Ostelin',
+      servingSize: '1 drop',
+      dataBasis: 'serving',
+      calories: 0,
+      proteinG: 0,
+      fatG: 0,
+      totalCarbsG: 0,
+      fibreG: 0,
+      sugarAlcoholsG: 0,
+      sodiumMg: 0,
+      potassiumMg: 0,
+      magnesiumMg: 0,
+      vitaminDMcg: 25,
+    })));
+    const onAdd = vi.fn(() => true);
+    const onSaveFoodDatabaseItem = vi.fn(() => true);
+    render(<BarcodeScanner foodDatabase={[]} onAdd={onAdd} onSaveFood={vi.fn(() => true)} onSaveFoodDatabaseItem={onSaveFoodDatabaseItem} />);
+
+    fireEvent.change(screen.getByLabelText('Barcode number'), { target: { value: '9311770608817' } });
+    fireEvent.click(screen.getByRole('button', { name: /Look up barcode/ }));
+
+    await screen.findByText('Vitamin D drops');
+    // Macros are still zero, so the macro-specific note is expected...
+    expect(screen.getByText('No macro nutrition found - values are zero or need manual adjustment.')).toBeTruthy();
+    // ...but the supplement is real data, so it is cached rather than skipped.
+    expect(onSaveFoodDatabaseItem).toHaveBeenCalledWith(expect.objectContaining({
+      barcode: '9311770608817',
+      vitaminDMcg: 25,
+    }));
+  });
+
   it('uses a local barcode database hit without fetching', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);

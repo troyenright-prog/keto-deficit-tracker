@@ -3,7 +3,7 @@ import type { FoodLogEntry, FoodItem, MealSlot } from '../types';
 import { calcNetCarbs, todayDateString } from '../lib/nutrition';
 import { FoodForm, type FoodFormValues } from '../components/FoodForm';
 import { entryMeal, mealLabel, MEAL_SLOTS } from '../lib/meals';
-import { entryNeedsNutritionRepair } from '../lib/barcode';
+import { entryNeedsNutritionRepair, type RepairResult } from '../lib/barcode';
 import { nanoid } from '../lib/nanoid';
 import { pickMicronutrients, scaleMicronutrients } from '../lib/micronutrients';
 
@@ -14,13 +14,13 @@ interface DailyLogProps {
   onEdit: (entry: FoodLogEntry) => boolean;
   onDuplicate: (entry: FoodLogEntry, targetDate?: string) => boolean;
   onSaveFood: (food: FoodItem) => boolean;
-  onRepairScannedNutrition?: () => Promise<string>;
+  onRepairScannedNutrition?: () => Promise<RepairResult>;
 }
 
 export function DailyLog({ log, savedFoods, onDelete, onEdit, onDuplicate, onSaveFood, onRepairScannedNutrition }: DailyLogProps) {
   const [selectedDate, setSelectedDate] = useState(todayDateString());
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState<{ text: string; tone: 'success' | 'error' } | null>(null);
   const [repairing, setRepairing] = useState(false);
 
   const repairableCount = log.filter(entryNeedsNutritionRepair).length;
@@ -29,9 +29,10 @@ export function DailyLog({ log, savedFoods, onDelete, onEdit, onDuplicate, onSav
     if (!onRepairScannedNutrition || repairing) return;
     setRepairing(true);
     try {
-      setMessage(await onRepairScannedNutrition());
+      const result = await onRepairScannedNutrition();
+      setMessage({ text: result.message, tone: result.ok ? 'success' : 'error' });
     } catch {
-      setMessage('Could not fetch nutrition. Check your connection and try again.');
+      setMessage({ text: 'Something went wrong while fetching nutrition — try again shortly.', tone: 'error' });
     } finally {
       setRepairing(false);
     }
@@ -50,8 +51,8 @@ export function DailyLog({ log, savedFoods, onDelete, onEdit, onDuplicate, onSav
   }));
 
   function showMessage(text: string) {
-    setMessage(text);
-    setTimeout(() => setMessage(''), 2500);
+    setMessage({ text, tone: 'success' });
+    setTimeout(() => setMessage(null), 2500);
   }
 
   function handleEditSubmit(entry: FoodLogEntry, values: FoodFormValues) {
@@ -131,7 +132,11 @@ export function DailyLog({ log, savedFoods, onDelete, onEdit, onDuplicate, onSav
         />
       </div>
 
-      {message && <div className="success-toast">{message}</div>}
+      {message && (
+        <div className={message.tone === 'error' ? 'error-toast' : 'success-toast'} role={message.tone === 'error' ? 'alert' : 'status'}>
+          {message.text}
+        </div>
+      )}
 
       {repairableCount > 0 && onRepairScannedNutrition && (
         <div className="estimate-warning" role="status">

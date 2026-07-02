@@ -757,6 +757,15 @@ input:disabled {
   margin-bottom: 16px;
 }
 
+.error-toast {
+  background: var(--red-bg);
+  color: var(--red);
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
 .success-inline {
   font-size: 13px;
   color: var(--green);

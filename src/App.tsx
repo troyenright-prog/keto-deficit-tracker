@@ -35,6 +35,10 @@ import {
   exportAppData,
   importAppData,
   hasLocalUserData,
+  markLocalDataModified,
+  getLocalDataModifiedAt,
+  ensureLocalModifiedBaseline,
+  remoteBundleShouldReplaceLocal,
 } from './lib/storage';
 import {
   FIREBASE_AUTH_ACTIVE,
@@ -53,7 +57,7 @@ import { nanoid } from './lib/nanoid';
 import { inferMealSlot } from './lib/meals';
 import { duplicateLogEntry } from './lib/quick-add';
 import { barcodeFoodToFoodDatabaseItem, savedFoodToFoodDatabaseItem, upsertFoodDatabaseItem } from './lib/food-database';
-import { applyBarcodeNutritionToEntry, entryNeedsNutritionRepair, lookupBarcodeFood, type BarcodeFood } from './lib/barcode';
+import { applyBarcodeNutritionToEntry, entryNeedsNutritionRepair, hasPositiveNutrition, lookupBarcodeFood, repairFailureMessage, type BarcodeFood, type RepairResult } from './lib/barcode';
 import { scheduleReminderNotifications } from './lib/reminders';
 import { isHealthConnectSupported, healthConnectAvailable, ensureWeightPermissions, fetchWeightHistory } from './lib/health-connect';
 import { toGarminReadings, mergeGarminReadings, summarizeMerge } from './lib/garmin-weight-sync';
@@ -123,6 +127,7 @@ function prepareStorageForUser(userKey: AppUserKey) {
   claimLegacyDataForActiveScope();
   migrateIfNeeded();
   seedDemoDataIfEmpty();
+  ensureLocalModifiedBaseline();
 }
 
 const initialUser = loadCurrentUser();
@@ -226,7 +231,13 @@ function App() {
 
   useEffect(() => {
     if (!currentUser) return;
-    return subscribeLocalDataChanges(scheduleSync);
+    return subscribeLocalDataChanges(() => {
+      // Writes made while applying a remote bundle are not user edits, so they
+      // must not bump the local freshness marker or trigger a push-back.
+      if (applyingRemoteRef.current) return;
+      markLocalDataModified();
+      scheduleSync();
+    });
   }, [currentUser, scheduleSync]);
 
   useEffect(() => {
@@ -248,6 +259,9 @@ function App() {
         if (importAppData(bundle)) {
           applyLoadedData(reloadAll());
           remoteStampRef.current = bundle.exportedAt;
+          // Local now equals the remote bundle, so anchor the freshness marker to
+          // its stamp — later local edits will move past it and push back up.
+          markLocalDataModified(bundle.exportedAt);
           setSyncStatus({ tone: 'synced', text: 'Synced' });
         }
       } finally {
@@ -270,7 +284,16 @@ function App() {
         setSyncStatus({ tone: 'synced', text: 'Synced' });
         return;
       }
-      applyRemoteBundle(bundle);
+      // Only let the remote bundle replace local data when it is provably newer;
+      // otherwise keep local (which is newer) and push it up so remote catches
+      // up. This prevents an older remote read — on first poll, user switch,
+      // reinstall, or queued-sync recovery — from clobbering newer local edits.
+      if (remoteBundleShouldReplaceLocal(bundle.exportedAt, getLocalDataModifiedAt(), hasLocalUserData())) {
+        applyRemoteBundle(bundle);
+      } else {
+        remoteStampRef.current = bundle.exportedAt;
+        void syncNow();
+      }
     }, {
       // A single blip (cold-start auth/network hiccup) shouldn't flash a scary red
       // "Offline"; only surface it after repeated consecutive failures.
@@ -340,12 +363,13 @@ function App() {
 
   // Re-fetch nutrition for barcode entries logged with no calories (the Open Food
   // Facts v3 empty-nutriments bug). Each entry's serving size is preserved.
-  const handleRepairScannedNutrition = useCallback(async (): Promise<string> => {
+  const handleRepairScannedNutrition = useCallback(async (): Promise<RepairResult> => {
     const targets = foodLogRef.current.filter(entryNeedsNutritionRepair);
-    if (targets.length === 0) return 'No scanned foods need fixing.';
+    if (targets.length === 0) return { ok: true, message: 'No scanned foods need fixing.' };
     const cache = new Map<string, BarcodeFood>();
     let fixed = 0;
     let failed = 0;
+    let failReason = '';
     for (const entry of targets) {
       const code = entry.barcode as string;
       try {
@@ -356,13 +380,20 @@ function App() {
           handleSaveFoodDatabaseItem(barcodeFoodToFoodDatabaseItem(food));
         }
         handleEditEntry(applyBarcodeNutritionToEntry(entry, food));
-        if (food.calories > 0) fixed += 1;
-      } catch {
+        if (hasPositiveNutrition(food)) fixed += 1;
+      } catch (error) {
         failed += 1;
+        failReason = repairFailureMessage(error) || failReason;
       }
     }
-    if (fixed === 0) return failed > 0 ? 'Could not fetch nutrition — check your connection and try again.' : 'No nutrition found for those barcodes.';
-    return `Updated ${fixed} scanned food${fixed === 1 ? '' : 's'}${failed > 0 ? `; ${failed} could not be fetched` : ''}.`;
+    if (fixed === 0) {
+      if (failed === 0) return { ok: false, message: 'The food database has no nutrition for those barcodes — edit the entries to fill it in manually.' };
+      return { ok: false, message: failReason || 'Could not fetch nutrition — try again shortly.' };
+    }
+    return {
+      ok: true,
+      message: `Updated ${fixed} scanned food${fixed === 1 ? '' : 's'}${failed > 0 ? `; ${failed} could not be fetched` : ''}.`,
+    };
   }, [handleEditEntry, handleSaveFoodDatabaseItem]);
 
   const handleDeleteSavedFood = useCallback((id: string) => {

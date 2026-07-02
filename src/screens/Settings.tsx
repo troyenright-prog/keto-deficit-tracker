@@ -7,6 +7,18 @@ import { APP_VERSION, formatBuildDate } from '../lib/version';
 import { hardRefreshApp } from '../lib/app-update';
 import { sendTestReminder, type ReminderScheduleResult } from '../lib/reminders';
 import { MICRONUTRIENT_FIELDS } from '../lib/micronutrients';
+import { displayNumericValue, parseNumericInput } from '../lib/numeric-field';
+
+// Every numeric target field is backed by raw input text so a 0 renders as an
+// empty placeholder the user can type straight into (no stuck "0" to delete).
+const BASE_TARGET_KEYS = ['calories', 'proteinG', 'fatG', 'netCarbsG', 'sodiumMg', 'potassiumMg', 'magnesiumMg'] as const;
+
+function seedTargetTexts(targets: NutritionTargets): Record<string, string> {
+  const texts: Record<string, string> = {};
+  for (const key of BASE_TARGET_KEYS) texts[key] = displayNumericValue(targets[key]);
+  for (const field of MICRONUTRIENT_FIELDS) texts[field.key] = displayNumericValue(targets[field.key]);
+  return texts;
+}
 
 interface SettingsProps {
   profile: UserProfile;
@@ -31,6 +43,7 @@ const WEEKDAYS = [
 export function Settings({ profile, targets, reminders, onSaveProfile, onSaveTargets, onSaveReminders, onImportComplete }: SettingsProps) {
   const [prof, setProf] = useState<UserProfile>(profile);
   const [tgts, setTgts] = useState<NutritionTargets>(targets);
+  const [targetTexts, setTargetTexts] = useState<Record<string, string>>(() => seedTargetTexts(targets));
   const [rem, setRem] = useState<ReminderSettings>(reminders);
   const [saved, setSaved] = useState(false);
   const [importMsg, setImportMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -39,25 +52,25 @@ export function Settings({ profile, targets, reminders, onSaveProfile, onSaveTar
   const fileRef = useRef<HTMLInputElement>(null);
 
   function numTarget(key: keyof NutritionTargets, val: string) {
-    const n = parseFloat(val);
-    setTgts((t) => ({ ...t, [key]: Number.isFinite(n) ? Math.max(0, n) : 0 }));
+    setTargetTexts((t) => ({ ...t, [key]: val }));
+    setTgts((t) => ({ ...t, [key]: parseNumericInput(val) }));
   }
 
   function handleDietMode(mode: NutritionTargets['dietMode']) {
-    setTgts((t) => ({
-      ...t,
-      dietMode: mode,
-      netCarbsG: t.manualNetCarbs ? t.netCarbsG : dietModeDefaultNetCarbs(mode),
-    }));
+    setTgts((t) => {
+      const netCarbsG = t.manualNetCarbs ? t.netCarbsG : dietModeDefaultNetCarbs(mode);
+      setTargetTexts((texts) => ({ ...texts, netCarbsG: displayNumericValue(netCarbsG) }));
+      return { ...t, dietMode: mode, netCarbsG };
+    });
   }
 
   function handleManualNetCarbs(e: React.ChangeEvent<HTMLInputElement>) {
     const manual = e.target.checked;
-    setTgts((t) => ({
-      ...t,
-      manualNetCarbs: manual,
-      netCarbsG: manual ? t.netCarbsG : dietModeDefaultNetCarbs(t.dietMode),
-    }));
+    setTgts((t) => {
+      const netCarbsG = manual ? t.netCarbsG : dietModeDefaultNetCarbs(t.dietMode);
+      setTargetTexts((texts) => ({ ...texts, netCarbsG: displayNumericValue(netCarbsG) }));
+      return { ...t, manualNetCarbs: manual, netCarbsG };
+    });
   }
 
   function handleSave(e: React.FormEvent) {
@@ -245,18 +258,18 @@ export function Settings({ profile, targets, reminders, onSaveProfile, onSaveTar
         <div className="form-row">
           <div className="form-group">
             <label htmlFor="t-calories">Calories (kcal)</label>
-            <input id="t-calories" type="number" min="0" value={tgts.calories} onChange={(e) => numTarget('calories', e.target.value)} />
+            <input id="t-calories" type="number" min="0" placeholder="0" value={targetTexts.calories} onChange={(e) => numTarget('calories', e.target.value)} />
           </div>
           <div className="form-group">
             <label htmlFor="t-protein">Protein (g)</label>
-            <input id="t-protein" type="number" min="0" step="0.1" value={tgts.proteinG} onChange={(e) => numTarget('proteinG', e.target.value)} />
+            <input id="t-protein" type="number" min="0" step="0.1" placeholder="0" value={targetTexts.proteinG} onChange={(e) => numTarget('proteinG', e.target.value)} />
           </div>
         </div>
 
         <div className="form-row">
           <div className="form-group">
             <label htmlFor="t-fat">Fat (g)</label>
-            <input id="t-fat" type="number" min="0" step="0.1" value={tgts.fatG} onChange={(e) => numTarget('fatG', e.target.value)} />
+            <input id="t-fat" type="number" min="0" step="0.1" placeholder="0" value={targetTexts.fatG} onChange={(e) => numTarget('fatG', e.target.value)} />
           </div>
           <div className="form-group">
             <div className="form-group-header">
@@ -271,7 +284,8 @@ export function Settings({ profile, targets, reminders, onSaveProfile, onSaveTar
               type="number"
               min="0"
               step="0.1"
-              value={tgts.netCarbsG}
+              placeholder="0"
+              value={targetTexts.netCarbsG}
               disabled={!tgts.manualNetCarbs}
               onChange={(e) => numTarget('netCarbsG', e.target.value)}
             />
@@ -283,17 +297,17 @@ export function Settings({ profile, targets, reminders, onSaveProfile, onSaveTar
         <div className="form-row">
           <div className="form-group">
             <label htmlFor="t-sodium">Sodium (mg)</label>
-            <input id="t-sodium" type="number" min="0" value={tgts.sodiumMg} onChange={(e) => numTarget('sodiumMg', e.target.value)} />
+            <input id="t-sodium" type="number" min="0" placeholder="0" value={targetTexts.sodiumMg} onChange={(e) => numTarget('sodiumMg', e.target.value)} />
           </div>
           <div className="form-group">
             <label htmlFor="t-potassium">Potassium (mg)</label>
-            <input id="t-potassium" type="number" min="0" value={tgts.potassiumMg} onChange={(e) => numTarget('potassiumMg', e.target.value)} />
+            <input id="t-potassium" type="number" min="0" placeholder="0" value={targetTexts.potassiumMg} onChange={(e) => numTarget('potassiumMg', e.target.value)} />
           </div>
         </div>
         <div className="form-row">
           <div className="form-group">
             <label htmlFor="t-magnesium">Magnesium (mg)</label>
-            <input id="t-magnesium" type="number" min="0" value={tgts.magnesiumMg} onChange={(e) => numTarget('magnesiumMg', e.target.value)} />
+            <input id="t-magnesium" type="number" min="0" placeholder="0" value={targetTexts.magnesiumMg} onChange={(e) => numTarget('magnesiumMg', e.target.value)} />
           </div>
         </div>
 
@@ -308,7 +322,8 @@ export function Settings({ profile, targets, reminders, onSaveProfile, onSaveTar
                 type="number"
                 min="0"
                 step={field.unit === 'g' ? '0.01' : '0.1'}
-                value={tgts[field.key] ?? 0}
+                placeholder="0"
+                value={targetTexts[field.key] ?? ''}
                 onChange={(e) => numTarget(field.key, e.target.value)}
               />
             </div>
