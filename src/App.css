@@ -1636,29 +1636,41 @@ input:disabled {
 }
 
 .weight-trend-grid {
-  stroke: rgba(148, 163, 184, 0.24);
-  stroke-width: 1;
+  stroke: rgba(148, 163, 184, 0.16);
+  stroke-width: 0.5;
+  stroke-dasharray: 2 2;
+}
+
+.weight-trend-area {
+  stroke: none;
 }
 
 .weight-trend-line {
   fill: none;
-  stroke-width: 3.6;
+  stroke-width: 2.4;
   stroke-linecap: round;
   stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
 }
 
 .weight-trend-line--weight {
   stroke: var(--green);
+  filter: drop-shadow(0 1px 1px rgba(15, 118, 90, 0.18));
 }
 
 .weight-trend-line--body-fat {
   stroke: var(--blue);
-  stroke-dasharray: 5 4;
+  stroke-dasharray: 3 2.4;
 }
 
 .weight-trend-dot {
   stroke: #fff;
-  stroke-width: 1.2;
+  stroke-width: 1;
+  transition: r 0.15s ease;
+}
+
+.weight-trend-dot:hover {
+  r: 2.6;
 }
 
 .weight-trend-dot--weight {

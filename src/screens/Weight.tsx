@@ -4,7 +4,7 @@ import { todayDateString } from '../lib/nutrition';
 import { sevenDayAvgWeight } from '../lib/weekly';
 import { StatCard } from '../components/StatCard';
 import { nanoid } from '../lib/nanoid';
-import { buildWeightTrendChart, toPolylinePoints } from '../lib/weight-trend';
+import { buildWeightTrendChart, toSmoothAreaPath, toSmoothPath } from '../lib/weight-trend';
 
 interface WeightProps {
   entries: WeightEntry[];
@@ -165,11 +165,21 @@ export function Weight({ entries, weightUnit, onSave, onSyncGarmin }: WeightProp
             {trendChart.bodyFatPoints.length > 0 && <span className="weight-trend-legend__item weight-trend-legend__item--body-fat">Body fat (%)</span>}
           </div>
           <svg viewBox="0 0 100 100" role="img" aria-label={`Weight trend from ${trendChart.entries[0].weight} ${weightUnit} to ${trendChart.entries[trendChart.entries.length - 1].weight} ${weightUnit}${trendChart.bodyFatPoints.length > 0 ? ', with body fat percentage where available' : ''}`}>
+            <defs>
+              <linearGradient id="weight-trend-area-fill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--green)" stopOpacity="0.28" />
+                <stop offset="100%" stopColor="var(--green)" stopOpacity="0" />
+              </linearGradient>
+            </defs>
             <line className="weight-trend-grid" x1="10" y1="18" x2="90" y2="18" />
+            <line className="weight-trend-grid" x1="10" y1="34" x2="90" y2="34" />
+            <line className="weight-trend-grid" x1="10" y1="50" x2="90" y2="50" />
+            <line className="weight-trend-grid" x1="10" y1="66" x2="90" y2="66" />
             <line className="weight-trend-grid" x1="10" y1="82" x2="90" y2="82" />
-            <polyline className="weight-trend-line weight-trend-line--weight" points={toPolylinePoints(trendChart.weightPoints)} />
+            <path className="weight-trend-area" d={toSmoothAreaPath(trendChart.weightPoints)} fill="url(#weight-trend-area-fill)" />
+            <path className="weight-trend-line weight-trend-line--weight" d={toSmoothPath(trendChart.weightPoints)} />
             {trendChart.bodyFatPoints.length >= 2 && (
-              <polyline className="weight-trend-line weight-trend-line--body-fat" points={toPolylinePoints(trendChart.bodyFatPoints)} />
+              <path className="weight-trend-line weight-trend-line--body-fat" d={toSmoothPath(trendChart.bodyFatPoints)} />
             )}
             {trendChart.weightPoints.map((point) => {
               const entry = trendChart.entries.find((item) => item.id === point.id);

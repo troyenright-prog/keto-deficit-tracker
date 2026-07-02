@@ -204,9 +204,13 @@ function nutrition(record: UnknownRecord) {
 
 function normalizeProfile(value: unknown): UserProfile {
   if (!isRecord(value)) return { ...DEFAULT_PROFILE };
+  const age = typeof value.age === 'number' && Number.isFinite(value.age) && value.age > 0 ? value.age : undefined;
+  const sex = value.sex === 'male' || value.sex === 'female' ? value.sex : undefined;
   return {
     name: text(value.name), weightUnit: value.weightUnit === 'lbs' ? 'lbs' : 'kg',
     createdAt: timestamp(value.createdAt),
+    ...(age !== undefined ? { age } : {}),
+    ...(sex !== undefined ? { sex } : {}),
   };
 }
 

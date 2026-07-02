@@ -2,10 +2,14 @@
 
 export type DietMode = 'strict-keto' | 'lazy-keto' | 'high-protein-keto';
 
+export type BiologicalSex = 'male' | 'female';
+
 export interface UserProfile {
   name: string;
   weightUnit: 'kg' | 'lbs';
   createdAt: string;
+  age?: number;
+  sex?: BiologicalSex;
 }
 
 export interface NutritionTargets extends Micronutrients {

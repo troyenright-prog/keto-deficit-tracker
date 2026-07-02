@@ -7,6 +7,7 @@ import { APP_VERSION, formatBuildDate } from '../lib/version';
 import { hardRefreshApp } from '../lib/app-update';
 import { sendTestReminder, type ReminderScheduleResult } from '../lib/reminders';
 import { MICRONUTRIENT_FIELDS } from '../lib/micronutrients';
+import { getRdaForAgeSex } from '../lib/rda';
 import { displayNumericValue, parseNumericInput } from '../lib/numeric-field';
 import { Meals } from './Meals';
 
@@ -61,8 +62,10 @@ export function Settings({
   onImportComplete,
 }: SettingsProps) {
   const [prof, setProf] = useState<UserProfile>(profile);
+  const [ageText, setAgeText] = useState<string>(profile.age ? String(profile.age) : '');
   const [tgts, setTgts] = useState<NutritionTargets>(targets);
   const [targetTexts, setTargetTexts] = useState<Record<string, string>>(() => seedTargetTexts(targets));
+  const [rdaMsg, setRdaMsg] = useState('');
   const [rem, setRem] = useState<ReminderSettings>(reminders);
   const [saved, setSaved] = useState(false);
   const [importMsg, setImportMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -81,6 +84,30 @@ export function Settings({
       setTargetTexts((texts) => ({ ...texts, netCarbsG: displayNumericValue(netCarbsG) }));
       return { ...t, dietMode: mode, netCarbsG };
     });
+  }
+
+  function handleAgeChange(value: string) {
+    setAgeText(value);
+    const parsed = Number(value);
+    setProf((p) => ({ ...p, age: value !== '' && Number.isFinite(parsed) && parsed > 0 ? parsed : undefined }));
+  }
+
+  function handleFillRda() {
+    if (!prof.age || !prof.sex) {
+      setRdaMsg('Set your age and sex above first.');
+      return;
+    }
+    const rda = getRdaForAgeSex(prof.age, prof.sex);
+    setTgts((t) => ({ ...t, ...rda }));
+    setTargetTexts((texts) => {
+      const next = { ...texts };
+      for (const field of MICRONUTRIENT_FIELDS) {
+        const value = rda[field.key];
+        if (value !== undefined) next[field.key] = displayNumericValue(value);
+      }
+      return next;
+    });
+    setRdaMsg(`Filled with RDA values for ${prof.sex === 'male' ? 'men' : 'women'} aged ${prof.age}. Review and save below.`);
   }
 
   function handleManualNetCarbs(e: React.ChangeEvent<HTMLInputElement>) {
@@ -251,6 +278,36 @@ export function Settings({
           </select>
         </div>
 
+        <div className="form-row">
+          <div className="form-group">
+            <label htmlFor="profile-age">Age</label>
+            <input
+              id="profile-age"
+              type="number"
+              min="1"
+              max="120"
+              placeholder="e.g. 35"
+              value={ageText}
+              onChange={(e) => handleAgeChange(e.target.value)}
+            />
+          </div>
+          <div className="form-group">
+            <label htmlFor="profile-sex">Sex</label>
+            <select
+              id="profile-sex"
+              value={prof.sex ?? ''}
+              onChange={(e) => setProf((p) => ({ ...p, sex: e.target.value === '' ? undefined : (e.target.value as 'male' | 'female') }))}
+            >
+              <option value="">Select...</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+            </select>
+          </div>
+        </div>
+        <p className="empty-hint" style={{ marginTop: 0 }}>
+          Age and sex are used to suggest recommended vitamin and mineral targets below — they're not required otherwise.
+        </p>
+
         <div className="section-title">Diet mode</div>
 
         <div className="diet-mode-group">
@@ -331,6 +388,13 @@ export function Settings({
         </div>
 
         <div className="section-title">Micronutrient &amp; vitamin targets</div>
+
+        <div className="form-actions" style={{ marginTop: 0, marginBottom: 8 }}>
+          <button type="button" className="btn btn--secondary btn--sm" onClick={handleFillRda}>
+            Fill recommended amounts (RDA)
+          </button>
+        </div>
+        {rdaMsg && <p className="empty-hint" style={{ marginTop: 0 }}>{rdaMsg}</p>}
 
         <div className="form-row form-row--wrap">
           {MICRONUTRIENT_FIELDS.map((field) => (
