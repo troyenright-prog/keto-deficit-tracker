@@ -38,7 +38,8 @@ jobs:
           DB_BASE: ${{ vars.KETO_FIREBASE_DB_BASE }}
         run: |
           test -n "$SECRET" || (echo "::error::FIREBASE_DB_SECRET_PROD is not set" && exit 1)
-          DB_BASE="${DB_BASE:-https://tasks-c8880-default-rtdb.asia-southeast1.firebasedatabase.app}"
+          test -n "$DB_BASE" || (echo "::error::KETO_FIREBASE_DB_BASE is not set" && exit 1)
+          DB_BASE="${DB_BASE%/}"
           mkdir -p production
           curl -sf "$DB_BASE/ketoDeficitTracker.json?auth=${SECRET}" -o "production/${{ steps.date.outputs.DATE }}.json"
           echo "Production backup: $(wc -c < production/${{ steps.date.outputs.DATE }}.json) bytes"

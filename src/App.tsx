@@ -42,6 +42,7 @@ import {
 } from './lib/storage';
 import {
   FIREBASE_AUTH_ACTIVE,
+  FIREBASE_DB_CONFIGURED,
   STORAGE_NAMESPACE,
   initAuth,
   saveRemoteAppData,
@@ -96,13 +97,15 @@ type SyncStatus = {
   text: string;
 };
 
-// Cloud sync only runs when Firebase credentials are present in the build.
+// Cloud sync only runs when Firebase credentials and a database URL are present.
 // Without them, the app stays local-only instead of polling a database it can't
 // reach and showing a misleading "Offline" status.
-const SYNC_ENABLED = FIREBASE_AUTH_ACTIVE;
+const SYNC_ENABLED = FIREBASE_AUTH_ACTIVE && FIREBASE_DB_CONFIGURED;
+const SYNC_MISCONFIGURED = FIREBASE_AUTH_ACTIVE && !FIREBASE_DB_CONFIGURED;
 
 function initialSyncStatus(hasUser: boolean): SyncStatus {
   if (!hasUser) return { tone: 'idle', text: 'Pick user' };
+  if (SYNC_MISCONFIGURED) return { tone: 'error', text: 'Config' };
   return SYNC_ENABLED ? { tone: 'syncing', text: 'Connecting' } : { tone: 'idle', text: 'Local' };
 }
 

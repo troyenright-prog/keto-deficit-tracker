@@ -103,10 +103,10 @@ Demo data is not loaded for normal installs. For local demos or screenshots, ope
 Copy `.env.example` to `.env` for local development. This app uses one Firebase Realtime Database; there is no sandbox database for keto.
 
 ```text
-VITE_KETO_FIREBASE_DB_BASE=https://tasks-c8880-default-rtdb.asia-southeast1.firebasedatabase.app
+VITE_KETO_FIREBASE_DB_BASE=https://your-keto-project-default-rtdb.region.firebasedatabase.app
 ```
 
-The default points at the production Firebase Realtime Database project used by Taskboard, but a separate `ketoDeficitTracker` root is used so data does not mix with Taskboard. If Firebase rules require anonymous auth, set the `VITE_FIREBASE_*` web-app values in Cloudflare/GitHub environment variables.
+Set `VITE_KETO_FIREBASE_DB_BASE` explicitly for any build that should sync; the app has no runtime database default. If Firebase rules require anonymous auth, set the `VITE_FIREBASE_*` web-app values in Cloudflare/GitHub environment variables.
 
 Production GitHub/Cloudflare setup:
 

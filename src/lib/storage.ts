@@ -104,7 +104,8 @@ const isRecord = (value: unknown): value is UnknownRecord => typeof value === 'o
 const text = (value: unknown, fallback = '') => typeof value === 'string' ? value : fallback;
 const optionalText = (value: unknown) => typeof value === 'string' ? value : undefined;
 const date = (value: unknown) => isDateString(value) ? value : localDateString();
-const timestamp = (value: unknown) => typeof value === 'string' && Number.isFinite(Date.parse(value)) ? value : new Date().toISOString();
+const isTimestamp = (value: unknown): value is string => typeof value === 'string' && Number.isFinite(Date.parse(value));
+const timestamp = (value: unknown) => isTimestamp(value) ? value : new Date().toISOString();
 
 function safeRead(key: string): unknown {
   try {
@@ -126,20 +127,24 @@ function safeWrite(key: string, value: unknown): boolean {
 }
 
 function hasRawUserData(prefix = ''): boolean {
-  const read = (key: string) => localStorage.getItem(`${prefix}${key}`);
-  return Boolean(
-    read(KEYS.profile) ||
-    read(KEYS.targets) ||
-    read(KEYS.foodLog) ||
-    read(KEYS.savedFoods) ||
-    read(KEYS.weightEntries) ||
-    read(KEYS.mealTemplates) ||
-    read(KEYS.recipes) ||
-    read(KEYS.shoppingList) ||
-    read(KEYS.mealPlan) ||
-    read(KEYS.foodDatabase) ||
-    read(KEYS.reminders)
-  );
+  try {
+    const read = (key: string) => localStorage.getItem(`${prefix}${key}`);
+    return Boolean(
+      read(KEYS.profile) ||
+      read(KEYS.targets) ||
+      read(KEYS.foodLog) ||
+      read(KEYS.savedFoods) ||
+      read(KEYS.weightEntries) ||
+      read(KEYS.mealTemplates) ||
+      read(KEYS.recipes) ||
+      read(KEYS.shoppingList) ||
+      read(KEYS.mealPlan) ||
+      read(KEYS.foodDatabase) ||
+      read(KEYS.reminders)
+    );
+  } catch {
+    return false;
+  }
 }
 
 export function claimLegacyDataForActiveScope(): boolean {
@@ -147,11 +152,10 @@ export function claimLegacyDataForActiveScope(): boolean {
   const prefix = `keto_${activeStorageScope.environment}_${activeStorageScope.userKey}_`;
   if (hasRawUserData(prefix) || !hasRawUserData()) return false;
 
-  const claimedBy = localStorage.getItem(LEGACY_CLAIM_KEY);
   const activeId = scopeId();
-  if (claimedBy && claimedBy !== activeId) return false;
-
   try {
+    const claimedBy = localStorage.getItem(LEGACY_CLAIM_KEY);
+    if (claimedBy && claimedBy !== activeId) return false;
     for (const key of Object.values(KEYS)) {
       const raw = localStorage.getItem(key);
       if (raw !== null) localStorage.setItem(`${prefix}${key}`, raw);
@@ -587,7 +591,7 @@ function hasInvalidNumber(value: unknown): boolean {
 
 export function normalizeAppBundle(value: unknown): AppStateBundle | null {
   if (!isRecord(value) || typeof value.version !== 'number' || !Number.isInteger(value.version) || value.version < 0 || value.version > CURRENT_VERSION) return null;
-  if (typeof value.exportedAt !== 'string' || !isRecord(value.profile) || !isRecord(value.targets) || hasInvalidNumber(value)) return null;
+  if (!isTimestamp(value.exportedAt) || !isRecord(value.profile) || !isRecord(value.targets) || hasInvalidNumber(value)) return null;
   for (const key of ['foodLog', 'savedFoods', 'weightEntries', 'mealTemplates', 'recipes', 'shoppingList', 'mealPlan']) {
     if (!Array.isArray(value[key])) return null;
     if (value[key].some((item: unknown) => !isRecord(item))) return null;

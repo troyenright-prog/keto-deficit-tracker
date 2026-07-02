@@ -43,11 +43,12 @@ function corsHeaders() {
 }
 
 function json(body: unknown, status = 200): Response {
+  const cacheControl = status >= 200 && status < 300 ? 'public, max-age=300' : 'no-store';
   return new Response(JSON.stringify(body), {
     status,
     headers: {
       'content-type': 'application/json; charset=utf-8',
-      'cache-control': 'public, max-age=300',
+      'cache-control': cacheControl,
       ...corsHeaders(),
     },
   });

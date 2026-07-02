@@ -1,11 +1,15 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  claimLegacyDataForActiveScope, configureStorageScope,
   exportAppData, importAppData, loadFoodLog, loadMealTemplates, loadSavedFoods,
   loadTargets, saveFoodLog, saveFoodLogAndMealPlan, validateAppBundle,
 } from '../lib/storage';
 
 beforeEach(() => localStorage.clear());
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  configureStorageScope(null);
+  vi.restoreAllMocks();
+});
 
 describe('storage boundary normalisation', () => {
   it('normalises missing and invalid stored fields without NaN', () => {
@@ -38,6 +42,12 @@ describe('storage boundary normalisation', () => {
   it('reports storage write failures', () => {
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new DOMException('full', 'QuotaExceededError'); });
     expect(saveFoodLog([])).toBe(false);
+  });
+
+  it('does not crash when legacy storage probing is blocked', () => {
+    configureStorageScope({ environment: 'production', userKey: 'troy' });
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new DOMException('blocked', 'SecurityError'); });
+    expect(claimLegacyDataForActiveScope()).toBe(false);
   });
 });
 

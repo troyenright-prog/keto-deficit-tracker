@@ -12,11 +12,12 @@ const asText = (value: unknown): string | undefined => typeof value === 'string'
 const asNumber = (value: unknown): number | undefined => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
 
 function json(body: unknown, status = 200): Response {
+  const cacheControl = status >= 200 && status < 300 ? 'public, max-age=3600' : 'no-store';
   return new Response(JSON.stringify(body), {
     status,
     headers: {
       'content-type': 'application/json; charset=utf-8',
-      'cache-control': 'public, max-age=3600',
+      'cache-control': cacheControl,
       // Allow the native (Capacitor) app, whose WebView origin is
       // https://localhost, to call this public read-only endpoint cross-origin.
       'access-control-allow-origin': '*',

@@ -37,6 +37,7 @@ describe('food search endpoint', () => {
     const fetcher = vi.fn() as unknown as typeof fetch;
     const response = await handleSearchFoods(new Request('https://example.com/api/search-foods?q=a'), {}, fetcher);
     expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('public, max-age=300');
     await expect(response.json()).resolves.toEqual({ results: [] });
     expect(fetcher).not.toHaveBeenCalled();
   });
@@ -45,6 +46,7 @@ describe('food search endpoint', () => {
     const fetcher = vi.fn(async () => productPage()) as unknown as typeof fetch;
     const response = await handleSearchFoods(new Request('https://example.com/api/search-foods?q=cheddar'), {}, fetcher);
     expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('public, max-age=300');
     const body = await response.json() as { results: Array<{ barcode: string; name: string; attribution: string; sodiumMg: number }> };
     expect(body.results).toHaveLength(1);
     expect(body.results[0]).toMatchObject({
@@ -77,6 +79,7 @@ describe('food search endpoint', () => {
     const fetcher = vi.fn(async () => new Response('', { status: 429 })) as unknown as typeof fetch;
     const response = await handleSearchFoods(new Request('https://example.com/api/search-foods?q=cheddar'), {}, fetcher);
     expect(response.status).toBe(502);
+    expect(response.headers.get('cache-control')).toBe('no-store');
     await expect(response.json()).resolves.toMatchObject({ error: expect.stringContaining('rate-limited') });
   });
 

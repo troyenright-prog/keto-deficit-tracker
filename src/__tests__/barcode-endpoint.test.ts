@@ -6,12 +6,14 @@ describe('barcode lookup endpoint', () => {
   it('rejects a missing barcode', async () => {
     const response = await handleLookupBarcode(new Request('https://example.com/api/lookup-barcode'));
     expect(response.status).toBe(400);
+    expect(response.headers.get('cache-control')).toBe('no-store');
   });
 
   it('maps missing products clearly', async () => {
     const fetcher = vi.fn(async () => new Response('{}', { status: 404 })) as unknown as typeof fetch;
     const response = await handleLookupBarcode(new Request('https://example.com/api/lookup-barcode?code=123'), {}, fetcher);
     expect(response.status).toBe(404);
+    expect(response.headers.get('cache-control')).toBe('no-store');
     await expect(response.json()).resolves.toMatchObject({ error: expect.stringContaining('No food') });
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
@@ -35,6 +37,7 @@ describe('barcode lookup endpoint', () => {
     })) as unknown as typeof fetch;
     const response = await handleLookupBarcode(new Request('https://example.com/api/lookup-barcode?code=1234567890123'), {}, fetcher);
     expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('public, max-age=3600');
     await expect(response.json()).resolves.toMatchObject({
       barcode: '1234567890123',
       name: 'Cheese snack',

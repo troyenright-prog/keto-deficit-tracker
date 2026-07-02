@@ -24,6 +24,11 @@ describe('validateAppBundle', () => {
     const bad = { ...bundle, foodLog: 'not-an-array' };
     expect(validateAppBundle(bad)).toBe(false);
   });
+
+  it('rejects a bundle with an invalid exportedAt timestamp', () => {
+    const bundle = exportAppData();
+    expect(validateAppBundle({ ...bundle, exportedAt: 'not-a-date' })).toBe(false);
+  });
 });
 
 describe('exportAppData / importAppData round-trip', () => {

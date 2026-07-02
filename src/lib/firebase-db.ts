@@ -13,10 +13,9 @@ type QueueState = {
   error: string | null;
 };
 
-const KETO_DB_BASE = import.meta.env.VITE_KETO_FIREBASE_DB_BASE ||
-  'https://tasks-c8880-default-rtdb.asia-southeast1.firebasedatabase.app';
+const KETO_DB_BASE = (import.meta.env.VITE_KETO_FIREBASE_DB_BASE || '').replace(/\/+$/, '');
 const FIREBASE_API_KEY = import.meta.env.VITE_FIREBASE_API_KEY || '';
-const READ_TIMEOUT_MS = 15_000;
+const REQUEST_TIMEOUT_MS = 15_000;
 const POLL_INTERVAL_MS = 5_000;
 const SYNC_RETRY_INTERVAL_MS = 10_000;
 
@@ -53,6 +52,7 @@ export function buildDbRestUrl(path: string, { dbUrl = '', token }: { dbUrl?: st
 // as a sync failure (read fails safe, write queues) rather than silently
 // sending an unauthenticated request that could bypass database rules.
 export const AUTH_UNAVAILABLE_MESSAGE = 'Sync is signed out — not sending an unauthenticated request.';
+export const DB_UNCONFIGURED_MESSAGE = 'Firebase sync database URL is not configured. Set VITE_KETO_FIREBASE_DB_BASE.';
 
 // Build the REST URL for a request, refusing to proceed unauthenticated when
 // auth is configured but the token could not be obtained. When auth is not
@@ -61,25 +61,27 @@ export function resolveDbRequestUrl(
   path: string,
   { dbUrl = '', authActive, token }: { dbUrl?: string; authActive: boolean; token: string | null },
 ): string {
+  if (!dbUrl) throw new Error(DB_UNCONFIGURED_MESSAGE);
   if (authActive && !token) throw new Error(AUTH_UNAVAILABLE_MESSAGE);
   return buildDbRestUrl(path, { dbUrl, token });
 }
 
 export const STORAGE_NAMESPACE = 'production';
 export const DB_BASE = KETO_DB_BASE;
-export const DB_URL = `${DB_BASE}/ketoDeficitTracker`;
+export const FIREBASE_DB_CONFIGURED = Boolean(DB_BASE);
+export const DB_URL = FIREBASE_DB_CONFIGURED ? `${DB_BASE}/ketoDeficitTracker` : '';
 export const FIREBASE_AUTH_ACTIVE = Boolean(FIREBASE_API_KEY);
 
 const QUEUE_KEY = `keto_sync_queue_${STORAGE_NAMESPACE}`;
 
 async function fetchWithTimeout(url: string, options: RequestInit = {}): Promise<Response> {
   const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-  const timeout = controller ? setTimeout(() => controller.abort(), READ_TIMEOUT_MS) : null;
+  const timeout = controller ? setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS) : null;
   try {
     return await fetch(url, controller ? { ...options, signal: controller.signal } : options);
   } catch (error) {
     if ((error as Error)?.name === 'AbortError') {
-      const timeoutError = new Error(`Firebase read timed out after ${READ_TIMEOUT_MS}ms`);
+      const timeoutError = new Error(`Firebase request timed out after ${REQUEST_TIMEOUT_MS}ms`);
       (timeoutError as Error & { cause?: unknown }).cause = error;
       throw timeoutError;
     }
@@ -138,7 +140,7 @@ async function readJson(path: string): Promise<unknown> {
 }
 
 async function putJson(path: string, value: unknown): Promise<unknown> {
-  const response = await fetch(await dbUrl(path), {
+  const response = await fetchWithTimeout(await dbUrl(path), {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(value),
