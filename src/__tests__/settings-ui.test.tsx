@@ -19,6 +19,7 @@ function renderSettings(overrides: Partial<NutritionTargets> = {}, onSaveTargets
       reminders={DEFAULT_REMINDERS}
       templates={[]}
       savedFoods={[]}
+      weightEntries={[]}
       onSaveProfile={vi.fn(() => true)}
       onSaveTargets={onSaveTargets}
       onSaveReminders={vi.fn(async () => ({ ok: true, native: false, permission: 'granted' as const, scheduled: 0, message: 'ok' }))}

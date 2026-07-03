@@ -45,11 +45,17 @@ export function foodDatabaseItemToSavedFood(item: FoodDatabaseItem): FoodItem {
 
 export function savedFoodToFoodDatabaseItem(food: FoodItem, existing?: FoodDatabaseItem): FoodDatabaseItem {
   const now = new Date().toISOString();
+  // Only carry over the existing row's brand/verified/history when it's actually
+  // this same saved food's own DB shadow record. `existing` can otherwise be a
+  // different product's stale cache row that happens to share this barcode (e.g.
+  // right after linking a barcode to a food that previously had none) — in that
+  // case its brand belongs to the old product, not this one.
+  const sameEntity = existing?.id === food.id;
   return {
     id: existing?.id ?? food.id,
     barcode: food.barcode,
     name: food.name,
-    brand: existing?.brand,
+    brand: sameEntity ? existing.brand : undefined,
     source: food.barcode ? 'barcode' : 'manual',
     servingSize: food.servingSize,
     calories: food.calories,
@@ -63,9 +69,9 @@ export function savedFoodToFoodDatabaseItem(food: FoodItem, existing?: FoodDatab
     potassiumMg: food.potassiumMg,
     magnesiumMg: food.magnesiumMg,
     ...pickMicronutrients(food),
-    verified: existing?.verified,
-    userEdited: existing?.userEdited ?? false,
-    createdAt: existing?.createdAt ?? food.createdAt ?? now,
+    verified: sameEntity ? existing.verified : undefined,
+    userEdited: sameEntity ? (existing.userEdited ?? false) : false,
+    createdAt: sameEntity ? (existing.createdAt ?? food.createdAt ?? now) : (food.createdAt ?? now),
     updatedAt: now,
   };
 }
@@ -94,6 +100,27 @@ export function barcodeFoodToFoodDatabaseItem(food: BarcodeFood, existing?: Food
     userEdited: existing?.userEdited || userEdited,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
+  };
+}
+
+// Used when linking a scanned barcode to an existing saved food: shows the
+// saved food's nutrition in the barcode review screen under the new barcode.
+export function savedFoodToBarcodeFood(food: FoodItem, barcode: string): BarcodeFood {
+  return {
+    barcode,
+    name: food.name,
+    servingSize: food.servingSize,
+    dataBasis: 'serving',
+    calories: food.calories,
+    proteinG: food.proteinG,
+    fatG: food.fatG,
+    totalCarbsG: food.totalCarbsG,
+    fibreG: food.fibreG,
+    sugarAlcoholsG: food.sugarAlcoholsG,
+    sodiumMg: food.sodiumMg,
+    potassiumMg: food.potassiumMg,
+    magnesiumMg: food.magnesiumMg,
+    ...pickMicronutrients(food),
   };
 }
 

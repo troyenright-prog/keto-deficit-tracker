@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { IScannerControls } from '@zxing/browser';
 import type { FoodDatabaseItem, FoodItem, FoodLogEntry } from '../types';
 import { barcodeFoodToLogEntry, barcodeFoodToSavedFood, hasPositiveNutrition, lookupBarcodeFood, normalizeBarcode, type BarcodeFood } from '../lib/barcode';
-import { barcodeFoodToFoodDatabaseItem, findFoodDatabaseByBarcode, foodDatabaseItemToBarcodeFood } from '../lib/food-database';
+import { barcodeFoodToFoodDatabaseItem, findFoodDatabaseByBarcode, foodDatabaseItemToBarcodeFood, savedFoodToBarcodeFood } from '../lib/food-database';
 import { inferMealSlot, MEAL_SLOTS } from '../lib/meals';
 import { calcNetCarbs, todayDateString } from '../lib/nutrition';
 import { isDateString } from '../lib/date';
@@ -10,6 +10,7 @@ import { formatMicronutrientAmount, hasAnyMicronutrients, MICRONUTRIENT_FIELDS, 
 
 interface BarcodeScannerProps {
   foodDatabase: FoodDatabaseItem[];
+  savedFoods: FoodItem[];
   onAdd: (entry: FoodLogEntry) => boolean;
   onSaveFood: (food: FoodItem) => boolean;
   onSaveFoodDatabaseItem: (food: FoodDatabaseItem) => boolean;
@@ -17,7 +18,7 @@ interface BarcodeScannerProps {
   autoStart?: boolean;
 }
 
-type FoodOrigin = 'local' | 'openFoodFacts' | 'foodDataCentral' | 'manual' | 'corrected';
+type FoodOrigin = 'local' | 'openFoodFacts' | 'foodDataCentral' | 'manual' | 'corrected' | 'linked';
 
 const originLabels: Record<FoodOrigin, string> = {
   local: 'Local database',
@@ -25,6 +26,7 @@ const originLabels: Record<FoodOrigin, string> = {
   foodDataCentral: 'USDA FoodData Central',
   manual: 'Manually created food',
   corrected: 'User-corrected food',
+  linked: 'Linked to saved food',
 };
 
 function remoteFoodOrigin(food: BarcodeFood): FoodOrigin {
@@ -32,6 +34,8 @@ function remoteFoodOrigin(food: BarcodeFood): FoodOrigin {
 }
 
 const canUseCamera = (): boolean => typeof navigator !== 'undefined' && Boolean(navigator.mediaDevices?.getUserMedia);
+
+const QUICK_SERVING_AMOUNTS = [0.5, 1, 1.5, 2];
 
 type NutritionProbe = Partial<Record<
   | 'calories'
@@ -57,7 +61,7 @@ function shouldSkipEmptyRemoteCacheWrite(existing: FoodDatabaseItem | undefined,
   return Boolean(existing && !userEdited && hasPositiveNutrition(existing) && !hasPositiveNutrition(food));
 }
 
-export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodDatabaseItem, onAddManually, autoStart = false }: BarcodeScannerProps) {
+export function BarcodeScanner({ foodDatabase, savedFoods, onAdd, onSaveFood, onSaveFoodDatabaseItem, onAddManually, autoStart = false }: BarcodeScannerProps) {
   const [barcode, setBarcode] = useState('');
   const [date, setDate] = useState(todayDateString());
   const [meal, setMeal] = useState(inferMealSlot());
@@ -65,6 +69,8 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
   const [food, setFood] = useState<BarcodeFood | null>(null);
   const [origin, setOrigin] = useState<FoodOrigin | null>(null);
   const [editing, setEditing] = useState(false);
+  const [linking, setLinking] = useState(false);
+  const [linkQuery, setLinkQuery] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
@@ -99,6 +105,9 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
     setFood(null);
     setOrigin(null);
     setEditing(false);
+    setLinking(false);
+    setLinkQuery('');
+    setServings('1');
     setSuccess('');
     if (!normalized) { setError('Enter or scan a valid barcode.'); return; }
 
@@ -227,6 +236,17 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
     updateFood(key, (Number.isFinite(next) && next >= 0 ? next : 0) as never);
   }
 
+  const previewServings = Number(servings);
+  const previewScale = Number.isFinite(previewServings) && previewServings > 0 ? previewServings : 1;
+  const previewNutrition = food ? {
+    calories: food.calories * previewScale,
+    proteinG: food.proteinG * previewScale,
+    fatG: food.fatG * previewScale,
+    totalCarbsG: food.totalCarbsG * previewScale,
+    netCarbsG: calcNetCarbs(food.totalCarbsG, food.fibreG, food.sugarAlcoholsG) * previewScale,
+    sodiumMg: food.sodiumMg * previewScale,
+  } : null;
+
   // Select the field's contents on focus so a placeholder-like "0" is replaced by
   // the first keystroke instead of leaving the caret stuck after the 0 (mobile).
   const selectOnFocus = (event: React.FocusEvent<HTMLInputElement>) => event.currentTarget.select();
@@ -279,7 +299,31 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
     });
     setOrigin('manual');
     setEditing(true);
+    setLinking(false);
     setError('');
+  }
+
+  const linkMatches = useMemo(() => {
+    const q = linkQuery.trim().toLowerCase();
+    const filtered = q ? savedFoods.filter((item) => item.name.toLowerCase().includes(q)) : savedFoods;
+    return filtered.slice(0, 20);
+  }, [savedFoods, linkQuery]);
+
+  // Attaches this barcode to an existing saved food instead of creating a new
+  // one, so future scans of the same barcode resolve straight to it. onSaveFood
+  // already upserts the food-database cache row for the food's barcode, so no
+  // separate onSaveFoodDatabaseItem call is needed here.
+  function linkExistingFood(existingSavedFood: FoodItem) {
+    const normalized = normalizeBarcode(barcode);
+    if (!normalized) { setError('Enter a barcode before linking a food.'); return; }
+    const updated: FoodItem = { ...existingSavedFood, barcode: normalized };
+    if (!onSaveFood(updated)) return;
+    setFood(savedFoodToBarcodeFood(updated, normalized));
+    setOrigin('linked');
+    setLinking(false);
+    setLinkQuery('');
+    setError('');
+    setSuccess(`Barcode linked to "${updated.name}".`);
   }
 
   return (
@@ -320,10 +364,43 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
         <button className="btn btn--primary" onClick={() => lookup()} disabled={loading || !barcode}>
           {loading ? 'Looking up...' : 'Look up barcode'}
         </button>
+        {barcode && savedFoods.length > 0 && (
+          <button className="btn btn--ghost" onClick={() => setLinking((value) => !value)}>
+            {linking ? 'Cancel linking' : 'Link to existing food'}
+          </button>
+        )}
         {error && barcode && (
           <button className="btn btn--secondary" onClick={startManualFood}>
             Create food for this barcode
           </button>
+        )}
+
+        {linking && (
+          <div className="barcode-link-panel">
+            <div className="form-group">
+              <label htmlFor="barcode-link-search">Search your saved foods</label>
+              <input
+                id="barcode-link-search"
+                type="search"
+                value={linkQuery}
+                onChange={(event) => setLinkQuery(event.target.value)}
+                placeholder="e.g. Homemade protein bar"
+                autoFocus
+              />
+            </div>
+            {linkMatches.length === 0 ? (
+              <p className="empty-hint empty-hint--compact">No saved foods match.</p>
+            ) : (
+              <div className="quick-result-list">
+                {linkMatches.map((item) => (
+                  <button key={item.id} className="quick-result" onClick={() => linkExistingFood(item)}>
+                    <span>{item.name}</span>
+                    <small>{item.servingSize} - {Math.round(item.calories)} kcal</small>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         )}
       </div>
 
@@ -336,6 +413,39 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
             {food.brand && <span>{food.brand}</span>}
             <small>{food.servingSize} - {food.dataBasis === '100g' ? 'nutrition per 100g' : 'nutrition per serving'} - {food.barcode}</small>
           </div>
+
+          <div className="quick-add-panel">
+            <span className="dim">Choose servings</span>
+            {previewNutrition && (
+              <div className="quick-nutrition-preview" aria-label="Nutrition for chosen servings">
+                <span>{Math.round(previewNutrition.calories)} kcal</span>
+                <span>{previewNutrition.proteinG.toFixed(1)}g protein</span>
+                <span>{previewNutrition.netCarbsG.toFixed(1)}g net carbs</span>
+                <span>{previewNutrition.fatG.toFixed(1)}g fat</span>
+              </div>
+            )}
+            <div className="serving-options">
+              {QUICK_SERVING_AMOUNTS.map((amount) => (
+                <button
+                  key={amount}
+                  className={`serving-chip${servings === String(amount) ? ' serving-chip--active' : ''}`}
+                  onClick={() => setServings(String(amount))}
+                >
+                  {amount}x
+                </button>
+              ))}
+              <input
+                aria-label="Custom serving multiplier"
+                type="number"
+                min="0.1"
+                step="0.1"
+                value={servings}
+                onFocus={selectOnFocus}
+                onChange={(event) => setServings(event.target.value)}
+              />
+            </div>
+          </div>
+
           {!hasPositiveMacros(food) && (
             <div className="supplement-notice" role="note">
               <strong>Supplement found - no macro nutrition available.</strong>
@@ -444,20 +554,13 @@ export function BarcodeScanner({ foodDatabase, onAdd, onSaveFood, onSaveFoodData
             </div>
           </div>
 
-          <div className="form-row">
-            <div className="form-group">
-              <label htmlFor="barcode-servings">Servings</label>
-              <input id="barcode-servings" type="number" min="0.1" step="0.1" value={servings} onFocus={selectOnFocus} onChange={(event) => setServings(event.target.value)} />
-            </div>
-          </div>
-
           <div className="nutrition-grid">
-            <div className="stat-card"><div className="stat-card-label">Calories</div><div className="stat-card-value">{Math.round(food.calories)}</div></div>
-            <div className="stat-card"><div className="stat-card-label">Protein</div><div className="stat-card-value">{food.proteinG.toFixed(1)}g</div></div>
-            <div className="stat-card"><div className="stat-card-label">Fat</div><div className="stat-card-value">{food.fatG.toFixed(1)}g</div></div>
-            <div className="stat-card"><div className="stat-card-label">Total carbs</div><div className="stat-card-value">{food.totalCarbsG.toFixed(1)}g</div></div>
-            <div className="stat-card"><div className="stat-card-label">Net carbs</div><div className="stat-card-value">{calcNetCarbs(food.totalCarbsG, food.fibreG, food.sugarAlcoholsG).toFixed(1)}g</div></div>
-            <div className="stat-card"><div className="stat-card-label">Sodium</div><div className="stat-card-value">{Math.round(food.sodiumMg)}mg</div></div>
+            <div className="stat-card"><div className="stat-card-label">Calories</div><div className="stat-card-value">{Math.round(previewNutrition?.calories ?? 0)}</div></div>
+            <div className="stat-card"><div className="stat-card-label">Protein</div><div className="stat-card-value">{(previewNutrition?.proteinG ?? 0).toFixed(1)}g</div></div>
+            <div className="stat-card"><div className="stat-card-label">Fat</div><div className="stat-card-value">{(previewNutrition?.fatG ?? 0).toFixed(1)}g</div></div>
+            <div className="stat-card"><div className="stat-card-label">Total carbs</div><div className="stat-card-value">{(previewNutrition?.totalCarbsG ?? 0).toFixed(1)}g</div></div>
+            <div className="stat-card"><div className="stat-card-label">Net carbs</div><div className="stat-card-value">{(previewNutrition?.netCarbsG ?? 0).toFixed(1)}g</div></div>
+            <div className="stat-card"><div className="stat-card-label">Sodium</div><div className="stat-card-value">{Math.round(previewNutrition?.sodiumMg ?? 0)}mg</div></div>
           </div>
 
           <div className="form-actions">

@@ -817,6 +817,7 @@ function App() {
         {screen === 'barcode' && (
           <BarcodeScanner
             foodDatabase={foodDatabase}
+            savedFoods={savedFoods}
             onAdd={handleAddEntry}
             onSaveFood={handleSaveFood}
             onSaveFoodDatabaseItem={handleSaveFoodDatabaseItem}
@@ -889,6 +890,7 @@ function App() {
             dailyActivity={dailyActivity}
             sleepEntries={sleepEntries}
             vitalsEntries={vitalsEntries}
+            caloriesEatenToday={todaySummary.calories}
             onSyncGarmin={isHealthConnectSupported() ? handleSyncGarmin : undefined}
           />
         )}
@@ -899,6 +901,7 @@ function App() {
             reminders={reminders}
             templates={mealTemplates}
             savedFoods={savedFoods}
+            weightEntries={weightEntries}
             onSaveProfile={handleSaveProfile}
             onSaveTargets={handleSaveTargets}
             onSaveReminders={handleSaveReminders}

@@ -9,6 +9,7 @@ import { dedupeFoodDatabase } from './food-database';
 import { isMealSlot } from './meals';
 import { calcNetCarbs, safeNonNegative, safePositive } from './nutrition';
 import { getStarterFoodOptions } from './australianFoods';
+import { ACTIVITY_LEVELS } from './tdee';
 import { DEFAULT_REMINDERS, hasEnabledReminders, normalizeReminderSettings } from './reminders';
 import { MICRONUTRIENT_KEYS, zeroMicronutrients } from './micronutrients';
 
@@ -212,17 +213,23 @@ function normalizeProfile(value: unknown): UserProfile {
   if (!isRecord(value)) return { ...DEFAULT_PROFILE };
   const age = typeof value.age === 'number' && Number.isFinite(value.age) && value.age > 0 ? value.age : undefined;
   const sex = value.sex === 'male' || value.sex === 'female' ? value.sex : undefined;
+  const heightCm = typeof value.heightCm === 'number' && Number.isFinite(value.heightCm) && value.heightCm > 0 ? value.heightCm : undefined;
+  const activityLevel = ACTIVITY_LEVELS.includes(value.activityLevel as never) ? value.activityLevel as UserProfile['activityLevel'] : undefined;
   return {
     name: text(value.name), weightUnit: value.weightUnit === 'lbs' ? 'lbs' : 'kg',
     createdAt: timestamp(value.createdAt),
     ...(age !== undefined ? { age } : {}),
     ...(sex !== undefined ? { sex } : {}),
+    ...(heightCm !== undefined ? { heightCm } : {}),
+    ...(activityLevel !== undefined ? { activityLevel } : {}),
   };
 }
 
 function normalizeTargets(value: unknown): NutritionTargets {
   if (!isRecord(value)) return { ...DEFAULT_TARGETS };
   const mode = value.dietMode === 'lazy-keto' || value.dietMode === 'high-protein-keto' ? value.dietMode : 'strict-keto';
+  const proteinPerKg = typeof value.proteinPerKg === 'number' && Number.isFinite(value.proteinPerKg) && value.proteinPerKg > 0 ? value.proteinPerKg : undefined;
+  const deficitPercent = typeof value.deficitPercent === 'number' && Number.isFinite(value.deficitPercent) ? value.deficitPercent : undefined;
   return {
     calories: safePositive(value.calories, DEFAULT_TARGETS.calories),
     proteinG: safePositive(value.proteinG, DEFAULT_TARGETS.proteinG),
@@ -234,6 +241,8 @@ function normalizeTargets(value: unknown): NutritionTargets {
     ...zeroMicronutrients(),
     ...micros(value),
     dietMode: mode, manualNetCarbs: value.manualNetCarbs === true,
+    ...(proteinPerKg !== undefined ? { proteinPerKg } : {}),
+    ...(deficitPercent !== undefined ? { deficitPercent } : {}),
   };
 }
 

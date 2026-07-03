@@ -4,12 +4,17 @@ export type DietMode = 'strict-keto' | 'lazy-keto' | 'high-protein-keto';
 
 export type BiologicalSex = 'male' | 'female';
 
+// Ordered lowest to highest activity for iteration in Settings' select options.
+export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'veryActive' | 'extraActive';
+
 export interface UserProfile {
   name: string;
   weightUnit: 'kg' | 'lbs';
   createdAt: string;
   age?: number;
   sex?: BiologicalSex;
+  heightCm?: number;
+  activityLevel?: ActivityLevel;
 }
 
 export interface NutritionTargets extends Micronutrients {
@@ -22,6 +27,10 @@ export interface NutritionTargets extends Micronutrients {
   magnesiumMg: number;
   dietMode: DietMode;
   manualNetCarbs: boolean;
+  // TDEE calculator inputs (see lib/tdee.ts) — kept with targets since they drive
+  // calories/protein/fat, unlike height/activityLevel which are body stats on the profile.
+  proteinPerKg?: number;
+  deficitPercent?: number;
 }
 
 // ── Core nutrition ─────────────────────────────────────────────────────────────

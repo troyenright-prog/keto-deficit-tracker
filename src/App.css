@@ -2039,7 +2039,8 @@ input:disabled {
 .quick-result--selected { border-color: var(--blue); background: var(--blue-bg); }
 
 .quick-add-panel,
-.copy-panel {
+.copy-panel,
+.barcode-link-panel {
   display: flex;
   flex-direction: column;
   gap: 9px;

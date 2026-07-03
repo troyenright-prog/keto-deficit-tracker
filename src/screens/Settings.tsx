@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import type { FoodItem, MealSlot, MealTemplate, UserProfile, NutritionTargets, ReminderKey, ReminderRule, ReminderSettings } from '../types';
+import type { FoodItem, MealSlot, MealTemplate, UserProfile, NutritionTargets, ReminderKey, ReminderRule, ReminderSettings, WeightEntry, ActivityLevel } from '../types';
 import { dietModeDefaultNetCarbs } from '../lib/nutrition';
 import { exportAppData, validateAppBundle, importAppData } from '../lib/storage';
 import { localDateString } from '../lib/date';
@@ -9,6 +9,7 @@ import { ALL_WEEKDAYS, sendTestReminder, type ReminderScheduleResult } from '../
 import { MICRONUTRIENT_FIELDS } from '../lib/micronutrients';
 import { getRdaForAgeSex } from '../lib/rda';
 import { displayNumericValue, parseNumericInput } from '../lib/numeric-field';
+import { ACTIVITY_LEVELS, ACTIVITY_LEVEL_LABELS, estimateTdee, recalcMacrosFromTdee } from '../lib/tdee';
 import { Meals } from './Meals';
 
 // Every numeric target field is backed by raw input text so a 0 renders as an
@@ -28,6 +29,7 @@ interface SettingsProps {
   reminders: ReminderSettings;
   templates: MealTemplate[];
   savedFoods: FoodItem[];
+  weightEntries: WeightEntry[];
   onSaveProfile: (p: UserProfile) => boolean;
   onSaveTargets: (t: NutritionTargets) => boolean;
   onSaveReminders: (settings: ReminderSettings) => Promise<ReminderScheduleResult>;
@@ -59,6 +61,7 @@ export function Settings({
   reminders,
   templates,
   savedFoods,
+  weightEntries,
   onSaveProfile,
   onSaveTargets,
   onSaveReminders,
@@ -69,9 +72,13 @@ export function Settings({
 }: SettingsProps) {
   const [prof, setProf] = useState<UserProfile>(profile);
   const [ageText, setAgeText] = useState<string>(profile.age ? String(profile.age) : '');
+  const [heightText, setHeightText] = useState<string>(profile.heightCm ? String(profile.heightCm) : '');
+  const [proteinPerKgText, setProteinPerKgText] = useState<string>(String(targets.proteinPerKg ?? 2.0));
+  const [deficitPercentText, setDeficitPercentText] = useState<string>(String(targets.deficitPercent ?? 15));
   const [tgts, setTgts] = useState<NutritionTargets>(targets);
   const [targetTexts, setTargetTexts] = useState<Record<string, string>>(() => seedTargetTexts(targets));
   const [rdaMsg, setRdaMsg] = useState('');
+  const [tdeeMsg, setTdeeMsg] = useState('');
   const [rem, setRem] = useState<ReminderSettings>(reminders);
   const [saved, setSaved] = useState(false);
   const [importMsg, setImportMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -96,6 +103,49 @@ export function Settings({
     setAgeText(value);
     const parsed = Number(value);
     setProf((p) => ({ ...p, age: value !== '' && Number.isFinite(parsed) && parsed > 0 ? parsed : undefined }));
+  }
+
+  function handleHeightChange(value: string) {
+    setHeightText(value);
+    const parsed = Number(value);
+    setProf((p) => ({ ...p, heightCm: value !== '' && Number.isFinite(parsed) && parsed > 0 ? parsed : undefined }));
+  }
+
+  function handleActivityLevelChange(value: ActivityLevel) {
+    setProf((p) => ({ ...p, activityLevel: value }));
+  }
+
+  function handleProteinPerKgChange(value: string) {
+    setProteinPerKgText(value);
+    const parsed = Number(value);
+    if (value !== '' && Number.isFinite(parsed)) setTgts((t) => ({ ...t, proteinPerKg: parsed }));
+  }
+
+  function handleDeficitPercentChange(value: string) {
+    setDeficitPercentText(value);
+    const parsed = Number(value);
+    if (value !== '' && Number.isFinite(parsed)) setTgts((t) => ({ ...t, deficitPercent: parsed }));
+  }
+
+  function handleRecalculateMacros() {
+    const estimate = estimateTdee(prof, weightEntries);
+    if (!estimate) {
+      setTdeeMsg('Set your height, age, and sex above, and log at least one weigh-in first.');
+      return;
+    }
+    const proteinPerKg = tgts.proteinPerKg ?? 2.0;
+    const deficitPercent = tgts.deficitPercent ?? 15;
+    const { calories, proteinG, fatG } = recalcMacrosFromTdee(estimate, tgts.netCarbsG, proteinPerKg, deficitPercent);
+    setTgts((t) => ({ ...t, calories, proteinG, fatG, proteinPerKg, deficitPercent }));
+    setTargetTexts((texts) => ({
+      ...texts,
+      calories: displayNumericValue(calories),
+      proteinG: displayNumericValue(proteinG),
+      fatG: displayNumericValue(fatG),
+    }));
+    setTdeeMsg(
+      `Est. TDEE ~${Math.round(estimate.tdee)} kcal${estimate.bodyFatPercent != null ? ` (from ${estimate.bodyFatPercent.toFixed(1)}% body fat)` : ' (no body fat logged, using height/age estimate)'} → calories, protein, and fat updated below. Review and save.`,
+    );
   }
 
   function handleFillRda() {
@@ -346,8 +396,35 @@ export function Settings({
           </div>
         </div>
         <p className="empty-hint" style={{ marginTop: 0 }}>
-          Age and sex are used to suggest recommended vitamin and mineral targets below — they're not required otherwise.
+          Age and sex are used to suggest recommended vitamin and mineral targets, and (with height, below) to estimate TDEE — they're not required otherwise.
         </p>
+
+        <div className="form-row">
+          <div className="form-group">
+            <label htmlFor="profile-height">Height (cm)</label>
+            <input
+              id="profile-height"
+              type="number"
+              min="120"
+              max="230"
+              placeholder="e.g. 175"
+              value={heightText}
+              onChange={(e) => handleHeightChange(e.target.value)}
+            />
+          </div>
+          <div className="form-group">
+            <label htmlFor="profile-activity">Activity level</label>
+            <select
+              id="profile-activity"
+              value={prof.activityLevel ?? 'moderate'}
+              onChange={(e) => handleActivityLevelChange(e.target.value as ActivityLevel)}
+            >
+              {ACTIVITY_LEVELS.map((level) => (
+                <option key={level} value={level}>{ACTIVITY_LEVEL_LABELS[level]}</option>
+              ))}
+            </select>
+          </div>
+        </div>
 
         <div className="section-title">Diet mode</div>
 
@@ -369,6 +446,43 @@ export function Settings({
             </label>
           ))}
         </div>
+
+        <div className="section-title">Nutrition calculator</div>
+        <p className="empty-hint" style={{ marginTop: 0 }}>
+          Estimates TDEE (Katch-McArdle from your latest logged weight + body fat, or Mifflin-St Jeor from height/age/sex if no body fat is logged) and solves calories, protein, and fat around your net-carb ceiling above.
+        </p>
+        <div className="form-row">
+          <div className="form-group">
+            <label htmlFor="t-protein-per-kg">Protein target (g/kg)</label>
+            <input
+              id="t-protein-per-kg"
+              type="number"
+              min="1.2"
+              max="3.5"
+              step="0.1"
+              value={proteinPerKgText}
+              onChange={(e) => handleProteinPerKgChange(e.target.value)}
+            />
+          </div>
+          <div className="form-group">
+            <label htmlFor="t-deficit-percent">Deficit % (negative = surplus)</label>
+            <input
+              id="t-deficit-percent"
+              type="number"
+              min="-20"
+              max="40"
+              step="1"
+              value={deficitPercentText}
+              onChange={(e) => handleDeficitPercentChange(e.target.value)}
+            />
+          </div>
+        </div>
+        <div className="form-actions" style={{ marginTop: 0, marginBottom: 8 }}>
+          <button type="button" className="btn btn--secondary btn--sm" onClick={handleRecalculateMacros}>
+            Recalculate macros from TDEE
+          </button>
+        </div>
+        {tdeeMsg && <p className="empty-hint" style={{ marginTop: 0 }}>{tdeeMsg}</p>}
 
         <div className="section-title">Daily targets</div>
 

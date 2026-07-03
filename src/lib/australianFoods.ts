@@ -41,6 +41,23 @@ export const AUSTRALIAN_STARTER_FOODS: Omit<FoodItem, 'id' | 'createdAt'>[] = [
   { name: 'Capsicum (green, raw)', servingSize: '100g', calories: 20, proteinG: 0.9, fatG: 0.2, totalCarbsG: 4.6, fibreG: 1.7, sugarAlcoholsG: 0, sodiumMg: 3, potassiumMg: 175, magnesiumMg: 10 },
   { name: 'Mushrooms (button, raw)', servingSize: '100g', calories: 22, proteinG: 3.1, fatG: 0.3, totalCarbsG: 3.3, fibreG: 1.0, sugarAlcoholsG: 0, sodiumMg: 5, potassiumMg: 318, magnesiumMg: 9 },
 
+  // Fruits
+  {
+    name: 'Banana (large, Cavendish)',
+    servingSize: '1 large (136g)',
+    calories: 121,
+    proteinG: 1.5,
+    fatG: 0.4,
+    totalCarbsG: 31.0,
+    fibreG: 3.5,
+    sugarAlcoholsG: 0,
+    sodiumMg: 1,
+    potassiumMg: 540,
+    magnesiumMg: 40,
+    vitaminCMg: 12,
+    vitaminB6Mg: 0.5,
+  },
+
   // Nuts & seeds
   { name: 'Almonds (raw)', servingSize: '30g', calories: 174, proteinG: 6.3, fatG: 15.0, totalCarbsG: 6.6, fibreG: 3.8, sugarAlcoholsG: 0, sodiumMg: 0, potassiumMg: 209, magnesiumMg: 76 },
   { name: 'Macadamia nuts (raw)', servingSize: '30g', calories: 214, proteinG: 2.4, fatG: 22.5, totalCarbsG: 3.9, fibreG: 2.4, sugarAlcoholsG: 0, sodiumMg: 1, potassiumMg: 104, magnesiumMg: 37 },

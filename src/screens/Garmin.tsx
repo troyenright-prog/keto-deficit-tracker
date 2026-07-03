@@ -11,6 +11,8 @@ interface GarminProps {
   dailyActivity: DailyActivityEntry[];
   sleepEntries: SleepEntry[];
   vitalsEntries: VitalsEntry[];
+  // Today's calories eaten from the food log, used to compute net calories against Garmin's burn.
+  caloriesEatenToday: number;
   // Provided only on platforms where Garmin/Health Connect is available.
   // Resolves to a status message to show the user.
   onSyncGarmin?: () => Promise<string>;
@@ -46,7 +48,7 @@ const STAGE_CLASSES: Record<string, string> = {
 // Read-only Garmin dashboard: sync + latest synced metrics. Manual weight
 // entry/edit/delete lives outside this screen — Garmin data is source-of-truth
 // synced data here, not a log to hand-edit.
-export function Garmin({ entries, weightUnit, dailyActivity, sleepEntries, vitalsEntries, onSyncGarmin }: GarminProps) {
+export function Garmin({ entries, weightUnit, dailyActivity, sleepEntries, vitalsEntries, caloriesEatenToday, onSyncGarmin }: GarminProps) {
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState('');
 
@@ -95,6 +97,10 @@ export function Garmin({ entries, weightUnit, dailyActivity, sleepEntries, vital
     [dailyActivity],
   );
   const isActivityToday = latestActivity?.date === todayDateString();
+  const netCaloriesToday =
+    isActivityToday && latestActivity?.totalCalories != null
+      ? caloriesEatenToday - latestActivity.totalCalories
+      : null;
 
   const latestSleep = useMemo(
     () => [...sleepEntries].sort((a, b) => b.date.localeCompare(a.date))[0],
@@ -271,6 +277,14 @@ export function Garmin({ entries, weightUnit, dailyActivity, sleepEntries, vital
               )}
               {latestActivity.distanceMeters != null && (
                 <StatCard label="Distance" value={formatDistance(latestActivity.distanceMeters)} />
+              )}
+              {netCaloriesToday != null && (
+                <StatCard
+                  label="Net calories"
+                  value={`${netCaloriesToday >= 0 ? '+' : ''}${Math.round(netCaloriesToday).toLocaleString()}`}
+                  sub={`${Math.round(caloriesEatenToday).toLocaleString()} eaten − ${Math.round(latestActivity.totalCalories!).toLocaleString()} burned`}
+                  variant={netCaloriesToday < 0 ? 'success' : netCaloriesToday > 0 ? 'warning' : 'default'}
+                />
               )}
               {latestActivity.floorsClimbed != null && (
                 <StatCard label="Floors climbed" value={Math.round(latestActivity.floorsClimbed)} />
