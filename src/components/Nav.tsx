@@ -12,12 +12,13 @@ const homeTabs: Tab[] = [
   { id: 'dashboard', label: 'Home' },
   { id: 'daily-log', label: 'Log' },
   { id: 'weight', label: 'Garmin' },
+  { id: 'progress', label: 'Progress' },
 ];
 
 const planTabs: Tab[] = [
-  { id: 'weekly', label: 'Week' },
-  { id: 'saved-foods', label: 'Foods' },
-  { id: 'shopping', label: 'Shop' },
+  { id: 'planner', label: 'Meal plan' },
+  { id: 'meals', label: 'Meal templates' },
+  { id: 'recipes', label: 'Recipes' },
 ];
 
 const endTabs: Tab[] = [
@@ -29,11 +30,9 @@ const ICONS: Partial<Record<Screen, ReactNode>> = {
   'daily-log': <><circle cx="4.6" cy="6" r="1" /><circle cx="4.6" cy="12" r="1" /><circle cx="4.6" cy="18" r="1" /><path d="M9 6h11" /><path d="M9 12h11" /><path d="M9 18h11" /></>,
   weight: <><path d="M3.5 12h3.5l1.6-4.2 2.7 8.4 1.9-5.6 1.3 3h4.5" /></>,
   planner: <><rect x="3.6" y="5" width="16.8" height="15.4" rx="2.2" /><path d="M3.6 9.4h16.8" /><path d="M8 3.3v3.3" /><path d="M16 3.3v3.3" /></>,
-  weekly: <><path d="M5 20V12" /><path d="M10 20V5.5" /><path d="M15 20v-6.5" /><path d="M20 20v-10.5" /></>,
-  'saved-foods': <><path d="M6.5 4.5h11v15l-5.5-3.7-5.5 3.7z" /></>,
+  progress: <><path d="M5 20V12" /><path d="M10 20V5.5" /><path d="M15 20v-6.5" /><path d="M20 20v-10.5" /></>,
   meals: <><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="3.2" /></>,
   recipes: <><path d="M6 4.5h9a2.5 2.5 0 0 1 2.5 2.5v12.5H8a2 2 0 0 1-2-2z" /><path d="M6 4.5v12.5" /></>,
-  shopping: <><path d="M4 5h2l1.7 9.1a1.6 1.6 0 0 0 1.6 1.3h6.9a1.6 1.6 0 0 0 1.6-1.3L19.4 8H7" /><circle cx="9.5" cy="19" r="1.2" /><circle cx="16.4" cy="19" r="1.2" /></>,
   settings: <><path d="M4 8h7" /><path d="M15 8h5" /><circle cx="13" cy="8" r="2.1" /><path d="M4 16h4" /><path d="M12 16h8" /><circle cx="10" cy="16" r="2.1" /></>,
 };
 

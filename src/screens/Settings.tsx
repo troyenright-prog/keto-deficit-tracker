@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import type { FoodItem, MealSlot, MealTemplate, UserProfile, NutritionTargets, ReminderKey, ReminderRule, ReminderSettings, WeightEntry, ActivityLevel } from '../types';
+import type { FoodItem, MealSlot, MealTemplate, UserProfile, NutritionTargets, ReminderKey, ReminderRule, ReminderSettings, WeightEntry, ActivityLevel, ShoppingItem, Recipe } from '../types';
 import { dietModeDefaultNetCarbs } from '../lib/nutrition';
 import { exportAppData, validateAppBundle, importAppData } from '../lib/storage';
 import { localDateString } from '../lib/date';
@@ -11,6 +11,8 @@ import { getRdaForAgeSex } from '../lib/rda';
 import { displayNumericValue, parseNumericInput } from '../lib/numeric-field';
 import { ACTIVITY_LEVELS, ACTIVITY_LEVEL_LABELS, estimateTdee, recalcMacrosFromTdee } from '../lib/tdee';
 import { Meals } from './Meals';
+import { SavedFoods } from './SavedFoods';
+import { Shopping } from './Shopping';
 
 // Every numeric target field is backed by raw input text so a 0 renders as an
 // empty placeholder the user can type straight into (no stuck "0" to delete).
@@ -30,12 +32,18 @@ interface SettingsProps {
   templates: MealTemplate[];
   savedFoods: FoodItem[];
   weightEntries: WeightEntry[];
+  shoppingList: ShoppingItem[];
+  recipes: Recipe[];
   onSaveProfile: (p: UserProfile) => boolean;
   onSaveTargets: (t: NutritionTargets) => boolean;
   onSaveReminders: (settings: ReminderSettings) => Promise<ReminderScheduleResult>;
   onSaveTemplate: (template: MealTemplate) => boolean;
   onDeleteTemplate: (id: string) => void;
   onAddTemplateToLog: (template: MealTemplate, meal?: MealSlot) => void;
+  onSaveFood: (food: FoodItem) => boolean;
+  onDeleteSavedFood: (id: string) => boolean;
+  onAddSavedFoodToLog: (food: FoodItem) => void;
+  onSaveShoppingList: (items: ShoppingItem[]) => boolean;
   onImportComplete: () => void;
 }
 
@@ -62,12 +70,18 @@ export function Settings({
   templates,
   savedFoods,
   weightEntries,
+  shoppingList,
+  recipes,
   onSaveProfile,
   onSaveTargets,
   onSaveReminders,
   onSaveTemplate,
   onDeleteTemplate,
   onAddTemplateToLog,
+  onSaveFood,
+  onDeleteSavedFood,
+  onAddSavedFoodToLog,
+  onSaveShoppingList,
   onImportComplete,
 }: SettingsProps) {
   const [prof, setProf] = useState<UserProfile>(profile);
@@ -602,6 +616,24 @@ export function Settings({
         onSave={onSaveTemplate}
         onDelete={onDeleteTemplate}
         onAddToLog={onAddTemplateToLog}
+      />
+
+      <div className="section-title">Saved foods</div>
+      <SavedFoods
+        embedded
+        foods={savedFoods}
+        onSave={onSaveFood}
+        onDelete={onDeleteSavedFood}
+        onAddToLog={onAddSavedFoodToLog}
+      />
+
+      <div className="section-title">Shopping list</div>
+      <Shopping
+        embedded
+        items={shoppingList}
+        templates={templates}
+        recipes={recipes}
+        onSave={onSaveShoppingList}
       />
 
       <div className="section-title">Backup &amp; Restore</div>

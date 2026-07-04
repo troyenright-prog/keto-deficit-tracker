@@ -20,12 +20,18 @@ function renderSettings(overrides: Partial<NutritionTargets> = {}, onSaveTargets
       templates={[]}
       savedFoods={[]}
       weightEntries={[]}
+      shoppingList={[]}
+      recipes={[]}
       onSaveProfile={vi.fn(() => true)}
       onSaveTargets={onSaveTargets}
       onSaveReminders={vi.fn(async () => ({ ok: true, native: false, permission: 'granted' as const, scheduled: 0, message: 'ok' }))}
       onSaveTemplate={vi.fn(() => true)}
       onDeleteTemplate={vi.fn()}
       onAddTemplateToLog={vi.fn()}
+      onSaveFood={vi.fn(() => true)}
+      onDeleteSavedFood={vi.fn(() => true)}
+      onAddSavedFoodToLog={vi.fn()}
+      onSaveShoppingList={vi.fn(() => true)}
       onImportComplete={vi.fn()}
     />,
   );

@@ -7,6 +7,7 @@ interface ShoppingProps {
   templates: MealTemplate[];
   recipes: Recipe[];
   onSave: (items: ShoppingItem[]) => boolean;
+  embedded?: boolean;
 }
 
 function itemKey(item: Pick<ShoppingItem, 'name' | 'quantity' | 'source' | 'sourceId'>): string {
@@ -25,7 +26,7 @@ function appendUniqueItems(current: ShoppingItem[], additions: ShoppingItem[]): 
   return { next: [...current, ...unique], added: unique.length, skipped: additions.length - unique.length };
 }
 
-export function Shopping({ items, templates, recipes, onSave }: ShoppingProps) {
+export function Shopping({ items, templates, recipes, onSave, embedded = false }: ShoppingProps) {
   const [newItemName, setNewItemName] = useState('');
   const [newItemQty, setNewItemQty] = useState('');
   const [message, setMessage] = useState('');
@@ -95,10 +96,12 @@ export function Shopping({ items, templates, recipes, onSave }: ShoppingProps) {
   const pending = items.filter((i) => !i.completed);
   const completed = items.filter((i) => i.completed);
 
+  const shellClass = embedded ? 'settings-template-panel' : 'screen';
+
   return (
-    <div className="screen">
-      <div className="screen-header">
-        <h1>Shopping List</h1>
+    <div className={shellClass}>
+      <div className={`screen-header${embedded ? ' screen-header--embedded' : ''}`}>
+        {embedded ? <h2>Shopping list</h2> : <h1>Shopping List</h1>}
         {completed.length > 0 && (
           <button className="btn btn--ghost btn--sm" onClick={clearCompleted}>
             Clear done ({completed.length})

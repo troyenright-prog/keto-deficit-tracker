@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { WeeklySummary } from '../screens/WeeklySummary';
+import { Progress } from '../screens/Progress';
 import { DEFAULT_TARGETS } from '../lib/storage';
 import { addLocalDays } from '../lib/date';
 import { todayDateString } from '../lib/nutrition';
@@ -25,10 +25,10 @@ const entry = (overrides: Partial<FoodLogEntry> = {}): FoodLogEntry => ({
   ...overrides,
 });
 
-describe('WeeklySummary screen', () => {
+describe('Progress screen', () => {
   it('surfaces keto alignment and best carb day insights', () => {
     const today = todayDateString();
-    render(<WeeklySummary log={[
+    render(<Progress log={[
       entry({ id: 'a', date: addLocalDays(today, -1), totalCarbsG: 30, fibreG: 2, proteinG: 50 }),
       entry({ id: 'b', date: today, totalCarbsG: 6, fibreG: 2, proteinG: 120 }),
     ]} targets={DEFAULT_TARGETS} />);

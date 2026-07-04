@@ -6,12 +6,10 @@ import { UserPicker } from './components/UserPicker';
 import { Dashboard } from './screens/Dashboard';
 import { AddFood } from './screens/AddFood';
 import { DailyLog } from './screens/DailyLog';
-import { WeeklySummary } from './screens/WeeklySummary';
-import { SavedFoods } from './screens/SavedFoods';
+import { Progress } from './screens/Progress';
 import { Meals } from './screens/Meals';
 import { Recipes } from './screens/Recipes';
 import { Planner } from './screens/Planner';
-import { Shopping } from './screens/Shopping';
 import { Garmin } from './screens/Garmin';
 import { Settings } from './screens/Settings';
 import { BarcodeScanner } from './screens/BarcodeScanner';
@@ -108,12 +106,10 @@ export type Screen =
   | 'dashboard'
   | 'add-food'
   | 'daily-log'
-  | 'weekly'
-  | 'saved-foods'
+  | 'progress'
   | 'meals'
   | 'recipes'
   | 'planner'
-  | 'shopping'
   | 'weight'
   | 'settings'
   | 'barcode';
@@ -838,16 +834,8 @@ function App() {
             onAddFood={() => setScreen('barcode')}
           />
         )}
-        {screen === 'weekly' && (
-          <WeeklySummary log={foodLog} targets={targets} />
-        )}
-        {screen === 'saved-foods' && (
-          <SavedFoods
-            foods={savedFoods}
-            onSave={handleSaveFood}
-            onDelete={handleDeleteSavedFood}
-            onAddToLog={handleAddSavedFoodToLog}
-          />
+        {screen === 'progress' && (
+          <Progress log={foodLog} targets={targets} />
         )}
         {screen === 'meals' && (
           <Meals
@@ -876,14 +864,6 @@ function App() {
             onConvertToLog={handleConvertPlanToLog}
           />
         )}
-        {screen === 'shopping' && (
-          <Shopping
-            items={shoppingList}
-            templates={mealTemplates}
-            recipes={recipes}
-            onSave={handleSaveShoppingList}
-          />
-        )}
         {screen === 'weight' && (
           <Garmin
             entries={weightEntries}
@@ -903,12 +883,18 @@ function App() {
             templates={mealTemplates}
             savedFoods={savedFoods}
             weightEntries={weightEntries}
+            shoppingList={shoppingList}
+            recipes={recipes}
             onSaveProfile={handleSaveProfile}
             onSaveTargets={handleSaveTargets}
             onSaveReminders={handleSaveReminders}
             onSaveTemplate={handleSaveTemplate}
             onDeleteTemplate={handleDeleteTemplate}
             onAddTemplateToLog={handleAddTemplateToLog}
+            onSaveFood={handleSaveFood}
+            onDeleteSavedFood={handleDeleteSavedFood}
+            onAddSavedFoodToLog={handleAddSavedFoodToLog}
+            onSaveShoppingList={handleSaveShoppingList}
             onImportComplete={handleImportComplete}
           />
         )}

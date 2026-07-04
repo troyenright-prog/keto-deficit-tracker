@@ -12,9 +12,10 @@ interface SavedFoodsProps {
   onSave: (food: FoodItem) => boolean;
   onDelete: (id: string) => boolean;
   onAddToLog: (food: FoodItem) => void;
+  embedded?: boolean;
 }
 
-export function SavedFoods({ foods, onSave, onDelete, onAddToLog }: SavedFoodsProps) {
+export function SavedFoods({ foods, onSave, onDelete, onAddToLog, embedded = false }: SavedFoodsProps) {
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<FoodItem | null>(null);
   const [addingNew, setAddingNew] = useState(false);
@@ -93,10 +94,12 @@ export function SavedFoods({ foods, onSave, onDelete, onAddToLog }: SavedFoodsPr
       }
     : undefined;
 
+  const shellClass = embedded ? 'settings-template-panel' : 'screen';
+
   return (
-    <div className="screen">
-      <div className="screen-header">
-        <h1>Saved Foods</h1>
+    <div className={shellClass}>
+      <div className={`screen-header${embedded ? ' screen-header--embedded' : ''}`}>
+        {embedded ? <h2>Saved foods</h2> : <h1>Saved Foods</h1>}
         <button className="btn btn--primary btn--sm" onClick={() => { setAddingNew(true); setEditing(null); }}>
           + New Food
         </button>
