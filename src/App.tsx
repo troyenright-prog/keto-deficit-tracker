@@ -778,7 +778,7 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <span className="app-title">Keto Tracker</span>
+        <span className="app-title">Health Tracker</span>
         <div className="app-header-meta">
           <span className={`sync-pill sync-pill--${syncStatus.tone}`}>{syncStatus.text}</span>
           <button type="button" className="app-user" onClick={switchUser} title="Switch user">
@@ -796,6 +796,7 @@ function App() {
             activity={dailyActivity.find((entry) => entry.date === today) ?? [...dailyActivity].sort((a, b) => b.date.localeCompare(a.date))[0]}
             targets={targets}
             recommendations={recommendations}
+            profile={profile}
             onAddFood={() => setScreen('barcode')}
             onSyncGarmin={isHealthConnectSupported() ? handleSyncGarmin : undefined}
           />

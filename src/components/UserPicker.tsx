@@ -12,7 +12,7 @@ export function UserPicker({ onPick }: UserPickerProps) {
     <div className="user-picker-shell">
       <div className="user-picker-panel">
         <div>
-          <p className="eyebrow">Keto Tracker</p>
+          <p className="eyebrow">Health Tracker</p>
           <h1>Who is logging?</h1>
           <p className="user-picker-copy">Your device remembers this choice and keeps each person&apos;s data separate.</p>
         </div>

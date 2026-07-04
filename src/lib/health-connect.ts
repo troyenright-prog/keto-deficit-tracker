@@ -61,7 +61,7 @@ export async function ensureWeightPermissions(): Promise<boolean> {
   // Some devices return an empty grant instead of showing the dialog — open the
   // Health Connect settings so the user can grant access manually.
   try { await HealthConnect.openHealthConnectSetting(); } catch { /* best effort */ }
-  throw new Error('Grant Keto Tracker access in Health Connect → App permissions, then tap Sync again.');
+  throw new Error('Grant Health Tracker access in Health Connect → App permissions, then tap Sync again.');
 }
 
 export async function ensureStepPermissions(): Promise<boolean> {
@@ -71,7 +71,7 @@ export async function ensureStepPermissions(): Promise<boolean> {
   const granted = await HealthConnect.requestHealthPermissions(request);
   if (granted.hasAllPermissions || granted.grantedPermissions?.length) return true;
   try { await HealthConnect.openHealthConnectSetting(); } catch { /* best effort */ }
-  throw new Error('Grant Keto Tracker access to Steps in Health Connect, then tap Sync again.');
+  throw new Error('Grant Health Tracker access to Steps in Health Connect, then tap Sync again.');
 }
 
 // Calories/distance/floors/elevation — requested as one group since they're all
@@ -84,7 +84,7 @@ export async function ensureActivityExtrasPermissions(): Promise<boolean> {
   const granted = await HealthConnect.requestHealthPermissions(request);
   if (granted.hasAllPermissions || granted.grantedPermissions?.length) return true;
   try { await HealthConnect.openHealthConnectSetting(); } catch { /* best effort */ }
-  throw new Error('Grant Keto Tracker access to activity data in Health Connect, then tap Sync again.');
+  throw new Error('Grant Health Tracker access to activity data in Health Connect, then tap Sync again.');
 }
 
 export async function ensureSleepPermissions(): Promise<boolean> {
@@ -94,7 +94,7 @@ export async function ensureSleepPermissions(): Promise<boolean> {
   const granted = await HealthConnect.requestHealthPermissions(request);
   if (granted.hasAllPermissions || granted.grantedPermissions?.length) return true;
   try { await HealthConnect.openHealthConnectSetting(); } catch { /* best effort */ }
-  throw new Error('Grant Keto Tracker access to Sleep in Health Connect, then tap Sync again.');
+  throw new Error('Grant Health Tracker access to Sleep in Health Connect, then tap Sync again.');
 }
 
 export async function ensureVitalsPermissions(): Promise<boolean> {
@@ -104,7 +104,7 @@ export async function ensureVitalsPermissions(): Promise<boolean> {
   const granted = await HealthConnect.requestHealthPermissions(request);
   if (granted.hasAllPermissions || granted.grantedPermissions?.length) return true;
   try { await HealthConnect.openHealthConnectSetting(); } catch { /* best effort */ }
-  throw new Error('Grant Keto Tracker access to vitals in Health Connect, then tap Sync again.');
+  throw new Error('Grant Health Tracker access to vitals in Health Connect, then tap Sync again.');
 }
 
 function massToKg(mass: Mass | undefined): number | null {

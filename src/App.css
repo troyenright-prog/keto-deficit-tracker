@@ -546,6 +546,38 @@
 .rec--warning { background: var(--amber-bg); color: var(--amber); }
 .rec--success { background: var(--green-bg); color: var(--green); }
 
+/* ── Nutrition hints ("What to fix next") ── */
+.nutrition-hints {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.nutrition-hint {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--gray-200);
+  background: var(--white);
+  box-shadow: var(--shadow-soft);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.nutrition-hint strong { color: var(--gray-900); font-size: 13px; }
+.nutrition-hint span { color: var(--gray-700); }
+.nutrition-hint small { color: var(--gray-700); font-style: italic; }
+.nutrition-hint__advice { color: var(--gray-900); }
+
+.nutrition-hint--low { border-color: rgba(37, 99, 235, 0.2); background: var(--blue-bg); }
+.nutrition-hint--high { border-color: rgba(196, 122, 24, 0.28); background: var(--amber-bg); }
+.nutrition-hint--data-caveat { border-color: var(--gray-200); background: var(--gray-50, #f8fafc); }
+
 /* ── Buttons ── */
 .btn {
   display: inline-flex;

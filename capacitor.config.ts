@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.ketodeficit.tracker',
-  appName: 'Keto Tracker',
+  appName: 'Health Tracker',
   webDir: 'dist',
   server: {
     androidScheme: 'https',

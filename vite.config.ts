@@ -18,8 +18,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
-        name: 'Keto Deficit Tracker',
-        short_name: 'Keto Tracker',
+        name: 'Health Tracker',
+        short_name: 'Health Tracker',
         description: 'Track calories, net carbs, and electrolytes on a keto diet.',
         theme_color: '#111827',
         background_color: '#f3f4f6',

@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { ProgressBar } from '../components/ProgressBar';
 import { StatCard } from '../components/StatCard';
-import type { DailyActivityEntry, DailyNutritionSummary, FoodLogEntry, NutritionTargets, Recommendation } from '../types';
+import type { DailyActivityEntry, DailyNutritionSummary, FoodLogEntry, NutritionTargets, Recommendation, UserProfile } from '../types';
 import { calcNetCarbs, carbStatus, carbStatusLabel, remainingCalories } from '../lib/nutrition';
 import { entryMeal, MEAL_SLOTS } from '../lib/meals';
 import { buildSmartSuggestions } from '../lib/suggestions';
 import { formatMicronutrientAmount, MICRONUTRIENT_FIELDS } from '../lib/micronutrients';
+import { buildNutritionHints } from '../lib/nutrition-hints';
 
 interface DashboardProps {
   summary: DailyNutritionSummary;
@@ -13,6 +14,7 @@ interface DashboardProps {
   activity?: DailyActivityEntry;
   targets: NutritionTargets;
   recommendations: Recommendation[];
+  profile?: Pick<UserProfile, 'age' | 'sex'>;
   onAddFood: () => void;
   onSyncGarmin?: () => Promise<string>;
 }
@@ -60,7 +62,7 @@ function headlineForMove(rec: Recommendation): string {
   return SMART_SUGGESTION_HEADLINES[rec.id] ?? rec.message;
 }
 
-export function Dashboard({ summary, entries, activity, targets, recommendations, onAddFood, onSyncGarmin }: DashboardProps) {
+export function Dashboard({ summary, entries, activity, targets, recommendations, profile, onAddFood, onSyncGarmin }: DashboardProps) {
   const [garminSyncing, setGarminSyncing] = useState(false);
   const [garminSyncMessage, setGarminSyncMessage] = useState('');
   const status = carbStatus(summary, targets);
@@ -81,6 +83,7 @@ export function Dashboard({ summary, entries, activity, targets, recommendations
   const targetedMicronutrients = micronutrientProgress.filter((item) => item.target > 0);
   const untargetedMicronutrients = micronutrientProgress.filter((item) => item.target === 0 && item.value > 0);
 
+  const nutritionHints = buildNutritionHints(summary, targets, entries, profile);
   const suggestions = buildSmartSuggestions(summary, targets);
   const nextMove = suggestions[0] ?? recommendations.find((rec) => rec.priority !== 'success') ?? recommendations[0];
   const surfacedMoves = summary.entryCount > 0 && nextMove ? [nextMove] : [];
@@ -304,6 +307,22 @@ export function Dashboard({ summary, entries, activity, targets, recommendations
           variant={summary.magnesiumMg >= targets.magnesiumMg ? 'success' : 'default'}
         />
       </div>
+
+      {nutritionHints.length > 0 && (
+        <>
+          <div className="section-title">What to fix next</div>
+          <ul className="nutrition-hints">
+            {nutritionHints.map((hint) => (
+              <li key={hint.id} className={`nutrition-hint nutrition-hint--${hint.kind}`}>
+                <strong>{hint.title}</strong>
+                <span>{hint.reason}</span>
+                <span className="nutrition-hint__advice">{hint.advice}</span>
+                {hint.caveat && <small>{hint.caveat}</small>}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
 
       {micronutrientProgress.length > 0 && (
         <>

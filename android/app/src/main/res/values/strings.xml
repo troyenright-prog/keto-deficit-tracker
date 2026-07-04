@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Keto Tracker</string>
-    <string name="title_activity_main">Keto Tracker</string>
+    <string name="app_name">Health Tracker</string>
+    <string name="title_activity_main">Health Tracker</string>
     <string name="package_name">com.ketodeficit.tracker</string>
     <string name="custom_url_scheme">com.ketodeficit.tracker</string>
 </resources>
