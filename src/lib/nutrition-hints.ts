@@ -1,4 +1,4 @@
-import type { DailyNutritionSummary, FoodLogEntry, NutritionTargets, UserProfile } from '../types';
+import type { DailyNutritionSummary, FoodLogEntry, Micronutrients, NutritionTargets, UserProfile } from '../types';
 import { MICRONUTRIENT_KEYS, type MicronutrientKey } from './micronutrients';
 import { FIBRE_TARGET_G, NUTRIENT_HINT_CATALOGUE, type HintNutrientKey, type NutrientHintDef } from './nutrient-catalogue';
 import { getRdaForAgeSex } from './rda';
@@ -59,7 +59,7 @@ interface Candidate {
   score: number;
 }
 
-function targetFor(def: NutrientHintDef, targets: NutritionTargets, rdaFallback: Record<MicronutrientKey, number>): number {
+function targetFor(def: NutrientHintDef, targets: NutritionTargets, rdaFallback: Micronutrients): number {
   if (def.key === 'fibreG') return FIBRE_TARGET_G;
   if (def.key === 'proteinG' || def.key === 'sodiumMg' || def.key === 'potassiumMg' || def.key === 'magnesiumMg') {
     return targets[def.key];
