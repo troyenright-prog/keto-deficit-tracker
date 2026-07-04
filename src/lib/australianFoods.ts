@@ -11,6 +11,10 @@ export const AUSTRALIAN_STARTER_FOODS: Omit<FoodItem, 'id' | 'createdAt'>[] = [
   { name: 'Chicken breast (raw, skinless)', servingSize: '100g', calories: 120, proteinG: 22.5, fatG: 2.6, totalCarbsG: 0, fibreG: 0, sugarAlcoholsG: 0, sodiumMg: 74, potassiumMg: 360, magnesiumMg: 29 },
   { name: 'Beef eye fillet (raw)', servingSize: '100g', calories: 143, proteinG: 21.4, fatG: 6.0, totalCarbsG: 0, fibreG: 0, sugarAlcoholsG: 0, sodiumMg: 55, potassiumMg: 315, magnesiumMg: 22 },
   { name: 'Beef mince 80/20 (raw)', servingSize: '100g', calories: 254, proteinG: 17.4, fatG: 20.0, totalCarbsG: 0, fibreG: 0, sugarAlcoholsG: 0, sodiumMg: 72, potassiumMg: 270, magnesiumMg: 19 },
+  // Woolworths "Beef Porterhouse Steak with Herb & Garlic Butter" 400g pack — label
+  // values (per 100g); potassium/magnesium aren't on the label, estimated from
+  // plain beef porterhouse/sirloin since the butter medallion is a small share of the pack.
+  { name: 'Beef porterhouse steak with herb & garlic butter (raw)', servingSize: '100g', calories: 263, proteinG: 19.5, fatG: 20.3, totalCarbsG: 1.0, fibreG: 0, sugarAlcoholsG: 0, sodiumMg: 157, potassiumMg: 320, magnesiumMg: 22 },
   { name: 'Salmon (Atlantic, raw)', servingSize: '100g', calories: 208, proteinG: 20.0, fatG: 13.0, totalCarbsG: 0, fibreG: 0, sugarAlcoholsG: 0, sodiumMg: 59, potassiumMg: 490, magnesiumMg: 29 },
   { name: 'Tuna (canned in water, drained)', servingSize: '100g', calories: 116, proteinG: 26.0, fatG: 1.0, totalCarbsG: 0, fibreG: 0, sugarAlcoholsG: 0, sodiumMg: 320, potassiumMg: 290, magnesiumMg: 35 },
   { name: 'Bacon (middle rasher, raw)', servingSize: '1 rasher (25g)', calories: 100, proteinG: 3.0, fatG: 9.3, totalCarbsG: 0.1, fibreG: 0, sugarAlcoholsG: 0, sodiumMg: 430, potassiumMg: 65, magnesiumMg: 5 },
