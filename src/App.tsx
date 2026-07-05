@@ -79,10 +79,7 @@ import {
   shouldRunGarminAutoSync,
 } from './lib/garmin-auto-sync';
 import {
-  NUTRITION_PUSH_INTERVAL_MS,
-  NUTRITION_PUSH_STARTUP_DELAY_MS,
   selectEntriesToPush,
-  shouldRunNutritionPush,
   summarizePush,
   toNutritionRecordPayload,
   pruneAndRecordSyncedIds,
@@ -220,7 +217,6 @@ function App() {
   const garminSyncInFlightRef = useRef(false);
   const lastGarminSyncAttemptRef = useRef(0);
   const nutritionPushInFlightRef = useRef(false);
-  const lastNutritionPushAttemptRef = useRef(0);
   const profileRef = useRef(profile);
   const targetsRef = useRef(targets);
   const foodLogRef = useRef(foodLog);
@@ -419,7 +415,6 @@ function App() {
   const pushNutritionToHealthConnect = useCallback(async (options: { requestPermissions: boolean }): Promise<string> => {
     if (nutritionPushInFlightRef.current) return 'Push already running.';
     nutritionPushInFlightRef.current = true;
-    lastNutritionPushAttemptRef.current = Date.now();
     try {
       if (!(await healthConnectAvailable())) {
         return "Health Connect isn't available on this device.";
@@ -466,62 +461,16 @@ function App() {
   const autoPushNutrition = useCallback(() => {
     if (!nutritionSyncRef.current.enabled || !isHealthConnectSupported()) return;
     pushNutritionToHealthConnect({ requestPermissions: false }).catch(() => {
-      // best-effort; the periodic catch-up below and the manual button still cover this.
+      // best-effort; the next Garmin sync and the manual Settings button still cover this.
     });
   }, [pushNutritionToHealthConnect]);
 
-  const handleAutoPushNutrition = useCallback(async () => {
-    const now = Date.now();
-    if (!shouldRunNutritionPush({
-      currentUserPresent: Boolean(currentUserRef.current),
-      healthConnectSupported: isHealthConnectSupported(),
-      enabled: nutritionSyncRef.current.enabled,
-      hasPending: selectEntriesToPush(foodLogRef.current, nutritionSyncRef.current.syncedEntryIds).length > 0,
-      now,
-      lastAttemptAt: lastNutritionPushAttemptRef.current,
-    })) {
-      return;
-    }
-    try {
-      await pushNutritionToHealthConnect({ requestPermissions: false });
-    } catch {
-      // Auto-push is best-effort; the manual button still surfaces detailed errors.
-    }
-  }, [pushNutritionToHealthConnect]);
-
-  useEffect(() => {
-    if (!currentUser || !isHealthConnectSupported() || typeof document === 'undefined') return;
-
-    let cancelled = false;
-    let removeAppStateListener: (() => void) | undefined;
-    const runIfActive = () => {
-      if (cancelled || document.visibilityState === 'hidden') return;
-      void handleAutoPushNutrition();
-    };
-
-    const startupTimer = setTimeout(runIfActive, NUTRITION_PUSH_STARTUP_DELAY_MS);
-    const interval = setInterval(runIfActive, NUTRITION_PUSH_INTERVAL_MS);
-    document.addEventListener('visibilitychange', runIfActive);
-    void CapacitorApp.addListener('appStateChange', ({ isActive }) => {
-      if (isActive) runIfActive();
-    }).then((handle) => {
-      if (cancelled) {
-        void handle.remove();
-      } else {
-        removeAppStateListener = () => { void handle.remove(); };
-      }
-    }).catch(() => {
-      // The visibility listener and interval still cover native fallbacks.
-    });
-
-    return () => {
-      cancelled = true;
-      clearTimeout(startupTimer);
-      clearInterval(interval);
-      document.removeEventListener('visibilitychange', runIfActive);
-      removeAppStateListener?.();
-    };
-  }, [currentUser, handleAutoPushNutrition]);
+  // Note: there's no separate periodic nutrition-push effect - "Sync Garmin"
+  // (handleAutoSyncGarmin's effect, further below) now pushes nutrition as
+  // part of every Garmin sync, manual or automatic, so a second scheduler
+  // here would just be redundant. New entries still push immediately via
+  // autoPushNutrition above; this only leaves periodic catch-up (e.g. entries
+  // arriving via a remote-sync merge) to whenever Garmin next syncs.
 
   // ── Food log ───────────────────────────────────────────────────────────────
 
@@ -754,12 +703,21 @@ function App() {
         activityParts.push(error instanceof Error ? `vitals unavailable: ${error.message}` : 'vitals unavailable');
       }
 
+      // Push side: share the food log out to Health Connect too, so one sync
+      // action covers both directions (pull Garmin data in, push nutrition out).
+      try {
+        const nutritionSummary = await pushNutritionToHealthConnect({ requestPermissions });
+        if (nutritionSummary) activityParts.push(`nutrition: ${nutritionSummary.replace(/\.$/, '')}`);
+      } catch (error) {
+        activityParts.push(error instanceof Error ? `nutrition push failed: ${error.message}` : 'nutrition push failed');
+      }
+
       const weightPart = weightMessage ? asSentence(weightMessage) : 'No weight data found in Health Connect yet.';
       return activityParts.length > 0 ? `${weightPart} Activity: ${activityParts.join('; ')}.` : weightPart;
     } finally {
       garminSyncInFlightRef.current = false;
     }
-  }, [handleSaveDailyActivity, handleSaveSleepEntries, handleSaveVitalsEntries, handleSaveWeightEntries]);
+  }, [handleSaveDailyActivity, handleSaveSleepEntries, handleSaveVitalsEntries, handleSaveWeightEntries, pushNutritionToHealthConnect]);
 
   const handleSyncGarmin = useCallback((): Promise<string> => {
     return runGarminSync({ requestPermissions: true });
@@ -1009,11 +967,6 @@ function App() {
             vitalsEntries={vitalsEntries}
             caloriesEatenToday={todaySummary.calories}
             onSyncGarmin={isHealthConnectSupported() ? handleSyncGarmin : undefined}
-            nutritionSyncSupported={isHealthConnectSupported()}
-            nutritionSyncEnabled={nutritionSync.enabled}
-            nutritionSyncLastAt={nutritionSync.lastSyncAt}
-            onToggleNutritionSync={handleToggleNutritionSyncEnabled}
-            onSyncNutritionToHealthConnect={handleSyncNutritionToHealthConnect}
           />
         )}
         {screen === 'settings' && (
@@ -1034,6 +987,11 @@ function App() {
             onDeleteSavedFood={handleDeleteSavedFood}
             onAddSavedFoodToLog={handleAddSavedFoodToLog}
             onImportComplete={handleImportComplete}
+            nutritionSyncSupported={isHealthConnectSupported()}
+            nutritionSyncEnabled={nutritionSync.enabled}
+            nutritionSyncLastAt={nutritionSync.lastSyncAt}
+            onToggleNutritionSync={handleToggleNutritionSyncEnabled}
+            onSyncNutritionToHealthConnect={handleSyncNutritionToHealthConnect}
           />
         )}
       </main>

@@ -41,6 +41,15 @@ interface SettingsProps {
   onDeleteSavedFood: (id: string) => boolean;
   onAddSavedFoodToLog: (food: FoodItem) => void;
   onImportComplete: () => void;
+  // Push side: shares this app's food log out to Health Connect as Nutrition
+  // records, so read-only Health Connect apps (e.g. RepIQ) can pick it up.
+  // "Sync Garmin" (on the Garmin screen) does this automatically too - this
+  // toggle/button is for manual control and one-off pushes.
+  nutritionSyncSupported: boolean;
+  nutritionSyncEnabled: boolean;
+  nutritionSyncLastAt: string;
+  onToggleNutritionSync: (enabled: boolean) => void;
+  onSyncNutritionToHealthConnect: () => Promise<string>;
 }
 
 const WEEKDAYS = [
@@ -76,6 +85,11 @@ export function Settings({
   onDeleteSavedFood,
   onAddSavedFoodToLog,
   onImportComplete,
+  nutritionSyncSupported,
+  nutritionSyncEnabled,
+  nutritionSyncLastAt,
+  onToggleNutritionSync,
+  onSyncNutritionToHealthConnect,
 }: SettingsProps) {
   const [prof, setProf] = useState<UserProfile>(profile);
   const [ageText, setAgeText] = useState<string>(profile.age ? String(profile.age) : '');
@@ -91,7 +105,22 @@ export function Settings({
   const [importMsg, setImportMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [validationError, setValidationError] = useState('');
   const [reminderMsg, setReminderMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [pushingNutrition, setPushingNutrition] = useState(false);
+  const [nutritionPushMessage, setNutritionPushMessage] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+
+  async function runNutritionPush() {
+    if (pushingNutrition) return;
+    setPushingNutrition(true);
+    setNutritionPushMessage('');
+    try {
+      setNutritionPushMessage(await onSyncNutritionToHealthConnect());
+    } catch (err) {
+      setNutritionPushMessage(err instanceof Error ? err.message : 'Could not push nutrition to Health Connect.');
+    } finally {
+      setPushingNutrition(false);
+    }
+  }
 
   function numTarget(key: keyof NutritionTargets, val: string) {
     setTargetTexts((t) => ({ ...t, [key]: val }));
@@ -619,6 +648,33 @@ export function Settings({
         onDelete={onDeleteSavedFood}
         onAddToLog={onAddSavedFoodToLog}
       />
+
+      {nutritionSyncSupported && (
+        <>
+          <div className="section-title">Share nutrition with Health Connect</div>
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={nutritionSyncEnabled}
+              onChange={(event) => onToggleNutritionSync(event.target.checked)}
+            />
+            Push logged meals to Health Connect
+          </label>
+          <p className="empty-hint" style={{ marginTop: 0 }}>
+            Lets other Health Connect apps (like RepIQ) read your macros. "Sync Garmin" on the Garmin
+            screen does this automatically too - use this button for a one-off push. Each meal is
+            written once when logged; editing or deleting an entry afterwards won't change what was
+            already sent.
+          </p>
+          <button type="button" className="btn btn--secondary btn--sm" onClick={runNutritionPush} disabled={pushingNutrition}>
+            {pushingNutrition ? 'Pushing…' : 'Push now'}
+          </button>
+          {nutritionPushMessage && <p className="sync-status-line" role="status">{nutritionPushMessage}</p>}
+          {!nutritionPushMessage && nutritionSyncLastAt && (
+            <p className="sync-status-line">Last pushed {new Date(nutritionSyncLastAt).toLocaleString()}</p>
+          )}
+        </>
+      )}
 
       <div className="section-title">Backup &amp; Restore</div>
       <p className="empty-hint" style={{ marginTop: 0 }}>

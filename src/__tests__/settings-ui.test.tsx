@@ -30,6 +30,11 @@ function renderSettings(overrides: Partial<NutritionTargets> = {}, onSaveTargets
       onDeleteSavedFood={vi.fn(() => true)}
       onAddSavedFoodToLog={vi.fn()}
       onImportComplete={vi.fn()}
+      nutritionSyncSupported={false}
+      nutritionSyncEnabled={true}
+      nutritionSyncLastAt=""
+      onToggleNutritionSync={vi.fn()}
+      onSyncNutritionToHealthConnect={vi.fn(async () => '')}
     />,
   );
   return { onSaveTargets };
