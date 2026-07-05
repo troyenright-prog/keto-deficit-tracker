@@ -135,6 +135,30 @@ export async function ensureNutritionWritePermission(): Promise<boolean> {
 // Insert one Nutrition record per payload. The plugin has no update/delete, so
 // each payload must be a food-log entry that hasn't been pushed before -
 // callers track that via `NutritionSyncSettings.syncedEntryIds`.
+//
+// IMPORTANT: the native plugin's Nutrition serializer (Serializer.kt#toRecord)
+// reads every one of these Mass/Energy fields unconditionally via
+// `JSONObject.getJSONObject(name)` - NOT the null-safe `opt*` variant - even
+// though the TS types mark them optional. Omitting any of them throws
+// `JSONException: No value for <field>` on the native side and crashes the
+// whole app (only startTime/endTime's zone-offset siblings are genuinely
+// optional, via `getZoneOffsetOrNull`). So every field below must be present;
+// fields this app doesn't track are sent as zero rather than omitted.
+const ZERO_MASS: Mass = { unit: 'gram', value: 0 };
+const ZERO_ENERGY: Energy = { unit: 'kcal', value: 0 };
+const ZERO_MICRONUTRIENTS = {
+  biotin: ZERO_MASS, caffeine: ZERO_MASS, calcium: ZERO_MASS, energyFromFat: ZERO_ENERGY,
+  chloride: ZERO_MASS, cholesterol: ZERO_MASS, chromium: ZERO_MASS, copper: ZERO_MASS,
+  dietaryFiber: ZERO_MASS, folate: ZERO_MASS, folicAcid: ZERO_MASS, iodine: ZERO_MASS,
+  iron: ZERO_MASS, magnesium: ZERO_MASS, manganese: ZERO_MASS, molybdenum: ZERO_MASS,
+  monounsaturatedFat: ZERO_MASS, niacin: ZERO_MASS, pantothenicAcid: ZERO_MASS, phosphorus: ZERO_MASS,
+  polyunsaturatedFat: ZERO_MASS, potassium: ZERO_MASS, riboflavin: ZERO_MASS, saturatedFat: ZERO_MASS,
+  selenium: ZERO_MASS, sodium: ZERO_MASS, sugar: ZERO_MASS, thiamin: ZERO_MASS,
+  transFat: ZERO_MASS, unsaturatedFat: ZERO_MASS, vitaminA: ZERO_MASS, vitaminB12: ZERO_MASS,
+  vitaminB6: ZERO_MASS, vitaminC: ZERO_MASS, vitaminD: ZERO_MASS, vitaminE: ZERO_MASS,
+  vitaminK: ZERO_MASS, zinc: ZERO_MASS,
+} as const;
+
 export async function writeNutritionRecords(payloads: NutritionRecordPayload[]): Promise<number> {
   if (!payloads.length) return 0;
   const records = payloads.map((payload) => {
@@ -149,6 +173,7 @@ export async function writeNutritionRecords(payloads: NutritionRecordPayload[]):
       protein: { unit: 'gram', value: payload.proteinG } satisfies Mass,
       totalCarbohydrate: { unit: 'gram', value: payload.totalCarbsG } satisfies Mass,
       totalFat: { unit: 'gram', value: payload.fatG } satisfies Mass,
+      ...ZERO_MICRONUTRIENTS,
     };
   });
   const { recordIds } = await HealthConnect.insertRecords({ records });
