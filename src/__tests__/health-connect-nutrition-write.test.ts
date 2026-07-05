@@ -76,6 +76,25 @@ describe('writeNutritionRecords', () => {
     }
   });
 
+  it('makes endTime strictly after startTime (NutritionRecord requires a real range)', async () => {
+    const { writeNutritionRecords } = await import('../lib/health-connect');
+    insertRecords.mockClear();
+    await writeNutritionRecords([{
+      id: 'entry-1',
+      time: '2026-07-05T12:00:00.000Z',
+      name: 'Chicken breast',
+      mealType: 2,
+      calories: 250,
+      proteinG: 45,
+      totalCarbsG: 0,
+      fatG: 6,
+    }]);
+
+    const [{ records }] = insertRecords.mock.calls[0] as [{ records: Record<string, unknown>[] }];
+    const record = records[0] as { startTime: Date; endTime: Date };
+    expect(record.endTime.getTime()).toBeGreaterThan(record.startTime.getTime());
+  });
+
   it('does not call insertRecords for an empty payload list', async () => {
     insertRecords.mockClear();
     const { writeNutritionRecords } = await import('../lib/health-connect');

@@ -168,14 +168,21 @@ const ZERO_MICRONUTRIENTS = {
   vitaminK: ZERO_MASS, zinc: ZERO_MASS,
 } as const;
 
+// Android's own NutritionRecord constructor requires startTime to be
+// strictly before endTime (IllegalArgumentException: "startTime must be
+// before endTime" otherwise) - a single logged meal has no real duration, so
+// this stands in for "instantaneous".
+const NUTRITION_RECORD_DURATION_MS = 60_000;
+
 export async function writeNutritionRecords(payloads: NutritionRecordPayload[]): Promise<number> {
   if (!payloads.length) return 0;
   const records = payloads.map((payload) => {
-    const time = new Date(payload.time);
+    const startTime = new Date(payload.time);
+    const endTime = new Date(startTime.getTime() + NUTRITION_RECORD_DURATION_MS);
     return {
       type: 'Nutrition' as const,
-      startTime: time,
-      endTime: time,
+      startTime,
+      endTime,
       name: payload.name,
       mealType: payload.mealType,
       energy: { unit: 'kilocalories', value: payload.calories } satisfies WritableEnergy,
