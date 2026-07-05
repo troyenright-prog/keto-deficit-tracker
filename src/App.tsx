@@ -25,7 +25,7 @@ import {
   loadVitalsEntries, saveVitalsEntries,
   loadMealTemplates, saveMealTemplates,
   loadRecipes, saveRecipes,
-  loadShoppingList, saveShoppingList,
+  loadShoppingList,
   loadMealPlan, saveMealPlan,
   loadReminders, saveReminders,
   saveFoodLogAndMealPlan,
@@ -717,12 +717,6 @@ function App() {
     if (handleAddEntry(recipeToLogEntry(recipe, servings, today, inferMealSlot()))) setScreen('dashboard');
   }, [today, handleAddEntry]);
 
-  // ── Shopping list ──────────────────────────────────────────────────────────
-
-  const handleSaveShoppingList = useCallback((items: ShoppingItem[]) => {
-    return persist(items, shoppingListRef, setShoppingList, saveShoppingList);
-  }, [persist]);
-
   // ── Meal plan ──────────────────────────────────────────────────────────────
 
   const handleSaveMealPlan = useCallback((plan: MealPlanEntry[]) => {
@@ -883,8 +877,6 @@ function App() {
             templates={mealTemplates}
             savedFoods={savedFoods}
             weightEntries={weightEntries}
-            shoppingList={shoppingList}
-            recipes={recipes}
             onSaveProfile={handleSaveProfile}
             onSaveTargets={handleSaveTargets}
             onSaveReminders={handleSaveReminders}
@@ -894,7 +886,6 @@ function App() {
             onSaveFood={handleSaveFood}
             onDeleteSavedFood={handleDeleteSavedFood}
             onAddSavedFoodToLog={handleAddSavedFoodToLog}
-            onSaveShoppingList={handleSaveShoppingList}
             onImportComplete={handleImportComplete}
           />
         )}
