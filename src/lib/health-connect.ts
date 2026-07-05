@@ -4,6 +4,7 @@ import type { RawCountRecord, RawDistanceRecord, RawEnergyRecord, RawStepRecord 
 import type { RawWeightReading } from './garmin-weight-sync';
 import type { RawSleepSession, RawSleepStage } from './garmin-sleep-sync';
 import type { RawVitalsReading } from './garmin-vitals-sync';
+import type { NutritionRecordPayload } from './nutrition-hc-sync';
 
 // Read-only bridge to Android Health Connect, where Garmin Connect writes body
 // weight, body fat, and steps. Everything here is native-Android only; on the web the
@@ -14,6 +15,9 @@ const STEP_READ_TYPES: RecordType[] = ['Steps'];
 const ACTIVITY_EXTRAS_READ_TYPES: RecordType[] = ['ActiveCaloriesBurned', 'TotalCaloriesBurned', 'Distance', 'FloorsClimbed', 'ElevationGained'];
 const SLEEP_READ_TYPES: RecordType[] = ['SleepSession'];
 const VITALS_READ_TYPES: RecordType[] = ['RestingHeartRate', 'HeartRateVariabilityRmssd', 'Vo2Max', 'OxygenSaturation', 'RespiratoryRate'];
+// Write-only: this app is the *source* of nutrition data (other Health Connect
+// apps, e.g. RepIQ, read it) - it never reads Nutrition records back.
+const NUTRITION_WRITE_TYPES: RecordType[] = ['Nutrition'];
 const DEFAULT_HISTORY_DAYS = 730;
 const PAGE_SIZE = 1000;
 const MAX_PAGES = 50; // safety bound for the pagination loop
@@ -105,6 +109,50 @@ export async function ensureVitalsPermissions(): Promise<boolean> {
   if (granted.hasAllPermissions || granted.grantedPermissions?.length) return true;
   try { await HealthConnect.openHealthConnectSetting(); } catch { /* best effort */ }
   throw new Error('Grant Health Tracker access to vitals in Health Connect, then tap Sync again.');
+}
+
+async function hasWritePermissions(write: RecordType[]): Promise<boolean> {
+  try {
+    const check = await HealthConnect.checkHealthPermissions({ read: [] as RecordType[], write });
+    return check.hasAllPermissions;
+  } catch {
+    return false;
+  }
+}
+
+export const hasNutritionWritePermission = () => hasWritePermissions(NUTRITION_WRITE_TYPES);
+
+export async function ensureNutritionWritePermission(): Promise<boolean> {
+  const request = { read: [] as RecordType[], write: NUTRITION_WRITE_TYPES };
+  const check = await HealthConnect.checkHealthPermissions(request);
+  if (check.hasAllPermissions) return true;
+  const granted = await HealthConnect.requestHealthPermissions(request);
+  if (granted.hasAllPermissions || granted.grantedPermissions?.length) return true;
+  try { await HealthConnect.openHealthConnectSetting(); } catch { /* best effort */ }
+  throw new Error('Grant Health Tracker permission to write Nutrition in Health Connect, then try again.');
+}
+
+// Insert one Nutrition record per payload. The plugin has no update/delete, so
+// each payload must be a food-log entry that hasn't been pushed before -
+// callers track that via `NutritionSyncSettings.syncedEntryIds`.
+export async function writeNutritionRecords(payloads: NutritionRecordPayload[]): Promise<number> {
+  if (!payloads.length) return 0;
+  const records = payloads.map((payload) => {
+    const time = new Date(payload.time);
+    return {
+      type: 'Nutrition' as const,
+      startTime: time,
+      endTime: time,
+      name: payload.name,
+      mealType: payload.mealType,
+      energy: { unit: 'kcal', value: payload.calories } satisfies Energy,
+      protein: { unit: 'gram', value: payload.proteinG } satisfies Mass,
+      totalCarbohydrate: { unit: 'gram', value: payload.totalCarbsG } satisfies Mass,
+      totalFat: { unit: 'gram', value: payload.fatG } satisfies Mass,
+    };
+  });
+  const { recordIds } = await HealthConnect.insertRecords({ records });
+  return recordIds.length;
 }
 
 function massToKg(mass: Mass | undefined): number | null {

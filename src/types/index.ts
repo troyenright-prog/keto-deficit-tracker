@@ -374,6 +374,19 @@ export interface Recommendation {
 
 export type CarbStatus = 'aligned' | 'approaching' | 'exceeded';
 
+// ── Health Connect nutrition write-sync ───────────────────────────────────────
+
+// Tracks which food-log entries have already been pushed to Health Connect as
+// Nutrition records, since the plugin only supports insert (no update/delete) -
+// re-pushing an entry would double-count it in any reader (e.g. RepIQ) that
+// sums records per day. `syncedEntryIds` is pruned to ids still present in the
+// food log so it doesn't grow unbounded after entries are deleted.
+export interface NutritionSyncSettings {
+  enabled: boolean;
+  syncedEntryIds: string[];
+  lastSyncAt: string;
+}
+
 // ── Import / export ────────────────────────────────────────────────────────────
 
 export interface AppStateBundle {
@@ -393,4 +406,5 @@ export interface AppStateBundle {
   shoppingList: ShoppingItem[];
   mealPlan: MealPlanEntry[];
   reminders: ReminderSettings;
+  nutritionSync: NutritionSyncSettings;
 }

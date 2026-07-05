@@ -2,7 +2,7 @@ import type {
   UserProfile, NutritionTargets, FoodLogEntry, FoodItem, WeightEntry,
   MealTemplate, MealTemplateItem, Recipe, RecipeIngredient, ShoppingItem,
   MealPlanEntry, AppStateBundle, Micronutrients, FoodDatabaseItem, FoodDatabaseSource, ReminderSettings,
-  DailyActivityEntry, SleepEntry, SleepStage, SleepStageSegment, VitalsEntry,
+  DailyActivityEntry, SleepEntry, SleepStage, SleepStageSegment, VitalsEntry, NutritionSyncSettings,
 } from '../types';
 import { addLocalDays, isDateString, localDateString } from './date';
 import { dedupeFoodDatabase } from './food-database';
@@ -12,6 +12,7 @@ import { getStarterFoodOptions } from './australianFoods';
 import { ACTIVITY_LEVELS } from './tdee';
 import { DEFAULT_REMINDERS, hasEnabledReminders, normalizeReminderSettings } from './reminders';
 import { MICRONUTRIENT_KEYS, zeroMicronutrients } from './micronutrients';
+import { normalizeNutritionSyncSettings } from './nutrition-hc-sync';
 
 export const CURRENT_VERSION = 6;
 
@@ -21,6 +22,7 @@ const KEYS = {
   dailyActivity: 'keto_daily_activity', sleepEntries: 'keto_sleep_entries', vitalsEntries: 'keto_vitals_entries',
   mealTemplates: 'keto_meal_templates', recipes: 'keto_recipes', shoppingList: 'keto_shopping_list',
   mealPlan: 'keto_meal_plan', foodDatabase: 'keto_food_database', reminders: 'keto_reminders',
+  nutritionSync: 'keto_nutrition_hc_sync',
 } as const;
 
 const DEMO_SEED_KEY = 'keto_demo_seed_v1';
@@ -510,6 +512,8 @@ export const loadMealPlan = () => normalizeArray(safeRead(KEYS.mealPlan), normal
 export const saveMealPlan = (value: MealPlanEntry[]) => safeWrite(KEYS.mealPlan, value);
 export const loadReminders = () => normalizeReminderSettings(safeRead(KEYS.reminders));
 export const saveReminders = (value: ReminderSettings) => safeWrite(KEYS.reminders, normalizeReminderSettings(value));
+export const loadNutritionSync = () => normalizeNutritionSyncSettings(safeRead(KEYS.nutritionSync));
+export const saveNutritionSync = (value: NutritionSyncSettings) => safeWrite(KEYS.nutritionSync, value);
 
 function writeAtomically(writes: [string, unknown][]): boolean {
   const previous = new Map<string, string | null>();
@@ -750,7 +754,7 @@ export function exportAppData(): AppStateBundle {
     dailyActivity: loadDailyActivity(), sleepEntries: loadSleepEntries(), vitalsEntries: loadVitalsEntries(),
     foodDatabase: loadFoodDatabase(),
     mealTemplates: loadMealTemplates(), recipes: loadRecipes(), shoppingList: loadShoppingList(), mealPlan: loadMealPlan(),
-    reminders: loadReminders(),
+    reminders: loadReminders(), nutritionSync: loadNutritionSync(),
   };
 }
 
@@ -787,6 +791,7 @@ export function normalizeAppBundle(value: unknown): AppStateBundle | null {
     recipes: normalizeArray(value.recipes, normalizeRecipe), shoppingList: normalizeArray(value.shoppingList, normalizeShoppingItem),
     mealPlan: normalizeArray(value.mealPlan, normalizePlanEntry),
     reminders: normalizeReminderSettings(value.reminders),
+    nutritionSync: normalizeNutritionSyncSettings(value.nutritionSync),
   };
 }
 
@@ -803,6 +808,7 @@ export function importAppData(value: unknown): boolean {
     [KEYS.dailyActivity, bundle.dailyActivity], [KEYS.sleepEntries, bundle.sleepEntries], [KEYS.vitalsEntries, bundle.vitalsEntries],
     [KEYS.mealTemplates, bundle.mealTemplates], [KEYS.recipes, bundle.recipes],
     [KEYS.shoppingList, bundle.shoppingList], [KEYS.mealPlan, bundle.mealPlan], [KEYS.reminders, bundle.reminders],
+    [KEYS.nutritionSync, bundle.nutritionSync],
     [KEYS.version, CURRENT_VERSION],
   ];
   return writeAtomically(writes);

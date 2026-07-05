@@ -28,6 +28,7 @@ import {
   loadShoppingList,
   loadMealPlan, saveMealPlan,
   loadReminders, saveReminders,
+  loadNutritionSync, saveNutritionSync,
   saveFoodLogAndMealPlan,
   migrateIfNeeded,
   seedDemoDataIfEmpty,
@@ -68,6 +69,7 @@ import {
   ensureStepPermissions, ensureWeightPermissions, ensureActivityExtrasPermissions, ensureSleepPermissions, ensureVitalsPermissions,
   fetchStepHistory, fetchWeightHistory, fetchActivityExtrasHistory, fetchSleepHistory, fetchVitalsHistory,
   hasStepPermissions, hasWeightPermissions, hasActivityExtrasPermissions, hasSleepPermissions, hasVitalsPermissions,
+  ensureNutritionWritePermission, hasNutritionWritePermission, writeNutritionRecords,
 } from './lib/health-connect';
 import {
   GARMIN_AUTO_SYNC_HISTORY_DAYS,
@@ -76,6 +78,15 @@ import {
   hasImportedGarminData,
   shouldRunGarminAutoSync,
 } from './lib/garmin-auto-sync';
+import {
+  NUTRITION_PUSH_INTERVAL_MS,
+  NUTRITION_PUSH_STARTUP_DELAY_MS,
+  selectEntriesToPush,
+  shouldRunNutritionPush,
+  summarizePush,
+  toNutritionRecordPayload,
+  pruneAndRecordSyncedIds,
+} from './lib/nutrition-hc-sync';
 import { toGarminReadings, mergeGarminReadings, summarizeMerge } from './lib/garmin-weight-sync';
 import {
   mergeGarminStepReadings, summarizeStepMerge, toGarminStepReadings,
@@ -101,6 +112,7 @@ import type {
   ReminderSettings,
   AppStateBundle,
   MealSlot,
+  NutritionSyncSettings,
 } from './types';
 
 export type Screen =
@@ -166,6 +178,7 @@ function reloadAll() {
     shoppingList: loadShoppingList(),
     mealPlan: loadMealPlan(),
     reminders: loadReminders(),
+    nutritionSync: loadNutritionSync(),
   };
 }
 
@@ -197,6 +210,7 @@ function App() {
   const [shoppingList, setShoppingList] = useState<ShoppingItem[]>(loadShoppingList);
   const [mealPlan, setMealPlan] = useState<MealPlanEntry[]>(loadMealPlan);
   const [reminders, setReminders] = useState<ReminderSettings>(loadReminders);
+  const [nutritionSync, setNutritionSync] = useState<NutritionSyncSettings>(loadNutritionSync);
   const [storageError, setStorageError] = useState('');
   const [syncStatus, setSyncStatus] = useState<SyncStatus>(() => initialSyncStatus(Boolean(initialUser)));
   const currentUserRef = useRef(currentUser);
@@ -205,6 +219,8 @@ function App() {
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const garminSyncInFlightRef = useRef(false);
   const lastGarminSyncAttemptRef = useRef(0);
+  const nutritionPushInFlightRef = useRef(false);
+  const lastNutritionPushAttemptRef = useRef(0);
   const profileRef = useRef(profile);
   const targetsRef = useRef(targets);
   const foodLogRef = useRef(foodLog);
@@ -219,6 +235,7 @@ function App() {
   const shoppingListRef = useRef(shoppingList);
   const mealPlanRef = useRef(mealPlan);
   const remindersRef = useRef(reminders);
+  const nutritionSyncRef = useRef(nutritionSync);
 
   const applyLoadedData = useCallback((data: ReturnType<typeof reloadAll>) => {
     setProfile(data.profile);
@@ -235,6 +252,7 @@ function App() {
     setShoppingList(data.shoppingList);
     setMealPlan(data.mealPlan);
     setReminders(data.reminders);
+    setNutritionSync(data.nutritionSync);
     profileRef.current = data.profile; targetsRef.current = data.targets; foodLogRef.current = data.foodLog;
     savedFoodsRef.current = data.savedFoods; foodDatabaseRef.current = data.foodDatabase; weightEntriesRef.current = data.weightEntries;
     dailyActivityRef.current = data.dailyActivity;
@@ -242,6 +260,7 @@ function App() {
     vitalsEntriesRef.current = data.vitalsEntries;
     mealTemplatesRef.current = data.mealTemplates; recipesRef.current = data.recipes;
     shoppingListRef.current = data.shoppingList; mealPlanRef.current = data.mealPlan; remindersRef.current = data.reminders;
+    nutritionSyncRef.current = data.nutritionSync;
   }, []);
 
   const syncNow = useCallback(async () => {
@@ -392,13 +411,131 @@ function App() {
   // check — cheap to recompute since summariseDay is a simple in-memory scan.
   const recentSummaries = last7Days(today).map((date) => summariseDay(date, foodLog));
 
+  // ── Nutrition → Health Connect (write) ──────────────────────────────────────
+  // The plugin only supports insert (no update/delete), so this pushes each
+  // food-log entry to Health Connect exactly once, tracked by id in
+  // nutritionSync.syncedEntryIds. See lib/nutrition-hc-sync.ts for the rules.
+
+  const pushNutritionToHealthConnect = useCallback(async (options: { requestPermissions: boolean }): Promise<string> => {
+    if (nutritionPushInFlightRef.current) return 'Push already running.';
+    nutritionPushInFlightRef.current = true;
+    lastNutritionPushAttemptRef.current = Date.now();
+    try {
+      if (!(await healthConnectAvailable())) {
+        return "Health Connect isn't available on this device.";
+      }
+      const permitted = await canReadGarminGroup(options.requestPermissions, ensureNutritionWritePermission, hasNutritionWritePermission);
+      if (!permitted) {
+        return options.requestPermissions ? 'Grant nutrition-write permission in Health Connect, then try again.' : '';
+      }
+
+      const pending = selectEntriesToPush(foodLogRef.current, nutritionSyncRef.current.syncedEntryIds);
+      const importedAt = new Date().toISOString();
+      if (!pending.length) {
+        persist({ ...nutritionSyncRef.current, lastSyncAt: importedAt }, nutritionSyncRef, setNutritionSync, saveNutritionSync);
+        return summarizePush(0);
+      }
+
+      const payloads = pending.map(toNutritionRecordPayload);
+      const written = await writeNutritionRecords(payloads);
+      const next: NutritionSyncSettings = {
+        enabled: nutritionSyncRef.current.enabled,
+        syncedEntryIds: pruneAndRecordSyncedIds(nutritionSyncRef.current.syncedEntryIds, foodLogRef.current, payloads.map((p) => p.id)),
+        lastSyncAt: importedAt,
+      };
+      persist(next, nutritionSyncRef, setNutritionSync, saveNutritionSync);
+      return summarizePush(written);
+    } catch (error) {
+      if (!options.requestPermissions) return ''; // silent/auto path is best-effort
+      throw error instanceof Error ? error : new Error('Could not push nutrition to Health Connect.');
+    } finally {
+      nutritionPushInFlightRef.current = false;
+    }
+  }, [persist]);
+
+  const handleSyncNutritionToHealthConnect = useCallback((): Promise<string> => {
+    return pushNutritionToHealthConnect({ requestPermissions: true });
+  }, [pushNutritionToHealthConnect]);
+
+  const handleToggleNutritionSyncEnabled = useCallback((enabled: boolean) => {
+    persist({ ...nutritionSyncRef.current, enabled }, nutritionSyncRef, setNutritionSync, saveNutritionSync);
+  }, [persist]);
+
+  // Best-effort push right after a new entry is saved - silent, and only does
+  // anything if write permission was already granted (never prompts mid-log).
+  const autoPushNutrition = useCallback(() => {
+    if (!nutritionSyncRef.current.enabled || !isHealthConnectSupported()) return;
+    pushNutritionToHealthConnect({ requestPermissions: false }).catch(() => {
+      // best-effort; the periodic catch-up below and the manual button still cover this.
+    });
+  }, [pushNutritionToHealthConnect]);
+
+  const handleAutoPushNutrition = useCallback(async () => {
+    const now = Date.now();
+    if (!shouldRunNutritionPush({
+      currentUserPresent: Boolean(currentUserRef.current),
+      healthConnectSupported: isHealthConnectSupported(),
+      enabled: nutritionSyncRef.current.enabled,
+      hasPending: selectEntriesToPush(foodLogRef.current, nutritionSyncRef.current.syncedEntryIds).length > 0,
+      now,
+      lastAttemptAt: lastNutritionPushAttemptRef.current,
+    })) {
+      return;
+    }
+    try {
+      await pushNutritionToHealthConnect({ requestPermissions: false });
+    } catch {
+      // Auto-push is best-effort; the manual button still surfaces detailed errors.
+    }
+  }, [pushNutritionToHealthConnect]);
+
+  useEffect(() => {
+    if (!currentUser || !isHealthConnectSupported() || typeof document === 'undefined') return;
+
+    let cancelled = false;
+    let removeAppStateListener: (() => void) | undefined;
+    const runIfActive = () => {
+      if (cancelled || document.visibilityState === 'hidden') return;
+      void handleAutoPushNutrition();
+    };
+
+    const startupTimer = setTimeout(runIfActive, NUTRITION_PUSH_STARTUP_DELAY_MS);
+    const interval = setInterval(runIfActive, NUTRITION_PUSH_INTERVAL_MS);
+    document.addEventListener('visibilitychange', runIfActive);
+    void CapacitorApp.addListener('appStateChange', ({ isActive }) => {
+      if (isActive) runIfActive();
+    }).then((handle) => {
+      if (cancelled) {
+        void handle.remove();
+      } else {
+        removeAppStateListener = () => { void handle.remove(); };
+      }
+    }).catch(() => {
+      // The visibility listener and interval still cover native fallbacks.
+    });
+
+    return () => {
+      cancelled = true;
+      clearTimeout(startupTimer);
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', runIfActive);
+      removeAppStateListener?.();
+    };
+  }, [currentUser, handleAutoPushNutrition]);
+
   // ── Food log ───────────────────────────────────────────────────────────────
 
-  const handleAddEntry = useCallback((entry: FoodLogEntry) =>
-    persist([...foodLogRef.current, entry], foodLogRef, setFoodLog, saveFoodLog), [persist]);
+  const handleAddEntry = useCallback((entry: FoodLogEntry) => {
+    const ok = persist([...foodLogRef.current, entry], foodLogRef, setFoodLog, saveFoodLog);
+    if (ok) autoPushNutrition();
+    return ok;
+  }, [persist, autoPushNutrition]);
 
-  const handleAddEntries = useCallback((entries: FoodLogEntry[]) =>
-    persist([...foodLogRef.current, ...entries], foodLogRef, setFoodLog, saveFoodLog), [persist]);
+  const handleAddEntries = useCallback((entries: FoodLogEntry[]) => {
+    const ok = persist([...foodLogRef.current, ...entries], foodLogRef, setFoodLog, saveFoodLog);
+    if (ok) autoPushNutrition();
+    return ok;
+  }, [persist, autoPushNutrition]);
 
   const handleDeleteEntry = useCallback((id: string) =>
     persist(foodLogRef.current.filter((e) => e.id !== id), foodLogRef, setFoodLog, saveFoodLog), [persist]);
@@ -872,6 +1009,11 @@ function App() {
             vitalsEntries={vitalsEntries}
             caloriesEatenToday={todaySummary.calories}
             onSyncGarmin={isHealthConnectSupported() ? handleSyncGarmin : undefined}
+            nutritionSyncSupported={isHealthConnectSupported()}
+            nutritionSyncEnabled={nutritionSync.enabled}
+            nutritionSyncLastAt={nutritionSync.lastSyncAt}
+            onToggleNutritionSync={handleToggleNutritionSyncEnabled}
+            onSyncNutritionToHealthConnect={handleSyncNutritionToHealthConnect}
           />
         )}
         {screen === 'settings' && (

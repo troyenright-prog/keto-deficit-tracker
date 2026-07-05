@@ -16,6 +16,13 @@ interface GarminProps {
   // Provided only on platforms where Garmin/Health Connect is available.
   // Resolves to a status message to show the user.
   onSyncGarmin?: () => Promise<string>;
+  // Push side: shares this app's food log out to Health Connect as Nutrition
+  // records, so read-only Health Connect apps (e.g. RepIQ) can pick it up.
+  nutritionSyncSupported: boolean;
+  nutritionSyncEnabled: boolean;
+  nutritionSyncLastAt: string;
+  onToggleNutritionSync: (enabled: boolean) => void;
+  onSyncNutritionToHealthConnect: () => Promise<string>;
 }
 
 const TREND_GRID_LINES = Array.from({ length: 5 }, (_, index) =>
@@ -48,9 +55,14 @@ const STAGE_CLASSES: Record<string, string> = {
 // Read-only Garmin dashboard: sync + latest synced metrics. Manual weight
 // entry/edit/delete lives outside this screen — Garmin data is source-of-truth
 // synced data here, not a log to hand-edit.
-export function Garmin({ entries, weightUnit, dailyActivity, sleepEntries, vitalsEntries, caloriesEatenToday, onSyncGarmin }: GarminProps) {
+export function Garmin({
+  entries, weightUnit, dailyActivity, sleepEntries, vitalsEntries, caloriesEatenToday, onSyncGarmin,
+  nutritionSyncSupported, nutritionSyncEnabled, nutritionSyncLastAt, onToggleNutritionSync, onSyncNutritionToHealthConnect,
+}: GarminProps) {
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState('');
+  const [pushingNutrition, setPushingNutrition] = useState(false);
+  const [nutritionPushMessage, setNutritionPushMessage] = useState('');
 
   async function runGarminSync() {
     if (!onSyncGarmin || syncing) return;
@@ -62,6 +74,19 @@ export function Garmin({ entries, weightUnit, dailyActivity, sleepEntries, vital
       setSyncMessage(err instanceof Error ? err.message : 'Could not sync from Garmin.');
     } finally {
       setSyncing(false);
+    }
+  }
+
+  async function runNutritionPush() {
+    if (pushingNutrition) return;
+    setPushingNutrition(true);
+    setNutritionPushMessage('');
+    try {
+      setNutritionPushMessage(await onSyncNutritionToHealthConnect());
+    } catch (err) {
+      setNutritionPushMessage(err instanceof Error ? err.message : 'Could not push nutrition to Health Connect.');
+    } finally {
+      setPushingNutrition(false);
     }
   }
 
@@ -132,6 +157,31 @@ export function Garmin({ entries, weightUnit, dailyActivity, sleepEntries, vital
         )}
       </div>
       {syncMessage && <p className="sync-status-line" role="status">{syncMessage}</p>}
+
+      {nutritionSyncSupported && (
+        <div className="card">
+          <div className="section-title">Share nutrition with Health Connect</div>
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={nutritionSyncEnabled}
+              onChange={(event) => onToggleNutritionSync(event.target.checked)}
+            />
+            Push logged meals to Health Connect
+          </label>
+          <p className="empty-hint">
+            Lets other Health Connect apps (like RepIQ) read your macros. Each meal is written once
+            when logged - editing or deleting an entry afterwards won't change what was already sent.
+          </p>
+          <button type="button" className="btn btn--secondary btn--sm" onClick={runNutritionPush} disabled={pushingNutrition}>
+            {pushingNutrition ? 'Pushing…' : 'Push now'}
+          </button>
+          {nutritionPushMessage && <p className="sync-status-line" role="status">{nutritionPushMessage}</p>}
+          {!nutritionPushMessage && nutritionSyncLastAt && (
+            <p className="sync-status-line">Last pushed {new Date(nutritionSyncLastAt).toLocaleString()}</p>
+          )}
+        </div>
+      )}
 
       {!hasOverview ? (
         <p className="empty-hint">No Garmin data yet. Tap "Sync Garmin" to pull in weight, activity, sleep, and vitals.</p>
