@@ -26,14 +26,14 @@ const entry = (overrides: Partial<FoodLogEntry> = {}): FoodLogEntry => ({
 });
 
 describe('Progress screen', () => {
-  it('surfaces keto alignment and best carb day insights', () => {
+  it('surfaces carb-budget alignment and best carb day insights', () => {
     const today = todayDateString();
     render(<Progress log={[
       entry({ id: 'a', date: addLocalDays(today, -1), totalCarbsG: 30, fibreG: 2, proteinG: 50 }),
       entry({ id: 'b', date: today, totalCarbsG: 6, fibreG: 2, proteinG: 120 }),
     ]} targets={DEFAULT_TARGETS} />);
 
-    expect(screen.getByText(/keto alignment/i)).toBeTruthy();
+    expect(screen.getByText(/within carb budget/i)).toBeTruthy();
     expect(screen.getByText('Best carb day')).toBeTruthy();
     expect(screen.getAllByText('4.0g').length).toBeGreaterThanOrEqual(1);
   });

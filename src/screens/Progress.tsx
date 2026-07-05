@@ -78,10 +78,11 @@ export function Progress({ log, targets }: ProgressProps) {
       ) : (
         <>
           <div className="weekly-insight">
-            <strong>{Math.round(stats.ketoAlignmentPct)}% keto alignment</strong>
+            <strong>{Math.round(stats.ketoAlignmentPct)}% within carb budget</strong>
             <span>
-              {stats.daysWithinNetCarbLimit} of {stats.daysTracked} tracked day{stats.daysTracked === 1 ? '' : 's'} stayed within net carbs.
+              {stats.daysWithinNetCarbLimit} of {stats.daysTracked} tracked day{stats.daysTracked === 1 ? '' : 's'} stayed within the net-carb budget.
               {highCarbDays > 0 ? ` ${highCarbDays} day${highCarbDays === 1 ? '' : 's'} exceeded the carb target.` : ' No tracked days exceeded the carb target.'}
+              {stats.lowIntakeDays > 0 && ` ${stats.lowIntakeDays} day${stats.lowIntakeDays === 1 ? ' was' : 's were'} logged well below the calorie target, so ${stats.lowIntakeDays === 1 ? 'it is' : 'they are'} not counted as on-target.`}
             </span>
           </div>
 

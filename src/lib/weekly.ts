@@ -1,6 +1,12 @@
 import type { DailyNutritionSummary, NutritionTargets } from '../types';
 import { addLocalDays, isDateString } from './date';
 
+// A tracked day below this fraction of the calorie target is treated as
+// under-logged (or heavily restricted): it still counts as tracked, but it
+// cannot count as "within the calorie target" or "within the carb budget" —
+// a day with one coffee logged is not a success.
+export const LOW_INTAKE_RATIO = 0.5;
+
 export interface WeeklyStats {
   avgCalories: number;
   avgProteinG: number;
@@ -10,6 +16,7 @@ export interface WeeklyStats {
   daysWithinNetCarbLimit: number;
   ketoAlignmentPct: number;
   daysTracked: number;
+  lowIntakeDays: number;
 }
 
 export function computeWeeklyStats(
@@ -29,18 +36,24 @@ export function computeWeeklyStats(
       daysWithinNetCarbLimit: 0,
       ketoAlignmentPct: 0,
       daysTracked: 0,
+      lowIntakeDays: 0,
     };
   }
 
   const avg = (key: keyof DailyNutritionSummary) =>
     tracked.reduce((acc, s) => acc + (s[key] as number), 0) / n;
 
+  const meaningfullyLogged = (s: DailyNutritionSummary) =>
+    targets.calories <= 0 || s.calories >= targets.calories * LOW_INTAKE_RATIO;
+
+  const lowIntakeDays = tracked.filter((s) => !meaningfullyLogged(s)).length;
+
   const daysWithinCalorieTarget = tracked.filter(
-    (s) => s.calories <= targets.calories,
+    (s) => meaningfullyLogged(s) && s.calories <= targets.calories,
   ).length;
 
   const daysWithinNetCarbLimit = tracked.filter(
-    (s) => s.netCarbsG <= targets.netCarbsG,
+    (s) => meaningfullyLogged(s) && s.netCarbsG <= targets.netCarbsG,
   ).length;
 
   return {
@@ -52,6 +65,7 @@ export function computeWeeklyStats(
     daysWithinNetCarbLimit,
     ketoAlignmentPct: (daysWithinNetCarbLimit / n) * 100,
     daysTracked: n,
+    lowIntakeDays,
   };
 }
 

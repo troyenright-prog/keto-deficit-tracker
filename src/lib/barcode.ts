@@ -45,71 +45,65 @@ function firstNutrient(nutriments: UnknownRecord, keys: string[], basis: 'servin
   return 0;
 }
 
-function toMilligrams(nutriments: UnknownRecord, key: string, basis: 'serving' | '100g', defaultUnit: 'g' | 'mg'): number {
-  const value = nutrient(nutriments, key, basis);
-  if (value === 0) return 0;
-  const unit = asText(nutriments[`${key}_unit`])?.toLowerCase() ?? defaultUnit;
-  if (unit === 'g') return value * 1000;
-  if (unit === 'mcg' || unit === 'µg') return value / 1000;
-  return value;
+// Strip binary floating-point noise from unit conversions (e.g. 0.00015 g ->
+// 150.00000000000003 mcg) without losing any real nutrition precision.
+function roundFloat(value: number): number {
+  return Math.round(value * 1e6) / 1e6;
 }
 
-function normalizeNutrientUnit(unit: string): 'g' | 'mg' | 'mcg' {
-  const normalized = unit.toLowerCase().replace('μ', 'µ').replace('ug', 'mcg');
-  if (normalized === 'g') return 'g';
-  if (normalized === 'mcg' || normalized === 'µg' || normalized === 'Âµg'.toLowerCase()) return 'mcg';
-  return 'mg';
-}
-
-function nutrientAsUnit(
+// Open Food Facts normalizes every mass nutrient's `_100g` / `_serving` field
+// to GRAMS, regardless of the unit shown on the label. The `<key>_unit` field
+// describes `<key>_value` (the as-entered label figure) — applying it to
+// `_100g` / `_serving` misreads e.g. potassium_100g: 0.35 (grams) as 0.35 mg,
+// a 1000x underestimate. Verified against live v2 payloads on 2026-07-05:
+// Nutella 3017620422003 (sodium_100g 0.0428 g), Alpro 5411188110835
+// (calcium_100g 0.12 g = 120 mg, vitamin-d_100g 7.5e-7 g = 0.75 mcg),
+// Cheerios 016000275287 (sodium_serving 0.19 g per 39 g serving).
+function gramsNutrientAs(
   nutriments: UnknownRecord,
   key: string,
   basis: 'serving' | '100g',
   targetUnit: 'mg' | 'mcg' | 'g',
-  defaultUnit: 'g' | 'mg' | 'mcg',
 ): number | undefined {
-  const value = nutrient(nutriments, key, basis);
-  if (value === 0) return undefined;
-  const sourceUnit = normalizeNutrientUnit(asText(nutriments[`${key}_unit`]) ?? defaultUnit);
-  const valueMg = sourceUnit === 'g' ? value * 1000 : sourceUnit === 'mcg' ? value / 1000 : value;
-  const converted = targetUnit === 'g' ? valueMg / 1000 : targetUnit === 'mcg' ? valueMg * 1000 : valueMg;
-  return converted > 0 ? converted : undefined;
+  const grams = nutrient(nutriments, key, basis);
+  if (grams === 0) return undefined;
+  const converted = targetUnit === 'g' ? grams : targetUnit === 'mg' ? grams * 1000 : grams * 1_000_000;
+  return converted > 0 ? roundFloat(converted) : undefined;
 }
 
 const OFF_MICRONUTRIENTS: Array<{
   appKey: MicronutrientKey;
   offKeys: string[];
   targetUnit: 'mg' | 'mcg' | 'g';
-  defaultUnit: 'g' | 'mg' | 'mcg';
 }> = [
-  { appKey: 'calciumMg', offKeys: ['calcium'], targetUnit: 'mg', defaultUnit: 'mg' },
-  { appKey: 'phosphorusMg', offKeys: ['phosphorus'], targetUnit: 'mg', defaultUnit: 'mg' },
-  { appKey: 'ironMg', offKeys: ['iron'], targetUnit: 'mg', defaultUnit: 'mg' },
-  { appKey: 'zincMg', offKeys: ['zinc'], targetUnit: 'mg', defaultUnit: 'mg' },
-  { appKey: 'copperMg', offKeys: ['copper'], targetUnit: 'mg', defaultUnit: 'mg' },
-  { appKey: 'manganeseMg', offKeys: ['manganese'], targetUnit: 'mg', defaultUnit: 'mg' },
-  { appKey: 'iodineMcg', offKeys: ['iodine'], targetUnit: 'mcg', defaultUnit: 'mcg' },
-  { appKey: 'seleniumMcg', offKeys: ['selenium'], targetUnit: 'mcg', defaultUnit: 'mcg' },
-  { appKey: 'vitaminAMcg', offKeys: ['vitamin-a'], targetUnit: 'mcg', defaultUnit: 'mcg' },
-  { appKey: 'vitaminCMg', offKeys: ['vitamin-c'], targetUnit: 'mg', defaultUnit: 'mg' },
-  { appKey: 'vitaminDMcg', offKeys: ['vitamin-d'], targetUnit: 'mcg', defaultUnit: 'mcg' },
-  { appKey: 'vitaminEMg', offKeys: ['vitamin-e'], targetUnit: 'mg', defaultUnit: 'mg' },
-  { appKey: 'vitaminKMcg', offKeys: ['vitamin-k'], targetUnit: 'mcg', defaultUnit: 'mcg' },
-  { appKey: 'thiaminMg', offKeys: ['vitamin-b1'], targetUnit: 'mg', defaultUnit: 'mg' },
-  { appKey: 'riboflavinMg', offKeys: ['vitamin-b2'], targetUnit: 'mg', defaultUnit: 'mg' },
-  { appKey: 'niacinMg', offKeys: ['vitamin-pp', 'vitamin-b3'], targetUnit: 'mg', defaultUnit: 'mg' },
-  { appKey: 'vitaminB6Mg', offKeys: ['vitamin-b6'], targetUnit: 'mg', defaultUnit: 'mg' },
-  { appKey: 'folateMcg', offKeys: ['vitamin-b9', 'folates'], targetUnit: 'mcg', defaultUnit: 'mcg' },
-  { appKey: 'vitaminB12Mcg', offKeys: ['vitamin-b12'], targetUnit: 'mcg', defaultUnit: 'mcg' },
-  { appKey: 'omega3G', offKeys: ['omega-3-fat'], targetUnit: 'g', defaultUnit: 'g' },
-  { appKey: 'omega6G', offKeys: ['omega-6-fat'], targetUnit: 'g', defaultUnit: 'g' },
+  { appKey: 'calciumMg', offKeys: ['calcium'], targetUnit: 'mg' },
+  { appKey: 'phosphorusMg', offKeys: ['phosphorus'], targetUnit: 'mg' },
+  { appKey: 'ironMg', offKeys: ['iron'], targetUnit: 'mg' },
+  { appKey: 'zincMg', offKeys: ['zinc'], targetUnit: 'mg' },
+  { appKey: 'copperMg', offKeys: ['copper'], targetUnit: 'mg' },
+  { appKey: 'manganeseMg', offKeys: ['manganese'], targetUnit: 'mg' },
+  { appKey: 'iodineMcg', offKeys: ['iodine'], targetUnit: 'mcg' },
+  { appKey: 'seleniumMcg', offKeys: ['selenium'], targetUnit: 'mcg' },
+  { appKey: 'vitaminAMcg', offKeys: ['vitamin-a'], targetUnit: 'mcg' },
+  { appKey: 'vitaminCMg', offKeys: ['vitamin-c'], targetUnit: 'mg' },
+  { appKey: 'vitaminDMcg', offKeys: ['vitamin-d'], targetUnit: 'mcg' },
+  { appKey: 'vitaminEMg', offKeys: ['vitamin-e'], targetUnit: 'mg' },
+  { appKey: 'vitaminKMcg', offKeys: ['vitamin-k'], targetUnit: 'mcg' },
+  { appKey: 'thiaminMg', offKeys: ['vitamin-b1'], targetUnit: 'mg' },
+  { appKey: 'riboflavinMg', offKeys: ['vitamin-b2'], targetUnit: 'mg' },
+  { appKey: 'niacinMg', offKeys: ['vitamin-pp', 'vitamin-b3'], targetUnit: 'mg' },
+  { appKey: 'vitaminB6Mg', offKeys: ['vitamin-b6'], targetUnit: 'mg' },
+  { appKey: 'folateMcg', offKeys: ['vitamin-b9', 'folates'], targetUnit: 'mcg' },
+  { appKey: 'vitaminB12Mcg', offKeys: ['vitamin-b12'], targetUnit: 'mcg' },
+  { appKey: 'omega3G', offKeys: ['omega-3-fat'], targetUnit: 'g' },
+  { appKey: 'omega6G', offKeys: ['omega-6-fat'], targetUnit: 'g' },
 ];
 
 function nutrimentMicros(nutriments: UnknownRecord, basis: 'serving' | '100g'): Micronutrients {
   const result: Micronutrients = {};
   for (const field of OFF_MICRONUTRIENTS) {
     for (const offKey of field.offKeys) {
-      const value = nutrientAsUnit(nutriments, offKey, basis, field.targetUnit, field.defaultUnit);
+      const value = gramsNutrientAs(nutriments, offKey, basis, field.targetUnit);
       if (value !== undefined) {
         result[field.appKey] = value;
         break;
@@ -173,9 +167,9 @@ export function normalizeOpenFoodFactsProduct(value: unknown, barcodeFallback = 
     totalCarbsG: nutrient(nutriments, 'carbohydrates', basis),
     fibreG: firstNutrient(nutriments, ['fiber', 'fibre'], basis),
     sugarAlcoholsG: firstNutrient(nutriments, ['polyols', 'sugar-alcohol', 'sugar-alcohols'], basis),
-    sodiumMg: toMilligrams(nutriments, 'sodium', basis, 'g'),
-    potassiumMg: toMilligrams(nutriments, 'potassium', basis, 'mg'),
-    magnesiumMg: toMilligrams(nutriments, 'magnesium', basis, 'mg'),
+    sodiumMg: gramsNutrientAs(nutriments, 'sodium', basis, 'mg') ?? 0,
+    potassiumMg: gramsNutrientAs(nutriments, 'potassium', basis, 'mg') ?? 0,
+    magnesiumMg: gramsNutrientAs(nutriments, 'magnesium', basis, 'mg') ?? 0,
     ...nutrimentMicros(nutriments, basis),
     attribution: asText(product.attribution),
     attributionUrl: asText(product.attributionUrl),

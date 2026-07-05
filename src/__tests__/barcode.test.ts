@@ -14,6 +14,10 @@ import {
 } from '../lib/barcode';
 import type { FoodLogEntry } from '../types';
 
+// Realistic Open Food Facts v2 shape: `_100g` / `_serving` values are always
+// in GRAMS regardless of `_unit`, which describes only the as-entered label
+// figure (`_value`). Mirrors live payloads captured 2026-07-05 (Nutella
+// 3017620422003, Alpro 5411188110835, Cheerios 016000275287).
 const openFoodFactsResponse = {
   code: '9300675051132',
   product: {
@@ -29,18 +33,45 @@ const openFoodFactsResponse = {
       carbohydrates_serving: 6,
       fiber_serving: 4,
       polyols_serving: 1,
-      sodium_serving: 0.12,
+      sodium_serving: 0.12, // grams
       sodium_unit: 'g',
-      potassium_serving: 180,
+      potassium_serving: 0.18, // grams, even though the label unit is mg
       potassium_unit: 'mg',
-      magnesium_serving: 55,
+      magnesium_serving: 0.055, // grams
       magnesium_unit: 'mg',
-      'vitamin-c_serving': 12,
+      'vitamin-c_serving': 0.012, // grams (label: 12 mg)
       'vitamin-c_unit': 'mg',
-      iodine_serving: 150,
+      iodine_serving: 0.00015, // grams (label: 150 mcg)
       iodine_unit: 'mcg',
-      'vitamin-b12_serving': 2.4,
+      'vitamin-b12_serving': 0.0000024, // grams (label: 2.4 mcg)
       'vitamin-b12_unit': 'mcg',
+    },
+  },
+};
+
+// Captured from the live v2 API (Alpro almond drink 5411188110835, trimmed):
+// 100g-basis product where every mineral/vitamin `_100g` value is in grams.
+const capturedAlmondDrinkResponse = {
+  code: '5411188110835',
+  product: {
+    code: '5411188110835',
+    product_name: 'Almond drink',
+    brands: 'Alpro',
+    serving_size: '1 portion (100 ml)',
+    nutrition_data_per: '100g',
+    nutriments: {
+      'energy-kcal_100g': 22,
+      proteins_100g: 0.4,
+      fat_100g: 1.1,
+      carbohydrates_100g: 2.4,
+      sodium_100g: 0.059,
+      sodium_unit: 'g',
+      calcium_100g: 0.12,
+      calcium_unit: 'g',
+      'vitamin-d_100g': 7.5e-7,
+      'vitamin-d_unit': 'µg',
+      'vitamin-b12_100g': 3.8e-7,
+      'vitamin-b12_unit': 'µg',
     },
   },
 };
@@ -81,9 +112,29 @@ describe('barcode food mapping', () => {
       sugarAlcoholsG: 1,
       sodiumMg: 120,
       potassiumMg: 180,
+      magnesiumMg: 55,
       vitaminCMg: 12,
       iodineMcg: 150,
       vitaminB12Mcg: 2.4,
+    });
+  });
+
+  it('reads _100g/_serving values as grams and ignores the label display unit', () => {
+    // potassium_unit says "mg" but the _serving value is in grams (OFF always
+    // normalizes _100g/_serving to grams) — the old unit-driven parsing read
+    // 0.18 as 0.18 mg, a 1000x underestimate.
+    const food = normalizeOpenFoodFactsProduct(capturedAlmondDrinkResponse);
+    expect(food).toMatchObject({
+      barcode: '5411188110835',
+      name: 'Almond drink',
+      brand: 'Alpro',
+      servingSize: '100g',
+      dataBasis: '100g',
+      calories: 22,
+      sodiumMg: 59, // 0.059 g
+      calciumMg: 120, // 0.12 g
+      vitaminDMcg: 0.75, // 7.5e-7 g, despite _unit "µg"
+      vitaminB12Mcg: 0.38, // 3.8e-7 g
     });
   });
 

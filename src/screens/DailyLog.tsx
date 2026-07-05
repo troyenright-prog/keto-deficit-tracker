@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { FoodLogEntry, FoodItem, MealSlot } from '../types';
-import { calcNetCarbs, todayDateString } from '../lib/nutrition';
+import { calcNetCarbs, safePositive, todayDateString } from '../lib/nutrition';
 import { FoodForm, type FoodFormValues } from '../components/FoodForm';
 import { entryMeal, mealLabel, MEAL_SLOTS } from '../lib/meals';
 import { entryNeedsNutritionRepair, type RepairResult } from '../lib/barcode';
@@ -109,7 +109,11 @@ export function DailyLog({ log, savedFoods, onDelete, onEdit, onDuplicate, onSav
   }
 
   function initialValues(entry: FoodLogEntry): Partial<FoodFormValues> {
-    const divisor = Math.max(entry.servingMultiplier, 1);
+    // The form edits per-serving values and re-scales by servingMultiplier on
+    // save, so the divisor must be the multiplier itself — clamping it to >= 1
+    // showed a 0.5x entry's totals as "per serving" and then re-halved them on
+    // every save.
+    const divisor = safePositive(entry.servingMultiplier);
     return {
       name: entry.name,
       servingSize: entry.servingSize,

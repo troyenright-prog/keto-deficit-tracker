@@ -49,25 +49,36 @@ function normalizeFoodDataCentralSearch(value: unknown, barcode: string) {
   const name = asText(food.description);
   if (!name) return null;
   const servingSize = asNumber(food.servingSize);
-  const servingUnit = asText(food.servingSizeUnit);
+  const rawServingUnit = asText(food.servingSizeUnit)?.toLowerCase();
+  // FDC branded `foodNutrients` values are per 100 g/ml, while `servingSize`
+  // is the labelled serving. When the serving is a known mass/volume, convert
+  // nutrition to per-serving here so logging "1 serving" in the app matches
+  // the label instead of silently logging 100 g. Otherwise present the food
+  // explicitly as per-100g so the serving text and nutrition basis agree.
+  const servingUnit = rawServingUnit === 'g' || rawServingUnit === 'grm' ? 'g'
+    : rawServingUnit === 'ml' || rawServingUnit === 'mlt' ? 'ml'
+    : undefined;
+  const perServingScale = servingSize && servingUnit ? servingSize / 100 : null;
+  const scale = perServingScale ?? 1;
+  const scaled = (names: string[]) => Math.round(nutrient(food, names) * scale * 1e6) / 1e6;
   return {
     barcode,
     name,
     brand: asText(food.brandOwner) ?? asText(food.brandName),
-    servingSize: servingSize && servingUnit ? `${servingSize}${servingUnit}` : '100g',
-    dataBasis: '100g',
-    calories: nutrient(food, ['energy', '208']),
-    proteinG: nutrient(food, ['protein', '203']),
-    fatG: nutrient(food, ['total lipid (fat)', '204']),
-    totalCarbsG: nutrient(food, ['carbohydrate, by difference', '205']),
-    fibreG: nutrient(food, ['fiber, total dietary', '291']),
-    sugarAlcoholsG: nutrient(food, ['sugar alcohols', '1086']),
-    sodiumMg: nutrient(food, ['sodium, na', '307']),
-    potassiumMg: nutrient(food, ['potassium, k', '306']),
-    magnesiumMg: nutrient(food, ['magnesium, mg', '304']),
-    calciumMg: nutrient(food, ['calcium, ca', '301']) || undefined,
-    ironMg: nutrient(food, ['iron, fe', '303']) || undefined,
-    zincMg: nutrient(food, ['zinc, zn', '309']) || undefined,
+    servingSize: perServingScale ? `${servingSize}${servingUnit}` : '100g',
+    dataBasis: perServingScale ? 'serving' : '100g',
+    calories: scaled(['energy', '208']),
+    proteinG: scaled(['protein', '203']),
+    fatG: scaled(['total lipid (fat)', '204']),
+    totalCarbsG: scaled(['carbohydrate, by difference', '205']),
+    fibreG: scaled(['fiber, total dietary', '291']),
+    sugarAlcoholsG: scaled(['sugar alcohols', '1086']),
+    sodiumMg: scaled(['sodium, na', '307']),
+    potassiumMg: scaled(['potassium, k', '306']),
+    magnesiumMg: scaled(['magnesium, mg', '304']),
+    calciumMg: scaled(['calcium, ca', '301']) || undefined,
+    ironMg: scaled(['iron, fe', '303']) || undefined,
+    zincMg: scaled(['zinc, zn', '309']) || undefined,
     sourceUrl: asNumber(food.fdcId) ? `https://fdc.nal.usda.gov/fdc-app.html#/food-details/${food.fdcId}/nutrients` : undefined,
   };
 }

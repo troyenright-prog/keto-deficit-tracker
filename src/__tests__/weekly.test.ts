@@ -70,6 +70,30 @@ describe('computeWeeklyStats', () => {
     expect(stats.daysWithinNetCarbLimit).toBe(1);
     expect(stats.ketoAlignmentPct).toBe(50);
   });
+
+  it('does not count very low intake days as calorie or carb successes', () => {
+    const targets = { ...DEFAULT_TARGETS, calories: 1800, netCarbsG: 20 };
+    const summaries = [
+      // One coffee logged: 60 kcal, 1g net carbs. Under-logged, not a win.
+      makeSummary('2026-06-14', { calories: 60, netCarbsG: 1 }),
+      makeSummary('2026-06-15', { calories: 1700, netCarbsG: 15 }),
+    ];
+    const stats = computeWeeklyStats(summaries, targets);
+    expect(stats.daysTracked).toBe(2);
+    expect(stats.lowIntakeDays).toBe(1);
+    expect(stats.daysWithinCalorieTarget).toBe(1);
+    expect(stats.daysWithinNetCarbLimit).toBe(1);
+    expect(stats.ketoAlignmentPct).toBe(50);
+  });
+
+  it('treats days at or above half the calorie target as meaningfully logged', () => {
+    const targets = { ...DEFAULT_TARGETS, calories: 1800, netCarbsG: 20 };
+    const summaries = [makeSummary('2026-06-14', { calories: 900, netCarbsG: 10 })];
+    const stats = computeWeeklyStats(summaries, targets);
+    expect(stats.lowIntakeDays).toBe(0);
+    expect(stats.daysWithinCalorieTarget).toBe(1);
+    expect(stats.daysWithinNetCarbLimit).toBe(1);
+  });
 });
 
 describe('sevenDayAvgWeight', () => {

@@ -167,9 +167,11 @@ export function Dashboard({ summary, entries, activity, targets, recommendations
         </div>
       </div>
 
-      <div className={`keto-status keto-status--${statusVariant}`}>
-        {carbStatusLabel(status)}
-      </div>
+      {summary.entryCount > 0 && (
+        <div className={`keto-status keto-status--${statusVariant}`}>
+          {carbStatusLabel(status)}
+        </div>
+      )}
 
       {visibleRecommendations.length > 0 && (
         <>

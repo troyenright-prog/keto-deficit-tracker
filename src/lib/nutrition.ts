@@ -82,9 +82,11 @@ export function carbStatus(summary: DailyNutritionSummary, targets: NutritionTar
   return 'aligned';
 }
 
+// "Within carb budget", not "keto-aligned": the app only knows logged carbs,
+// not ketosis, and an under-logged day shouldn't read as a keto success.
 export function carbStatusLabel(status: CarbStatus): string {
   switch (status) {
-    case 'aligned': return 'Keto-aligned today';
+    case 'aligned': return 'Within carb budget today';
     case 'approaching': return 'Approaching carb limit';
     case 'exceeded': return 'Carb limit exceeded';
   }
