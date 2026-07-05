@@ -98,6 +98,19 @@ export const AUSTRALIAN_STARTER_FOODS: Omit<FoodItem, 'id' | 'createdAt'>[] = [
     folateMcg: 500,
     vitaminB12Mcg: 50,
   },
+  {
+    name: "Nature's Own Complete Sleep + Magnesium",
+    servingSize: '1 tablet',
+    calories: 0,
+    proteinG: 0,
+    fatG: 0,
+    totalCarbsG: 0,
+    fibreG: 0,
+    sugarAlcoholsG: 0,
+    sodiumMg: 0,
+    potassiumMg: 0,
+    magnesiumMg: 160,
+  },
 ];
 
 export function getStarterFoods(): FoodItem[] {
