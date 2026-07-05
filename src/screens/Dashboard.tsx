@@ -78,20 +78,14 @@ export function Dashboard({ summary, entries, activity, targets, recommendations
   const displayRemaining = Math.round(remaining);
   const proteinGap = Math.max(0, targets.proteinG - summary.proteinG);
   const fatRemaining = Math.max(0, targets.fatG - summary.fatG);
-  const micronutrientProgress = MICRONUTRIENT_FIELDS
-    .map((field) => ({
-      field,
-      value: summary[field.key] ?? 0,
-      target: targets[field.key] ?? 0,
-    }))
-    .filter((item) => item.value > 0 || item.target > 0);
-  const targetedMicronutrients = micronutrientProgress.filter((item) => item.target > 0);
-  const untargetedMicronutrients = micronutrientProgress.filter((item) => item.target === 0 && item.value > 0);
   const allMicronutrientRows = MICRONUTRIENT_FIELDS.map((field) => ({
     field,
     value: summary[field.key] ?? 0,
     target: targets[field.key] ?? 0,
   }));
+  const loggedMicronutrientRows = allMicronutrientRows.filter((item) => item.value > 0);
+  const targetedMicronutrients = loggedMicronutrientRows.filter((item) => item.target > 0);
+  const untargetedMicronutrients = loggedMicronutrientRows.filter((item) => item.target === 0);
   const allTargetedMicronutrients = allMicronutrientRows.filter((item) => item.target > 0);
   const allUntargetedMicronutrients = allMicronutrientRows.filter((item) => item.target === 0);
 
@@ -341,7 +335,7 @@ export function Dashboard({ summary, entries, activity, targets, recommendations
         </>
       )}
 
-      {(micronutrientProgress.length > 0 || summary.entryCount > 0) && (
+      {(loggedMicronutrientRows.length > 0 || summary.entryCount > 0) && (
         <>
           <div className="section-title-row">
             <div className="section-title">Micronutrients &amp; vitamins</div>
@@ -349,8 +343,9 @@ export function Dashboard({ summary, entries, activity, targets, recommendations
               type="button"
               className="btn btn--ghost btn--sm micro-toggle"
               onClick={() => setShowAllMicros((s) => !s)}
+              aria-pressed={showAllMicros}
             >
-              {showAllMicros ? 'Show tracked only' : `Show all ${MICRONUTRIENT_FIELDS.length} nutrients`}
+              {showAllMicros ? 'Show logged only' : `Show all ${MICRONUTRIENT_FIELDS.length} nutrients`}
             </button>
           </div>
           {showAllMicros ? (

@@ -81,4 +81,32 @@ describe('micronutrient snapshots', () => {
     expect(screen.getByText('Folate')).toBeTruthy();
     expect(screen.getByText('40.0 mcg / 400.0 mcg')).toBeTruthy();
   });
+
+  it('keeps unlogged targeted micronutrients hidden until the user shows all nutrients', () => {
+    const entry = recipeToLogEntry({
+      id: 'r',
+      name: 'Supplement',
+      servings: 1,
+      createdAt: food.createdAt,
+      ingredients: [{ ...foodItemToTemplateItem(food, 1), id: 'i' }],
+    }, 1, '2026-01-01');
+    const summary = summariseDay('2026-01-01', [entry]);
+
+    render(createElement(Dashboard, {
+      summary,
+      entries: [entry],
+      targets: { ...DEFAULT_TARGETS, vitaminCMg: 90, vitaminAMcg: 900 },
+      recommendations: [],
+      onAddFood: vi.fn(),
+    }));
+
+    expect(screen.getByText('Vitamin C')).toBeTruthy();
+    expect(screen.queryByText('Vitamin A')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show all 21 nutrients' }));
+
+    expect(screen.getByRole('button', { name: 'Show logged only' })).toBeTruthy();
+    expect(screen.getByText('Vitamin A')).toBeTruthy();
+    expect(screen.getByText('0.0 mcg / 900.0 mcg')).toBeTruthy();
+  });
 });
