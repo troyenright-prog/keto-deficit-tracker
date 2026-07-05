@@ -53,6 +53,7 @@ import {
 } from './lib/firebase-db';
 import { APP_USERS, clearCurrentUser, loadCurrentUser, saveCurrentUser, type AppUserKey } from './lib/users';
 import { savedFoodToLogEntry, summariseDay, todayDateString } from './lib/nutrition';
+import { last7Days } from './lib/weekly';
 import { buildRecommendations } from './lib/recommendations';
 import { templateToLogEntries } from './lib/meal-templates';
 import { recipeToLogEntry } from './lib/recipes';
@@ -387,6 +388,9 @@ function App() {
   const today = todayDateString();
   const todaySummary = summariseDay(today, foodLog);
   const recommendations = buildRecommendations(todaySummary, targets);
+  // Last 7 days (including today) for the hint engine's "today vs repeated"
+  // check — cheap to recompute since summariseDay is a simple in-memory scan.
+  const recentSummaries = last7Days(today).map((date) => summariseDay(date, foodLog));
 
   // ── Food log ───────────────────────────────────────────────────────────────
 
@@ -787,6 +791,7 @@ function App() {
             targets={targets}
             recommendations={recommendations}
             profile={profile}
+            recentSummaries={recentSummaries}
             onAddFood={() => setScreen('barcode')}
             onSyncGarmin={isHealthConnectSupported() ? handleSyncGarmin : undefined}
           />

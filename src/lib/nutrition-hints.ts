@@ -3,15 +3,22 @@ import { MICRONUTRIENT_KEYS, type MicronutrientKey } from './micronutrients';
 import { FIBRE_TARGET_G, NUTRIENT_HINT_CATALOGUE, type HintNutrientKey, type NutrientHintDef } from './nutrient-catalogue';
 import { getRdaForAgeSex } from './rda';
 
-export type NutritionHintKind = 'low' | 'high' | 'data-caveat';
+export type HintSeverity = 'low' | 'high' | 'caution' | 'nextMeal';
+export type HintConfidence = 'high' | 'medium' | 'low';
+export type HintTimeframe = 'today' | 'repeated';
 
 export interface NutritionHint {
   id: string;
-  kind: NutritionHintKind;
+  nutrientKey: HintNutrientKey | 'meal' | 'calories';
+  severity: HintSeverity;
+  confidence: HintConfidence;
   title: string;
   reason: string;
-  advice: string;
+  suggestions: string[];
+  likelyDrivers: string[];
   caveat?: string;
+  priorityScore: number;
+  timeframe: HintTimeframe;
 }
 
 const SUPPLEMENT_KEYWORDS = ['multivitamin', 'multi-vitamin', 'vitamin', 'supplement', 'tablet', 'capsule', 'softgel', 'gummies', 'gummy'];
@@ -36,23 +43,50 @@ function formatAmount(value: number, decimals: number): string {
   return value.toFixed(decimals);
 }
 
-function shareFromKeywords(entries: FoodLogEntry[], key: HintNutrientKey, keywords: string[]): number {
+// Fraction of a nutrient's daily total contributed by entries whose name
+// matches the given keywords, plus the matching entry names themselves (for
+// likelyDrivers / requiresDriverForHigh gating).
+function driversFromKeywords(
+  entries: FoodLogEntry[],
+  key: HintNutrientKey,
+  keywords: string[],
+): { share: number; names: string[] } {
   let total = 0;
   let matched = 0;
+  const names = new Set<string>();
   for (const entry of entries) {
     const amount = (entry as unknown as Record<string, number | undefined>)[key] ?? 0;
     total += amount;
-    if (keywords.some((word) => entry.name.toLowerCase().includes(word))) matched += amount;
+    if (keywords.some((word) => entry.name.toLowerCase().includes(word))) {
+      matched += amount;
+      if (amount > 0) names.add(entry.name);
+    }
   }
-  return total > 0 ? matched / total : 0;
+  return { share: total > 0 ? matched / total : 0, names: [...names] };
 }
 
+// Coverage = fraction of "substantial" (real, calorie-bearing) entries that
+// actually reported this micronutrient field, vs. left it undefined. Low
+// coverage means a "low" reading is more likely a database gap than a true
+// deficiency — see confidenceFor().
 function dataCoverage(entries: FoodLogEntry[], key: MicronutrientKey): number {
   const substantial = entries.filter(isSubstantialEntry);
   if (substantial.length === 0) return 1;
   const covered = substantial.filter((entry) => entry[key] !== undefined).length;
   return covered / substantial.length;
 }
+
+function confidenceFor(def: NutrientHintDef, dayEntries: FoodLogEntry[]): HintConfidence {
+  const isMicronutrient = (MICRONUTRIENT_KEYS as readonly string[]).includes(def.key);
+  if (!isMicronutrient) return 'high'; // macros/electrolytes are core required fields, never left undefined
+  if (!dayEntries.some(isSubstantialEntry)) return 'high'; // nothing substantial logged to doubt
+  const coverage = dataCoverage(dayEntries, def.key as MicronutrientKey);
+  if (coverage >= 0.8) return 'high';
+  if (coverage >= 0.4) return 'medium';
+  return 'low';
+}
+
+const INCOMPLETE_DATA_CAVEAT = 'Some logged foods may have incomplete micronutrient data, so this is an estimate.';
 
 interface Candidate {
   hint: NutritionHint;
@@ -69,41 +103,63 @@ function targetFor(def: NutrientHintDef, targets: NutritionTargets, rdaFallback:
   return configured && configured > 0 ? configured : (rdaFallback[micronutrientKey] ?? 0);
 }
 
+// Was this nutrient also low on most of the recent tracked days (excluding
+// today)? Powers the "today" vs. "repeated" distinction — a future-ready hook
+// into rolling history without building a full trend system here.
+function repeatedLowTimeframe(
+  def: NutrientHintDef,
+  target: number,
+  today: string,
+  recentSummaries: DailyNutritionSummary[] | undefined,
+): HintTimeframe {
+  if (!recentSummaries || target <= 0) return 'today';
+  const priorDays = recentSummaries.filter((s) => s.date !== today && s.entryCount > 0);
+  if (priorDays.length < 2) return 'today';
+  const lowCount = priorDays.filter((s) => {
+    const value = (s as unknown as Record<string, number | undefined>)[def.key] ?? 0;
+    return value / target < (def.lowRatio ?? 0.5);
+  }).length;
+  return lowCount >= Math.ceil(priorDays.length / 2) ? 'repeated' : 'today';
+}
+
 function buildLowCandidate(
   def: NutrientHintDef,
   value: number,
   target: number,
   ratio: number,
   dayEntries: FoodLogEntry[],
+  today: string,
+  recentSummaries: DailyNutritionSummary[] | undefined,
 ): Candidate | undefined {
   if (!def.lowRatio || ratio >= def.lowRatio) return undefined;
 
-  const isMicronutrient = (MICRONUTRIENT_KEYS as readonly string[]).includes(def.key);
-  const coverage = isMicronutrient ? dataCoverage(dayEntries, def.key as MicronutrientKey) : 1;
-  const hasSubstantialEntries = dayEntries.some(isSubstantialEntry);
-  const lowConfidence = isMicronutrient && hasSubstantialEntries && coverage < 0.5;
-
+  const confidence = confidenceFor(def, dayEntries);
+  const timeframe = repeatedLowTimeframe(def, target, today, recentSummaries);
   const reason = `Logged: ${formatAmount(value, def.decimals)} ${def.unit} / ${formatAmount(target, def.decimals)} ${def.unit}`;
-  const advice = `Try: ${def.lowSuggestion}`;
-  const magnitude = Math.min(1, def.lowRatio - ratio) * 10;
+  const suggestions = [`Try: ${def.lowSuggestion}`];
+  if (def.supplementNote) suggestions.push(`Optional: ${def.supplementNote}`);
 
-  if (lowConfidence) {
-    return {
-      score: def.priority * 0.5 + magnitude,
-      hint: {
-        id: `${def.key}-data-caveat`,
-        kind: 'data-caveat',
-        title: `Possibly low ${lowerFirst(def.label)}`,
-        reason,
-        advice,
-        caveat: 'Some logged foods may have incomplete micronutrient data, so this may be an underestimate.',
-      },
-    };
-  }
+  const title = confidence === 'high' ? `Low ${lowerFirst(def.label)}` : `${def.label} appears low`;
+  const magnitude = Math.min(1, def.lowRatio - ratio) * 10;
+  // Uncertain readings are still worth surfacing, but shouldn't crowd out
+  // confident ones for one of the limited hint slots.
+  const confidencePenalty = confidence === 'high' ? 1 : confidence === 'medium' ? 0.8 : 0.5;
 
   return {
-    score: def.priority + magnitude,
-    hint: { id: `${def.key}-low`, kind: 'low', title: `Low ${lowerFirst(def.label)}`, reason, advice },
+    score: (def.priority + magnitude) * confidencePenalty,
+    hint: {
+      id: `${def.key}-low`,
+      nutrientKey: def.key,
+      severity: 'low',
+      confidence,
+      title,
+      reason,
+      suggestions,
+      likelyDrivers: [],
+      caveat: confidence === 'high' ? undefined : INCOMPLETE_DATA_CAVEAT,
+      priorityScore: def.priority,
+      timeframe,
+    },
   };
 }
 
@@ -113,20 +169,37 @@ function buildHighCandidate(
   target: number,
   ratio: number,
   dayEntries: FoodLogEntry[],
+  today: string,
+  recentSummaries: DailyNutritionSummary[] | undefined,
 ): Candidate | undefined {
   if (!def.highRatio || ratio <= def.highRatio || !def.highCaution) return undefined;
 
+  let likelyDrivers: string[] = [];
   if (def.requiresDriverForHigh) {
     const keywords = def.requiresDriverForHigh === 'supplement' ? SUPPLEMENT_KEYWORDS : DAIRY_KEYWORDS;
     const threshold = def.requiresDriverForHigh === 'supplement' ? 0.5 : 0.35;
-    if (shareFromKeywords(dayEntries, def.key, keywords) < threshold) return undefined;
+    const drivers = driversFromKeywords(dayEntries, def.key, keywords);
+    if (drivers.share < threshold) return undefined;
+    likelyDrivers = drivers.names;
   }
 
   const reason = `Logged: ${formatAmount(value, def.decimals)} ${def.unit} / ${formatAmount(target, def.decimals)} ${def.unit} target`;
   const magnitude = Math.min(3, ratio - def.highRatio) * 5;
+  const timeframe = repeatedLowTimeframe(def, target, today, recentSummaries) === 'repeated' ? 'repeated' : 'today';
   return {
     score: def.priority + magnitude,
-    hint: { id: `${def.key}-high`, kind: 'high', title: `High ${lowerFirst(def.label)}`, reason, advice: capitalize(def.highCaution) },
+    hint: {
+      id: `${def.key}-high`,
+      nutrientKey: def.key,
+      severity: 'high',
+      confidence: 'high', // the logged total itself is real data, only attribution is a guess
+      title: `High ${lowerFirst(def.label)}`,
+      reason,
+      suggestions: [capitalize(def.highCaution)],
+      likelyDrivers,
+      priorityScore: def.priority,
+      timeframe,
+    },
   };
 }
 
@@ -138,10 +211,60 @@ function buildCaloriesHighEarlyCandidate(summary: DailyNutritionSummary, targets
     score: 50,
     hint: {
       id: 'calories-high-early',
-      kind: 'high',
+      nutrientKey: 'calories',
+      severity: 'caution',
+      confidence: 'high',
       title: 'Calories close to target already',
       reason: `Logged: ${Math.round(summary.calories)} / ${targets.calories} kcal, still early in the day`,
-      advice: 'Choose leaner protein (chicken breast, white fish, or eggs) for the rest of the day.',
+      suggestions: ['Choose leaner protein (chicken breast, white fish, or eggs) for the rest of the day.'],
+      likelyDrivers: [],
+      priorityScore: 50,
+      timeframe: 'today',
+    },
+  };
+}
+
+// Suggests what kind of next meal would close the protein gap while also
+// pairing in whichever tracked nutrients are currently running low — not a
+// meal planner, just a one-line steer using the day's own low-nutrient list.
+function buildNextMealCandidate(
+  summary: DailyNutritionSummary,
+  targets: NutritionTargets,
+  lowKeys: Set<HintNutrientKey>,
+): Candidate | undefined {
+  if (targets.proteinG <= 0 || targets.calories <= 0) return undefined;
+  const proteinGap = targets.proteinG - summary.proteinG;
+  const remainingCal = targets.calories - summary.calories;
+  if (proteinGap < targets.proteinG * 0.2 || remainingCal < 150) return undefined;
+
+  const greensPairing: string[] = [];
+  if (lowKeys.has('potassiumMg')) greensPairing.push('potassium');
+  if (lowKeys.has('fibreG')) greensPairing.push('fibre');
+  if (lowKeys.has('vitaminKMcg')) greensPairing.push('vitamin K');
+
+  const proteinSuggestion = 'Steak, chicken, eggs, or fish would help close the protein gap.';
+  const suggestions = [proteinSuggestion];
+  if (greensPairing.length > 0) {
+    suggestions.push(`Add avocado, spinach, or leafy greens too, for ${greensPairing.join(', ')}.`);
+  }
+  if (lowKeys.has('omega3G')) {
+    suggestions.push('Salmon or sardines would also help top up omega-3.');
+  }
+  const pairingNutrients = [...greensPairing, ...(lowKeys.has('omega3G') ? ['omega-3'] : [])];
+
+  return {
+    score: 70,
+    hint: {
+      id: 'next-meal',
+      nutrientKey: 'meal',
+      severity: 'nextMeal',
+      confidence: 'high',
+      title: pairingNutrients.length > 0 ? 'Next meal: cover protein, then top up what\'s low' : 'Next meal: protein is still behind',
+      reason: `${Math.round(proteinGap)}g protein and ${Math.round(remainingCal)} kcal remaining today`,
+      suggestions,
+      likelyDrivers: [],
+      priorityScore: 70,
+      timeframe: 'today',
     },
   };
 }
@@ -152,12 +275,14 @@ export function buildNutritionHints(
   entries: FoodLogEntry[],
   profile?: Pick<UserProfile, 'age' | 'sex'>,
   now = new Date(),
+  recentSummaries?: DailyNutritionSummary[],
 ): NutritionHint[] {
   if (summary.entryCount === 0) return [];
 
   const dayEntries = entries.filter((entry) => entry.date === summary.date);
   const rdaFallback = getRdaForAgeSex(profile?.age ?? 30, profile?.sex ?? 'male');
   const candidates: Candidate[] = [];
+  const lowKeys = new Set<HintNutrientKey>();
 
   for (const def of NUTRIENT_HINT_CATALOGUE) {
     if (def.priority <= 0) continue;
@@ -166,14 +291,17 @@ export function buildNutritionHints(
     const value = (summary as unknown as Record<string, number | undefined>)[def.key] ?? 0;
     const ratio = value / target;
 
-    const low = buildLowCandidate(def, value, target, ratio, dayEntries);
-    if (low) { candidates.push(low); continue; }
-    const high = buildHighCandidate(def, value, target, ratio, dayEntries);
+    const low = buildLowCandidate(def, value, target, ratio, dayEntries, summary.date, recentSummaries);
+    if (low) { candidates.push(low); lowKeys.add(def.key); continue; }
+    const high = buildHighCandidate(def, value, target, ratio, dayEntries, summary.date, recentSummaries);
     if (high) candidates.push(high);
   }
 
   const caloriesHighEarly = buildCaloriesHighEarlyCandidate(summary, targets, now);
   if (caloriesHighEarly) candidates.push(caloriesHighEarly);
+
+  const nextMeal = buildNextMealCandidate(summary, targets, lowKeys);
+  if (nextMeal) candidates.push(nextMeal);
 
   return candidates
     .sort((a, b) => b.score - a.score)

@@ -15,6 +15,10 @@ interface DashboardProps {
   targets: NutritionTargets;
   recommendations: Recommendation[];
   profile?: Pick<UserProfile, 'age' | 'sex'>;
+  // Last ~7 days of daily summaries (including today), oldest first — used
+  // only to tell "low today" from "low most days recently". Optional so
+  // callers that don't have it yet still get today-only hints.
+  recentSummaries?: DailyNutritionSummary[];
   onAddFood: () => void;
   onSyncGarmin?: () => Promise<string>;
 }
@@ -62,7 +66,7 @@ function headlineForMove(rec: Recommendation): string {
   return SMART_SUGGESTION_HEADLINES[rec.id] ?? rec.message;
 }
 
-export function Dashboard({ summary, entries, activity, targets, recommendations, profile, onAddFood, onSyncGarmin }: DashboardProps) {
+export function Dashboard({ summary, entries, activity, targets, recommendations, profile, recentSummaries, onAddFood, onSyncGarmin }: DashboardProps) {
   const [garminSyncing, setGarminSyncing] = useState(false);
   const [garminSyncMessage, setGarminSyncMessage] = useState('');
   const status = carbStatus(summary, targets);
@@ -83,7 +87,7 @@ export function Dashboard({ summary, entries, activity, targets, recommendations
   const targetedMicronutrients = micronutrientProgress.filter((item) => item.target > 0);
   const untargetedMicronutrients = micronutrientProgress.filter((item) => item.target === 0 && item.value > 0);
 
-  const nutritionHints = buildNutritionHints(summary, targets, entries, profile);
+  const nutritionHints = buildNutritionHints(summary, targets, entries, profile, new Date(), recentSummaries);
   const suggestions = buildSmartSuggestions(summary, targets);
   const nextMove = suggestions[0] ?? recommendations.find((rec) => rec.priority !== 'success') ?? recommendations[0];
   const surfacedMoves = summary.entryCount > 0 && nextMove ? [nextMove] : [];
@@ -313,10 +317,15 @@ export function Dashboard({ summary, entries, activity, targets, recommendations
           <div className="section-title">What to fix next</div>
           <ul className="nutrition-hints">
             {nutritionHints.map((hint) => (
-              <li key={hint.id} className={`nutrition-hint nutrition-hint--${hint.kind}`}>
+              <li key={hint.id} className={`nutrition-hint nutrition-hint--${hint.severity}`}>
                 <strong>{hint.title}</strong>
                 <span>{hint.reason}</span>
-                <span className="nutrition-hint__advice">{hint.advice}</span>
+                {hint.likelyDrivers.length > 0 && (
+                  <span className="nutrition-hint__drivers">Likely from: {hint.likelyDrivers.join(', ')}</span>
+                )}
+                {hint.suggestions.map((suggestion) => (
+                  <span className="nutrition-hint__advice" key={suggestion}>{suggestion}</span>
+                ))}
                 {hint.caveat && <small>{hint.caveat}</small>}
               </li>
             ))}

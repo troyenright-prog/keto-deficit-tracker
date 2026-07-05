@@ -25,7 +25,12 @@ export interface NutrientHintDef {
   // or a named food group) is identified — otherwise a high reading is too
   // easily a false positive from a single generous serving.
   requiresDriverForHigh?: 'supplement' | 'dairy';
+  // Food-first suggestion, always shown first when this nutrient is low.
   lowSuggestion: string;
+  // Secondary, softly-worded supplement mention — only set for nutrients
+  // where a supplement is a reasonable optional add-on (magnesium, omega-3,
+  // iodine, vitamin D). Never shown ahead of the food suggestion.
+  supplementNote?: string;
   highCaution?: string;
   // Base ranking weight — higher surfaces first. See nutrition-hints.ts for
   // how this combines with how far off-target the day is.
@@ -44,7 +49,8 @@ export const NUTRIENT_HINT_CATALOGUE: NutrientHintDef[] = [
   },
   {
     key: 'magnesiumMg', label: 'Magnesium', unit: 'mg', decimals: 0, lowRatio: 0.5, priority: 98,
-    lowSuggestion: 'spinach, pumpkin seeds, almonds, dark chocolate, or a magnesium glycinate supplement if appropriate',
+    lowSuggestion: 'spinach, pumpkin seeds, almonds, or dark chocolate',
+    supplementNote: 'a magnesium glycinate supplement, if appropriate',
   },
   {
     key: 'sodiumMg', label: 'Sodium', unit: 'mg', decimals: 0, lowRatio: 0.5, highRatio: 1.3, priority: 92,
@@ -61,7 +67,8 @@ export const NUTRIENT_HINT_CATALOGUE: NutrientHintDef[] = [
   },
   {
     key: 'omega3G', label: 'Omega-3', unit: 'g', decimals: 1, lowRatio: 0.5, priority: 75,
-    lowSuggestion: 'salmon, sardines, mackerel, or fish oil',
+    lowSuggestion: 'salmon, sardines, or mackerel',
+    supplementNote: 'a fish oil supplement, if appropriate',
   },
   {
     key: 'calciumMg', label: 'Calcium', unit: 'mg', decimals: 0, lowRatio: 0.5, highRatio: 1.5, requiresDriverForHigh: 'dairy', priority: 65,
@@ -107,7 +114,8 @@ export const NUTRIENT_HINT_CATALOGUE: NutrientHintDef[] = [
   },
   {
     key: 'vitaminDMcg', label: 'Vitamin D', unit: 'mcg', decimals: 1, lowRatio: 0.5, priority: 34,
-    lowSuggestion: 'salmon, sardines, egg yolks, or a vitamin D supplement in low-sun months',
+    lowSuggestion: 'salmon, sardines, or egg yolks',
+    supplementNote: 'a vitamin D supplement in low-sun months, if appropriate',
   },
   {
     key: 'vitaminCMg', label: 'Vitamin C', unit: 'mg', decimals: 0, lowRatio: 0.5, priority: 32,
@@ -128,6 +136,7 @@ export const NUTRIENT_HINT_CATALOGUE: NutrientHintDef[] = [
   {
     key: 'iodineMcg', label: 'Iodine', unit: 'mcg', decimals: 0, lowRatio: 0.5, priority: 24,
     lowSuggestion: 'seafood, eggs, or iodised salt',
+    supplementNote: 'an iodine supplement, if appropriate and checked against label doses',
   },
   {
     key: 'riboflavinMg', label: 'B2 riboflavin', unit: 'mg', decimals: 1, lowRatio: 0.5, priority: 22,
