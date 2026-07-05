@@ -97,6 +97,37 @@ describe('toNutritionRecordPayload', () => {
     const entry = makeEntry({ meal: undefined });
     expect(toNutritionRecordPayload(entry).mealType).toBe(0);
   });
+
+  it('attributes the record to entry.date, not the calendar day loggedAt happens to fall on', () => {
+    // Backdated: logged "now" for a meal that's logically on a different day
+    // - a reader that groups Health Connect records by LOCAL calendar day
+    // (RepIQ does, and so does this test - matching both apps' own date
+    // handling) must see this land on entry.date, not whatever local day
+    // loggedAt happens to be.
+    const loggedAt = new Date();
+    loggedAt.setHours(9, 15, 0, 0);
+    const loggedAtLocalDay = loggedAt.getDate();
+    const backdated = new Date(loggedAt);
+    backdated.setDate(backdated.getDate() - 3); // definitely a different local day
+    const entryDate = `${backdated.getFullYear()}-${String(backdated.getMonth() + 1).padStart(2, '0')}-${String(backdated.getDate()).padStart(2, '0')}`;
+
+    const entry = makeEntry({ date: entryDate, loggedAt: loggedAt.toISOString() });
+    const payload = toNutritionRecordPayload(entry);
+    const time = new Date(payload.time);
+
+    expect(time.getFullYear()).toBe(backdated.getFullYear());
+    expect(time.getMonth()).toBe(backdated.getMonth());
+    expect(time.getDate()).toBe(backdated.getDate());
+    expect(time.getDate()).not.toBe(loggedAtLocalDay);
+    // Time-of-day from loggedAt is preserved for context in Health Connect's own data browser.
+    expect(time.getHours()).toBe(9);
+    expect(time.getMinutes()).toBe(15);
+  });
+
+  it('leaves the time untouched when date and loggedAt already agree (the common case)', () => {
+    const entry = makeEntry();
+    expect(toNutritionRecordPayload(entry).time).toBe(entry.loggedAt);
+  });
 });
 
 describe('pruneAndRecordSyncedIds', () => {

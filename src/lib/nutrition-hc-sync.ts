@@ -91,10 +91,29 @@ export function selectEntriesToPush(foodLog: FoodLogEntry[], syncedEntryIds: str
     .sort((a, b) => a.loggedAt.localeCompare(b.loggedAt));
 }
 
+// Every entry-creation path in this app sets loggedAt to "right now" even
+// when `date` is a different day the user explicitly picked (backdating,
+// "copy from previous date", editing an entry's date after the fact, or
+// simply logging late at night for the day that just ended). A reader that
+// groups Health Connect records by calendar day (RepIQ does) would then
+// attribute the entry's macros to whatever day it happened to be PUSHED on,
+// not the day it's logically for - inflating that day's total there while
+// this app's own day totals (grouped by `date`) stay correct. Keep the
+// time-of-day from loggedAt (useful context in Health Connect's own data
+// browser) but force the calendar day to match `entry.date`.
+function nutritionRecordTime(entry: FoodLogEntry): string {
+  const logged = new Date(entry.loggedAt);
+  const [year, month, day] = (entry.date || '').split('-').map(Number);
+  if (!year || !month || !day || Number.isNaN(logged.getTime())) return entry.loggedAt;
+  const combined = new Date(logged);
+  combined.setFullYear(year, month - 1, day);
+  return combined.toISOString();
+}
+
 export function toNutritionRecordPayload(entry: FoodLogEntry): NutritionRecordPayload {
   return {
     id: entry.id,
-    time: entry.loggedAt,
+    time: nutritionRecordTime(entry),
     name: entry.name,
     mealType: entry.meal ? MEAL_TYPE_BY_SLOT[entry.meal] : MEAL_TYPE_UNKNOWN,
     calories: Math.max(0, Math.round(entry.calories || 0)),
