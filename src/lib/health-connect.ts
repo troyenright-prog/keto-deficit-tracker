@@ -144,8 +144,17 @@ export async function ensureNutritionWritePermission(): Promise<boolean> {
 // whole app (only startTime/endTime's zone-offset siblings are genuinely
 // optional, via `getZoneOffsetOrNull`). So every field below must be present;
 // fields this app doesn't track are sent as zero rather than omitted.
+//
+// Also: the plugin's `Energy` TS type declares only `unit: 'kcal'` - that's
+// what reading a record gives back, but the native WRITE-side parser
+// (getEnergy in Serializer.kt) does not accept "kcal" at all, only
+// 'calories' | 'kilocalories' | 'joules' | 'kilojoules' - "kcal" throws
+// `RuntimeException: Invalid Energy unit: kcal` and crashes the app. This is
+// a bug in the plugin's own type declarations for the write path, so a
+// locally-corrected type is used instead of the imported `Energy` type.
+type WritableEnergy = { unit: 'calories' | 'kilocalories' | 'joules' | 'kilojoules'; value: number };
 const ZERO_MASS: Mass = { unit: 'gram', value: 0 };
-const ZERO_ENERGY: Energy = { unit: 'kcal', value: 0 };
+const ZERO_ENERGY: WritableEnergy = { unit: 'kilocalories', value: 0 };
 const ZERO_MICRONUTRIENTS = {
   biotin: ZERO_MASS, caffeine: ZERO_MASS, calcium: ZERO_MASS, energyFromFat: ZERO_ENERGY,
   chloride: ZERO_MASS, cholesterol: ZERO_MASS, chromium: ZERO_MASS, copper: ZERO_MASS,
@@ -169,14 +178,17 @@ export async function writeNutritionRecords(payloads: NutritionRecordPayload[]):
       endTime: time,
       name: payload.name,
       mealType: payload.mealType,
-      energy: { unit: 'kcal', value: payload.calories } satisfies Energy,
+      energy: { unit: 'kilocalories', value: payload.calories } satisfies WritableEnergy,
       protein: { unit: 'gram', value: payload.proteinG } satisfies Mass,
       totalCarbohydrate: { unit: 'gram', value: payload.totalCarbsG } satisfies Mass,
       totalFat: { unit: 'gram', value: payload.fatG } satisfies Mass,
       ...ZERO_MICRONUTRIENTS,
     };
   });
-  const { recordIds } = await HealthConnect.insertRecords({ records });
+  // The plugin's own `Record`/`Energy` types are wrong for the write path (see
+  // the WritableEnergy comment above), so `records` can't structurally match
+  // `insertRecords`'s declared param type without this cast.
+  const { recordIds } = await HealthConnect.insertRecords({ records: records as unknown as Parameters<typeof HealthConnect.insertRecords>[0]['records'] });
   return recordIds.length;
 }
 
