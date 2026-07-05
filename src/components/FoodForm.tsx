@@ -164,6 +164,20 @@ export function FoodForm({
   const previewNetCarbs = calcNetCarbs(values.totalCarbsG, values.fibreG, values.sugarAlcoholsG);
   const hasMicro = hasAnyMicronutrients(values);
 
+  // The macro/electrolyte/micronutrient fields above are always per-serving;
+  // "Servings" scales them at log time. Preview that scaled total live so
+  // changing servings visibly updates calories/macros instead of only
+  // applying silently on submit (see the same pattern in BarcodeScanner).
+  const multiplier = Number.isFinite(values.servingMultiplier) && values.servingMultiplier > 0
+    ? values.servingMultiplier
+    : 1;
+  const scaledTotals = {
+    calories: values.calories * multiplier,
+    proteinG: values.proteinG * multiplier,
+    netCarbsG: previewNetCarbs * multiplier,
+    fatG: values.fatG * multiplier,
+  };
+
   return (
     <form className="food-form" onSubmit={handleSubmit} noValidate>
       {savedFoods.length > 0 && (
@@ -237,6 +251,14 @@ export function FoodForm({
           </div>
         )}
       </div>
+
+      {!hideServingMultiplier && (
+        <div className="net-carbs-preview">
+          Logging {multiplier}× serving: <strong>{Math.round(scaledTotals.calories)} kcal</strong>,{' '}
+          {scaledTotals.proteinG.toFixed(1)}g protein, {scaledTotals.netCarbsG.toFixed(1)}g net carbs,{' '}
+          {scaledTotals.fatG.toFixed(1)}g fat
+        </div>
+      )}
 
       <div className="form-section-title">Macros</div>
       <div className="form-row">
