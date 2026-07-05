@@ -69,6 +69,7 @@ function headlineForMove(rec: Recommendation): string {
 export function Dashboard({ summary, entries, activity, targets, recommendations, profile, recentSummaries, onAddFood, onSyncGarmin }: DashboardProps) {
   const [garminSyncing, setGarminSyncing] = useState(false);
   const [garminSyncMessage, setGarminSyncMessage] = useState('');
+  const [showAllMicros, setShowAllMicros] = useState(false);
   const status = carbStatus(summary, targets);
   const remaining = remainingCalories(summary, targets);
   const statusVariant = status === 'aligned' ? 'success' : status === 'approaching' ? 'warning' : 'danger';
@@ -86,6 +87,13 @@ export function Dashboard({ summary, entries, activity, targets, recommendations
     .filter((item) => item.value > 0 || item.target > 0);
   const targetedMicronutrients = micronutrientProgress.filter((item) => item.target > 0);
   const untargetedMicronutrients = micronutrientProgress.filter((item) => item.target === 0 && item.value > 0);
+  const allMicronutrientRows = MICRONUTRIENT_FIELDS.map((field) => ({
+    field,
+    value: summary[field.key] ?? 0,
+    target: targets[field.key] ?? 0,
+  }));
+  const allTargetedMicronutrients = allMicronutrientRows.filter((item) => item.target > 0);
+  const allUntargetedMicronutrients = allMicronutrientRows.filter((item) => item.target === 0);
 
   const nutritionHints = buildNutritionHints(summary, targets, entries, profile, new Date(), recentSummaries);
   const suggestions = buildSmartSuggestions(summary, targets);
@@ -333,31 +341,73 @@ export function Dashboard({ summary, entries, activity, targets, recommendations
         </>
       )}
 
-      {micronutrientProgress.length > 0 && (
+      {(micronutrientProgress.length > 0 || summary.entryCount > 0) && (
         <>
-          <div className="section-title">Micronutrients &amp; vitamins</div>
-          {targetedMicronutrients.length > 0 && (
-            <div className="progress-panel progress-panel--micronutrients">
-              {targetedMicronutrients.map(({ field, value, target }) => (
-                <ProgressBar
-                  key={field.key}
-                  label={field.label}
-                  value={Number(value.toFixed(field.decimals))}
-                  max={target}
-                  unit={` ${field.unit}`}
-                  decimals={field.decimals}
-                  variant={value >= target ? 'success' : 'default'}
-                />
-              ))}
-            </div>
-          )}
-          {untargetedMicronutrients.length > 0 && (
-            <div className="template-totals">
-              <strong>Logged totals</strong>
-              {untargetedMicronutrients.map(({ field, value }) => (
-                <span key={field.key}>{field.label} {formatMicronutrientAmount(field, value)}</span>
-              ))}
-            </div>
+          <div className="section-title-row">
+            <div className="section-title">Micronutrients &amp; vitamins</div>
+            <button
+              type="button"
+              className="btn btn--ghost btn--sm micro-toggle"
+              onClick={() => setShowAllMicros((s) => !s)}
+            >
+              {showAllMicros ? 'Show tracked only' : `Show all ${MICRONUTRIENT_FIELDS.length} nutrients`}
+            </button>
+          </div>
+          {showAllMicros ? (
+            <>
+              {allTargetedMicronutrients.length > 0 && (
+                <div className="progress-panel progress-panel--micronutrients">
+                  {allTargetedMicronutrients.map(({ field, value, target }) => (
+                    <ProgressBar
+                      key={field.key}
+                      label={field.label}
+                      value={Number(value.toFixed(field.decimals))}
+                      max={target}
+                      unit={` ${field.unit}`}
+                      decimals={field.decimals}
+                      variant={value >= target ? 'success' : 'default'}
+                    />
+                  ))}
+                </div>
+              )}
+              {allUntargetedMicronutrients.length > 0 && (
+                <div className="template-totals">
+                  <strong>No target set</strong>
+                  {allUntargetedMicronutrients.map(({ field, value }) => (
+                    <span key={field.key}>{field.label} {value > 0 ? formatMicronutrientAmount(field, value) : 'not logged'}</span>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              {targetedMicronutrients.length > 0 && (
+                <div className="progress-panel progress-panel--micronutrients">
+                  {targetedMicronutrients.map(({ field, value, target }) => (
+                    <ProgressBar
+                      key={field.key}
+                      label={field.label}
+                      value={Number(value.toFixed(field.decimals))}
+                      max={target}
+                      unit={` ${field.unit}`}
+                      decimals={field.decimals}
+                      variant={value >= target ? 'success' : 'default'}
+                    />
+                  ))}
+                </div>
+              )}
+              {untargetedMicronutrients.length > 0 && (
+                <div className="template-totals">
+                  <strong>Logged totals</strong>
+                  {untargetedMicronutrients.map(({ field, value }) => (
+                    <span key={field.key}>{field.label} {formatMicronutrientAmount(field, value)}</span>
+                  ))}
+                </div>
+              )}
+              {targetedMicronutrients.length === 0 && untargetedMicronutrients.length === 0 && (
+                <p className="empty-hint empty-hint--compact">No micronutrients logged yet today.</p>
+              )}
+            </>
           )}
         </>
       )}

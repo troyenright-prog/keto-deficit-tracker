@@ -1,10 +1,9 @@
 import { useMemo, useState } from 'react';
-import type { DailyNutritionSummary, FoodLogEntry, NutritionTargets } from '../types';
-import { todayDateString } from '../lib/nutrition';
+import type { FoodLogEntry, NutritionTargets } from '../types';
+import { summariseDay, todayDateString } from '../lib/nutrition';
 import { computeWeeklyStats, last7Days } from '../lib/weekly';
-import { summariseDay } from '../lib/nutrition';
-import { summariseHistory, nutrientHistoryPoints, summariseNutrientHistory } from '../lib/history';
-import { MICRONUTRIENT_FIELDS } from '../lib/micronutrients';
+import { loggedDates } from '../lib/history';
+import { addLocalDays } from '../lib/date';
 import { StatCard } from '../components/StatCard';
 
 interface ProgressProps {
@@ -12,47 +11,37 @@ interface ProgressProps {
   targets: NutritionTargets;
 }
 
-interface NutrientOption {
-  key: keyof DailyNutritionSummary;
+interface WeekOption {
+  endDate: string;
   label: string;
-  unit: string;
-  decimals: number;
-  target: number;
 }
 
-function buildNutrientOptions(targets: NutritionTargets): NutrientOption[] {
-  const base: NutrientOption[] = [
-    { key: 'calories', label: 'Calories', unit: 'kcal', decimals: 0, target: targets.calories },
-    { key: 'proteinG', label: 'Protein', unit: 'g', decimals: 1, target: targets.proteinG },
-    { key: 'netCarbsG', label: 'Net carbs', unit: 'g', decimals: 1, target: targets.netCarbsG },
-    { key: 'fatG', label: 'Fat', unit: 'g', decimals: 1, target: targets.fatG },
-    { key: 'fibreG', label: 'Fibre', unit: 'g', decimals: 1, target: 0 },
-    { key: 'sodiumMg', label: 'Sodium', unit: 'mg', decimals: 0, target: targets.sodiumMg },
-    { key: 'potassiumMg', label: 'Potassium', unit: 'mg', decimals: 0, target: targets.potassiumMg },
-    { key: 'magnesiumMg', label: 'Magnesium', unit: 'mg', decimals: 0, target: targets.magnesiumMg },
-  ];
-  const micros: NutrientOption[] = MICRONUTRIENT_FIELDS.map((field) => ({
-    key: field.key,
-    label: field.label,
-    unit: field.unit,
-    decimals: field.decimals,
-    target: targets[field.key] ?? 0,
-  }));
-  return [...base, ...micros];
-}
-
-function formatAmount(option: NutrientOption, value: number): string {
-  return `${value.toFixed(option.decimals)}${option.unit === 'kcal' ? ' kcal' : option.unit}`;
+// One option per 7-day block going back from today, as far as the earliest
+// logged date — lets the whole history be browsed one week at a time instead
+// of picking a single nutrient to trend.
+function buildWeekOptions(today: string, log: FoodLogEntry[]): WeekOption[] {
+  const earliest = loggedDates(log)[0];
+  const options: WeekOption[] = [];
+  let end = today;
+  for (let i = 0; i < 260; i++) { // ~5 years safety cap
+    const start = addLocalDays(end, -6);
+    const range = `${start} to ${end}`;
+    const label = i === 0 ? `This week (${range})` : i === 1 ? `Last week (${range})` : range;
+    options.push({ endDate: end, label });
+    if (!earliest || start <= earliest) break;
+    end = addLocalDays(end, -7);
+  }
+  return options;
 }
 
 export function Progress({ log, targets }: ProgressProps) {
   const today = todayDateString();
-  const days = useMemo(() => last7Days(today), [today]);
+  const weekOptions = useMemo(() => buildWeekOptions(today, log), [today, log]);
+  const [weekEnd, setWeekEnd] = useState(today);
+  const selectedWeek = weekOptions.find((w) => w.endDate === weekEnd) ?? weekOptions[0];
 
-  const weekSummaries = useMemo(
-    () => days.map((d) => summariseDay(d, log)),
-    [days, log],
-  );
+  const days = useMemo(() => last7Days(selectedWeek.endDate), [selectedWeek.endDate]);
+  const weekSummaries = useMemo(() => days.map((d) => summariseDay(d, log)), [days, log]);
 
   const stats = useMemo(() => computeWeeklyStats(weekSummaries, targets), [weekSummaries, targets]);
   const trackedSummaries = weekSummaries.filter((summary) => summary.entryCount > 0);
@@ -62,27 +51,30 @@ export function Progress({ log, targets }: ProgressProps) {
   const highCarbDays = trackedSummaries.filter((summary) => summary.netCarbsG > targets.netCarbsG).length;
   const lowProteinDays = trackedSummaries.filter((summary) => summary.proteinG < targets.proteinG * 0.75).length;
 
-  const historySummaries = useMemo(() => summariseHistory(log), [log]);
-  const nutrientOptions = useMemo(() => buildNutrientOptions(targets), [targets]);
-  const [nutrientKey, setNutrientKey] = useState<keyof DailyNutritionSummary>('calories');
-  const nutrient = nutrientOptions.find((o) => o.key === nutrientKey) ?? nutrientOptions[0];
-
-  const historyPoints = useMemo(
-    () => nutrientHistoryPoints(historySummaries, nutrient.key),
-    [historySummaries, nutrient.key],
-  );
-  const historyStats = useMemo(() => summariseNutrientHistory(historyPoints), [historyPoints]);
-  const recentFirst = useMemo(() => [...historyPoints].reverse(), [historyPoints]);
-
   return (
     <div className="screen">
       <div className="screen-header">
         <h1>Progress</h1>
-        <span className="screen-sub">This week &amp; all-time history</span>
+        <span className="screen-sub">All-time, by week</span>
       </div>
 
+      {weekOptions.length > 1 && (
+        <div className="form-group">
+          <label htmlFor="week-select">Week</label>
+          <select id="week-select" value={selectedWeek.endDate} onChange={(e) => setWeekEnd(e.target.value)}>
+            {weekOptions.map((w) => (
+              <option key={w.endDate} value={w.endDate}>{w.label}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {stats.daysTracked === 0 ? (
-        <p className="empty-hint">No food logged in the last 7 days. Start logging to see your progress.</p>
+        <p className="empty-hint">
+          {weekOptions.length > 1
+            ? 'No food logged for this week. Try a different week.'
+            : 'No food logged in the last 7 days. Start logging to see your progress.'}
+        </p>
       ) : (
         <>
           <div className="weekly-insight">
@@ -94,7 +86,7 @@ export function Progress({ log, targets }: ProgressProps) {
           </div>
 
           <div className="section-title">
-            Averages this week ({stats.daysTracked} day{stats.daysTracked !== 1 ? 's' : ''} tracked)
+            Averages ({stats.daysTracked} day{stats.daysTracked !== 1 ? 's' : ''} tracked)
           </div>
           <div className="cards-grid cards-grid--4">
             <StatCard label="Avg calories" value={Math.round(stats.avgCalories)} sub="kcal/day" />
@@ -103,7 +95,7 @@ export function Progress({ log, targets }: ProgressProps) {
             <StatCard label="Avg fat" value={`${stats.avgFatG.toFixed(1)}g`} sub="per day" />
           </div>
 
-          <div className="section-title">Targets hit this week</div>
+          <div className="section-title">Targets hit</div>
           <div className="cards-grid">
             <StatCard
               label="Days within calorie target"
@@ -118,7 +110,7 @@ export function Progress({ log, targets }: ProgressProps) {
             />
           </div>
 
-          <div className="section-title">This week</div>
+          <div className="section-title">Day breakdown</div>
           <div className="week-table-wrap">
             <table className="week-table">
               <thead>
@@ -145,63 +137,6 @@ export function Progress({ log, targets }: ProgressProps) {
               </tbody>
             </table>
           </div>
-        </>
-      )}
-
-      <div className="section-title">Nutrient history (all-time)</div>
-
-      {historySummaries.length === 0 ? (
-        <p className="empty-hint">No food logged yet. History builds up as you track days.</p>
-      ) : (
-        <>
-          <div className="form-group">
-            <label htmlFor="nutrient-history-select">Nutrient</label>
-            <select
-              id="nutrient-history-select"
-              value={nutrient.key}
-              onChange={(e) => setNutrientKey(e.target.value as keyof DailyNutritionSummary)}
-            >
-              {nutrientOptions.map((o) => (
-                <option key={o.key} value={o.key}>{o.label}</option>
-              ))}
-            </select>
-          </div>
-
-          {historyStats.daysTracked === 0 ? (
-            <p className="empty-hint">No logged days have {nutrient.label.toLowerCase()} data yet.</p>
-          ) : (
-            <>
-              <div className="cards-grid cards-grid--4">
-                <StatCard
-                  label={`Avg ${nutrient.label.toLowerCase()}`}
-                  value={formatAmount(nutrient, historyStats.average)}
-                  sub={nutrient.target > 0 ? `target ${formatAmount(nutrient, nutrient.target)}` : `${historyStats.daysTracked} days tracked`}
-                />
-                <StatCard label="Best day" value={formatAmount(nutrient, historyStats.min)} sub="lowest logged" />
-                <StatCard label="Highest day" value={formatAmount(nutrient, historyStats.max)} sub="highest logged" />
-                <StatCard label="Days tracked" value={historyStats.daysTracked} sub="all-time" />
-              </div>
-
-              <div className="week-table-wrap">
-                <table className="week-table">
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>{nutrient.label}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recentFirst.map((point) => (
-                      <tr key={point.date}>
-                        <td>{point.date}</td>
-                        <td>{formatAmount(nutrient, point.value)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
         </>
       )}
     </div>
