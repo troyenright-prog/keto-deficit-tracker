@@ -46,9 +46,20 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Bump patch version
+      # Bump type is derived from the commit message(s) since the last release
+      # tag (fix:/chore: -> patch, feat: -> minor, a breaking-change marker ->
+      # major), and patch rolls into a minor bump once it hits the cap - see
+      # scripts/version-bump.mjs - so the version stays meaningful instead of
+      # climbing forever under an unchanging major.minor.
+      - name: Compute next version
+        id: next_version
         run: |
-          npm version patch -m "chore: release v%s [skip ci]"
+          NEXT_VERSION=$(node scripts/version-bump.mjs)
+          echo "Next version: $NEXT_VERSION"
+          echo "version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Bump version
+        run: npm version "${{ steps.next_version.outputs.version }}" -m "chore: release v%s [skip ci]"
 
       # Push the release commit/tag before deploying, so the artifact we deploy
       # always corresponds to a commit that is durably on master. Deploying
