@@ -59,7 +59,8 @@ jobs:
           echo "version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Bump version
-        run: npm version "${{ steps.next_version.outputs.version }}" -m "chore: release v%s [skip ci]"
+        run: |
+          npm version "${{ steps.next_version.outputs.version }}" -m "chore: release v%s [skip ci]"
 
       # Push the release commit/tag before deploying, so the artifact we deploy
       # always corresponds to a commit that is durably on master. Deploying
