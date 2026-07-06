@@ -73,6 +73,7 @@ export const DB_URL = FIREBASE_DB_CONFIGURED ? `${DB_BASE}/ketoDeficitTracker` :
 export const FIREBASE_AUTH_ACTIVE = Boolean(FIREBASE_API_KEY);
 
 const QUEUE_KEY = `keto_sync_queue_${STORAGE_NAMESPACE}`;
+const REFRESH_TOKEN_KEY = `keto_firebase_refresh_token_${STORAGE_NAMESPACE}`;
 
 async function fetchWithTimeout(url: string, options: RequestInit = {}): Promise<Response> {
   const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
@@ -91,6 +92,89 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}): Promise
   }
 }
 
+export interface AuthTokenResult {
+  idToken: string;
+  refreshToken: string;
+  expiresIn: string;
+}
+
+// The identitytoolkit accounts:signUp response — used the first time this
+// device authenticates (no refresh token saved yet).
+export function parseSignUpResponse(data: unknown): AuthTokenResult | null {
+  if (typeof data !== 'object' || data === null) return null;
+  const record = data as { idToken?: unknown; refreshToken?: unknown; expiresIn?: unknown };
+  if (typeof record.idToken !== 'string' || typeof record.refreshToken !== 'string') return null;
+  return { idToken: record.idToken, refreshToken: record.refreshToken, expiresIn: typeof record.expiresIn === 'string' ? record.expiresIn : '3600' };
+}
+
+// The securetoken.googleapis.com refresh-grant response uses snake_case field
+// names that differ from the signUp response above (id_token/refresh_token,
+// not idToken/refreshToken) — this is a distinct Google endpoint, not a typo.
+export function parseRefreshTokenResponse(data: unknown): AuthTokenResult | null {
+  if (typeof data !== 'object' || data === null) return null;
+  const record = data as { id_token?: unknown; refresh_token?: unknown; expires_in?: unknown };
+  if (typeof record.id_token !== 'string' || typeof record.refresh_token !== 'string') return null;
+  return { idToken: record.id_token, refreshToken: record.refresh_token, expiresIn: typeof record.expires_in === 'string' ? record.expires_in : '3600' };
+}
+
+// Every anonymous accounts:signUp call permanently creates a new Firebase Auth
+// user. Without persisting the refresh token, a fresh in-memory cache on every
+// app restart (PWA reload, native cold start, session-storage clear) meant a
+// brand new throwaway account every time — an ever-growing user pool for no
+// benefit, since sync only cares about the token being valid for the DB rules.
+// Persisting it here lets refreshWithToken() reuse the same account instead.
+function loadStoredRefreshToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return localStorage.getItem(REFRESH_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function storeRefreshToken(token: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(REFRESH_TOKEN_KEY, token);
+  } catch {
+    // Best-effort; a lost refresh token just means the next getToken() signs up again.
+  }
+}
+
+async function signUpAnonymous(): Promise<AuthTokenResult> {
+  const response = await fetchWithTimeout(
+    `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE_API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ returnSecureToken: true }),
+    },
+  );
+  if (!response.ok) throw new Error(`Auth signUp failed: ${response.status}`);
+  const result = parseSignUpResponse(await response.json());
+  if (!result) throw new Error('Auth signUp returned an unexpected response.');
+  return result;
+}
+
+// Returns null (rather than throwing) on any failure — an expired/revoked
+// refresh token is an expected case the caller falls back to signUp for.
+async function refreshWithToken(refreshToken: string): Promise<AuthTokenResult | null> {
+  try {
+    const response = await fetchWithTimeout(
+      `https://securetoken.googleapis.com/v1/token?key=${FIREBASE_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: refreshToken }).toString(),
+      },
+    );
+    if (!response.ok) return null;
+    return parseRefreshTokenResponse(await response.json());
+  } catch {
+    return null;
+  }
+}
+
 let cachedToken: string | null = null;
 let tokenExpiry = 0;
 let refreshPromise: Promise<string | null> | null = null;
@@ -102,18 +186,11 @@ async function getToken(): Promise<string | null> {
 
   refreshPromise = (async () => {
     try {
-      const response = await fetchWithTimeout(
-        `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE_API_KEY}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ returnSecureToken: true }),
-        },
-      );
-      if (!response.ok) throw new Error(`Auth signUp failed: ${response.status}`);
-      const data = await response.json() as { idToken?: string; expiresIn?: string };
-      cachedToken = data.idToken || null;
-      tokenExpiry = Date.now() + Number.parseInt(data.expiresIn || '3600', 10) * 1000;
+      const storedRefreshToken = loadStoredRefreshToken();
+      const result = (storedRefreshToken ? await refreshWithToken(storedRefreshToken) : null) ?? await signUpAnonymous();
+      cachedToken = result.idToken;
+      tokenExpiry = Date.now() + Number.parseInt(result.expiresIn, 10) * 1000;
+      storeRefreshToken(result.refreshToken);
       return cachedToken;
     } catch {
       return null;
@@ -273,6 +350,10 @@ export async function saveRemoteAppData(userKey: AppUserKey, bundle: AppStateBun
   }
 }
 
+function isPageHidden(): boolean {
+  return typeof document !== 'undefined' && document.visibilityState === 'hidden';
+}
+
 export function subscribeRemoteAppData(
   userKey: AppUserKey,
   callback: (bundle: AppStateBundle | null) => void,
@@ -281,7 +362,11 @@ export function subscribeRemoteAppData(
   let stopped = false;
   let inFlight = false;
   const poll = async () => {
-    if (stopped || inFlight) return;
+    // Skip while backgrounded: a poll here can't reach the user (there's no UI
+    // to update) and it downloads the whole app-state bundle for nothing. The
+    // visibilitychange listener below runs one immediately on the way back to
+    // the foreground, so this never delays picking up a real remote change.
+    if (stopped || inFlight || isPageHidden()) return;
     inFlight = true;
     try {
       const bundle = await readRemoteAppData(userKey);
@@ -294,9 +379,14 @@ export function subscribeRemoteAppData(
   };
   void poll();
   const id = setInterval(() => { void poll(); }, intervalMs);
+  const onVisibilityChange = () => {
+    if (!isPageHidden()) void poll();
+  };
+  if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisibilityChange);
   return () => {
     stopped = true;
     clearInterval(id);
+    if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisibilityChange);
   };
 }
 

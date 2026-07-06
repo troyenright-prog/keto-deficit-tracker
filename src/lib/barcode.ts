@@ -161,7 +161,7 @@ export function normalizeOpenFoodFactsProduct(value: unknown, barcodeFallback = 
     brand: asText(product.brands),
     servingSize: basis === 'serving' ? servingSize : '100g',
     dataBasis: basis,
-    calories: firstNutrient(nutriments, ['energy-kcal', 'energy-kcal_value'], basis),
+    calories: firstNutrient(nutriments, ['energy-kcal'], basis),
     proteinG: nutrient(nutriments, 'proteins', basis),
     fatG: nutrient(nutriments, 'fat', basis),
     totalCarbsG: nutrient(nutriments, 'carbohydrates', basis),

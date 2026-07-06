@@ -211,6 +211,14 @@ function App() {
   const [nutritionSync, setNutritionSync] = useState<NutritionSyncSettings>(loadNutritionSync);
   const [storageError, setStorageError] = useState('');
   const [syncStatus, setSyncStatus] = useState<SyncStatus>(() => initialSyncStatus(Boolean(initialUser)));
+  // Bumped whenever a bulk reload replaces the in-memory data wholesale (user
+  // switch, backup import, or an incoming remote-sync bundle) - as opposed to a
+  // normal single-field save via `persist`. Settings keeps its own local draft
+  // state for the profile/targets/reminders forms, which would otherwise go
+  // stale (or clobber a just-applied remote/import bundle on next Save) if the
+  // screen stays mounted across one of these bulk reloads. Keying Settings on
+  // this value forces it to remount and reseed its drafts from fresh props.
+  const [dataVersion, setDataVersion] = useState(0);
   const currentUserRef = useRef(currentUser);
   const applyingRemoteRef = useRef(false);
   const remoteStampRef = useRef<string | null>(null);
@@ -258,6 +266,7 @@ function App() {
     mealTemplatesRef.current = data.mealTemplates; recipesRef.current = data.recipes;
     shoppingListRef.current = data.shoppingList; mealPlanRef.current = data.mealPlan; remindersRef.current = data.reminders;
     nutritionSyncRef.current = data.nutritionSync;
+    setDataVersion((v) => v + 1);
   }, []);
 
   const syncNow = useCallback(async () => {
@@ -611,7 +620,7 @@ function App() {
     const days = options.days;
     const requestPermissions = options.requestPermissions ?? true;
     const activityParts: string[] = [];
-    let weightMessage = '';
+    let weightMessage: string;
 
     try {
       if (!(await healthConnectAvailable())) {
@@ -986,6 +995,7 @@ function App() {
         )}
         {screen === 'settings' && (
           <Settings
+            key={dataVersion}
             profile={profile}
             targets={targets}
             reminders={reminders}

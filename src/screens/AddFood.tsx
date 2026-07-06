@@ -132,6 +132,7 @@ export function AddFood({ savedFoods, foodDatabase, log, recipes, templates, onA
         entry.source = 'manual';
       } else if (selected.kind === 'database' && selected.food.barcode) {
         entry.source = 'barcode';
+        entry.barcode = selected.food.barcode;
       }
       entries = [entry];
     }

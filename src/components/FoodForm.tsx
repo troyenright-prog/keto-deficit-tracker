@@ -90,7 +90,11 @@ export function FoodForm({
   const [texts, setTexts] = useState<Record<string, string>>(() => seedTexts({ ...EMPTY, ...initial }));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [selectedSaved, setSelectedSaved] = useState('');
-  const [showMicro, setShowMicro] = useState(false);
+  // null = no explicit user choice yet - defer to whether any micronutrient
+  // already has a value. Once the user clicks the toggle, their choice
+  // (true/false) overrides that default, so "Hide" works even when the food
+  // already carries micronutrient data.
+  const [showMicro, setShowMicro] = useState<boolean | null>(null);
 
   function num(key: keyof FoodFormValues, val: string) {
     setTexts((t) => ({ ...t, [key]: val }));
@@ -163,6 +167,7 @@ export function FoodForm({
 
   const previewNetCarbs = calcNetCarbs(values.totalCarbsG, values.fibreG, values.sugarAlcoholsG);
   const hasMicro = hasAnyMicronutrients(values);
+  const microVisible = showMicro ?? hasMicro;
 
   // The macro/electrolyte/micronutrient fields above are always per-serving;
   // "Servings" scales them at log time. Preview that scaled total live so
@@ -319,12 +324,12 @@ export function FoodForm({
       <button
         type="button"
         className="btn btn--ghost btn--sm micro-toggle"
-        onClick={() => setShowMicro((s) => !s)}
+        onClick={() => setShowMicro(!microVisible)}
       >
-        {showMicro || hasMicro ? 'Hide' : 'Show'} micronutrients
+        {microVisible ? 'Hide' : 'Show'} micronutrients
       </button>
 
-      {(showMicro || hasMicro) && (
+      {microVisible && (
         <>
           <div className="form-section-title">Micronutrients (optional)</div>
           <div className="form-row form-row--wrap">

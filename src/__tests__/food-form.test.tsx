@@ -48,4 +48,17 @@ describe('FoodForm validation', () => {
 
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ name: 'Water', calories: 0 }));
   });
+
+  it('lets "Hide micronutrients" collapse the section even when a micronutrient already has a value', () => {
+    render(<FoodForm onSubmit={vi.fn()} initial={{ calciumMg: 120 }} />);
+
+    // A logged micronutrient auto-expands the section without an explicit click.
+    expect(screen.getByLabelText('Calcium (mg)')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hide micronutrients' }));
+    expect(screen.queryByLabelText('Calcium (mg)')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show micronutrients' }));
+    expect(screen.getByLabelText('Calcium (mg)')).toBeTruthy();
+  });
 });

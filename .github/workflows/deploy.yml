@@ -28,6 +28,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Lint
+        run: npm run lint
+
       - name: Run tests
         run: npm test
 
@@ -47,6 +50,13 @@ jobs:
         run: |
           npm version patch -m "chore: release v%s [skip ci]"
 
+      # Push the release commit/tag before deploying, so the artifact we deploy
+      # always corresponds to a commit that is durably on master. Deploying
+      # first (the previous order) could leave production running code whose
+      # commit never made it to the remote if the push step failed afterwards.
+      - name: Push version tag
+        run: git push --follow-tags
+
       - name: Build
         run: npm run build
 
@@ -56,6 +66,3 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy dist --project-name keto-deficit-tracker --commit-dirty=true
-
-      - name: Push version tag
-        run: git push --follow-tags

@@ -1,4 +1,4 @@
-import { normalizeOpenFoodFactsProduct, type BarcodeFood } from '../../src/lib/barcode';
+import { hasPositiveNutrition, normalizeOpenFoodFactsProduct, type BarcodeFood } from '../../src/lib/barcode';
 
 type Env = {
   OPEN_FOOD_FACTS_USER_AGENT?: string;
@@ -90,9 +90,10 @@ async function searchOpenFoodFacts(query: string, env: Env, fetcher: typeof fetc
   const seen = new Set<string>();
   for (const product of products) {
     const food = normalizeOpenFoodFactsProduct(coerceProduct(product));
-    // Skip entries with no barcode/name or no usable calories — those add noise
-    // and cannot be logged meaningfully.
-    if (!food || !(food.calories > 0) || seen.has(food.barcode)) continue;
+    // Skip entries with no barcode/name or no usable nutrition (macros or
+    // micros/electrolytes) — those add noise and cannot be logged meaningfully.
+    // Zero-calorie supplements/electrolytes are still real, loggable foods.
+    if (!food || !hasPositiveNutrition(food) || seen.has(food.barcode)) continue;
     seen.add(food.barcode);
     results.push({ ...food, attribution: 'Open Food Facts', attributionUrl: 'https://world.openfoodfacts.org' });
     if (results.length >= MAX_RESULTS) break;

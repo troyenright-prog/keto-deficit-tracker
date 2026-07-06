@@ -200,7 +200,9 @@ export function Dashboard({ summary, entries, activity, targets, recommendations
         <StatCard
           label="Net carbs"
           value={`${summary.netCarbsG.toFixed(1)}g`}
-          sub={`${Math.max(0, targets.netCarbsG - summary.netCarbsG).toFixed(1)}g left`}
+          sub={summary.netCarbsG > targets.netCarbsG
+            ? `${(summary.netCarbsG - targets.netCarbsG).toFixed(1)}g over`
+            : `${(targets.netCarbsG - summary.netCarbsG).toFixed(1)}g left`}
           variant={carbVariant}
         />
         <StatCard
