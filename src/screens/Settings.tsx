@@ -400,7 +400,7 @@ export function Settings({
         <h1>Settings</h1>
       </div>
 
-      <form onSubmit={handleSave} className="profile-form">
+      <form id="settings-form" onSubmit={handleSave} className="profile-form">
         <details className="settings-section">
           <summary>Profile</summary>
           <div className="settings-section-body">
@@ -643,12 +643,6 @@ export function Settings({
             </div>
           </div>
         </details>
-
-        <div className="form-actions">
-          <button type="submit" className="btn btn--primary">Save settings</button>
-          {saved && <span className="success-inline">Saved!</span>}
-        </div>
-        {validationError && <p className="form-error" role="alert">{validationError}</p>}
       </form>
 
       <details className="settings-section">
@@ -784,6 +778,12 @@ export function Settings({
           </div>
         </div>
       </details>
+
+      <div className="form-actions">
+        <button type="submit" form="settings-form" className="btn btn--primary">Save settings</button>
+        {saved && <span className="success-inline">Saved!</span>}
+      </div>
+      {validationError && <p className="form-error" role="alert">{validationError}</p>}
     </div>
   );
 }
