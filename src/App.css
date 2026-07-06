@@ -2042,6 +2042,32 @@ input:disabled {
 .manual-entry summary { cursor: pointer; color: var(--blue); font-weight: 600; padding: 8px 0; }
 .manual-entry .food-form { padding-top: 10px; }
 
+.settings-section { border-top: 1px solid var(--gray-200); }
+.settings-section > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--gray-500);
+  margin: 0;
+  padding: 14px 0;
+}
+.settings-section > summary::-webkit-details-marker { display: none; }
+.settings-section > summary::after {
+  content: '▸';
+  font-size: 10px;
+  color: var(--gray-400);
+  transition: transform 0.15s ease;
+}
+.settings-section[open] > summary::after { transform: rotate(90deg); }
+.settings-section-body { padding-bottom: 16px; }
+
 .meal-type-badge {
   align-self: flex-start;
   padding: 1px 6px;

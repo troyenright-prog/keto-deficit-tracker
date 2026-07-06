@@ -401,229 +401,248 @@ export function Settings({
       </div>
 
       <form onSubmit={handleSave} className="profile-form">
-        <div className="section-title">Profile</div>
+        <details className="settings-section">
+          <summary>Profile</summary>
+          <div className="settings-section-body">
+            <div className="form-group">
+              <label htmlFor="profile-name">Your name</label>
+              <input
+                id="profile-name"
+                type="text"
+                value={prof.name}
+                onChange={(e) => setProf((p) => ({ ...p, name: e.target.value }))}
+                placeholder="Optional"
+              />
+            </div>
 
-        <div className="form-group">
-          <label htmlFor="profile-name">Your name</label>
-          <input
-            id="profile-name"
-            type="text"
-            value={prof.name}
-            onChange={(e) => setProf((p) => ({ ...p, name: e.target.value }))}
-            placeholder="Optional"
-          />
-        </div>
+            <div className="form-group">
+              <label htmlFor="weight-unit">Weight unit</label>
+              <select
+                id="weight-unit"
+                value={prof.weightUnit}
+                onChange={(e) => setProf((p) => ({ ...p, weightUnit: e.target.value as 'kg' | 'lbs' }))}
+              >
+                <option value="kg">kg</option>
+                <option value="lbs">lbs</option>
+              </select>
+            </div>
 
-        <div className="form-group">
-          <label htmlFor="weight-unit">Weight unit</label>
-          <select
-            id="weight-unit"
-            value={prof.weightUnit}
-            onChange={(e) => setProf((p) => ({ ...p, weightUnit: e.target.value as 'kg' | 'lbs' }))}
-          >
-            <option value="kg">kg</option>
-            <option value="lbs">lbs</option>
-          </select>
-        </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label htmlFor="profile-age">Age</label>
+                <input
+                  id="profile-age"
+                  type="number"
+                  min="1"
+                  max="120"
+                  placeholder="e.g. 35"
+                  value={ageText}
+                  onChange={(e) => handleAgeChange(e.target.value)}
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="profile-sex">Sex</label>
+                <select
+                  id="profile-sex"
+                  value={prof.sex ?? ''}
+                  onChange={(e) => setProf((p) => ({ ...p, sex: e.target.value === '' ? undefined : (e.target.value as 'male' | 'female') }))}
+                >
+                  <option value="">Select...</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                </select>
+              </div>
+            </div>
+            <p className="empty-hint" style={{ marginTop: 0 }}>
+              Age and sex are used to suggest recommended vitamin and mineral targets, and (with height, below) to estimate TDEE — they're not required otherwise.
+            </p>
 
-        <div className="form-row">
-          <div className="form-group">
-            <label htmlFor="profile-age">Age</label>
-            <input
-              id="profile-age"
-              type="number"
-              min="1"
-              max="120"
-              placeholder="e.g. 35"
-              value={ageText}
-              onChange={(e) => handleAgeChange(e.target.value)}
-            />
+            <div className="form-row">
+              <div className="form-group">
+                <label htmlFor="profile-height">Height (cm)</label>
+                <input
+                  id="profile-height"
+                  type="number"
+                  min="120"
+                  max="230"
+                  placeholder="e.g. 175"
+                  value={heightText}
+                  onChange={(e) => handleHeightChange(e.target.value)}
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="profile-activity">Activity level</label>
+                <select
+                  id="profile-activity"
+                  value={prof.activityLevel ?? 'moderate'}
+                  onChange={(e) => handleActivityLevelChange(e.target.value as ActivityLevel)}
+                >
+                  {ACTIVITY_LEVELS.map((level) => (
+                    <option key={level} value={level}>{ACTIVITY_LEVEL_LABELS[level]}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </div>
-          <div className="form-group">
-            <label htmlFor="profile-sex">Sex</label>
-            <select
-              id="profile-sex"
-              value={prof.sex ?? ''}
-              onChange={(e) => setProf((p) => ({ ...p, sex: e.target.value === '' ? undefined : (e.target.value as 'male' | 'female') }))}
-            >
-              <option value="">Select...</option>
-              <option value="male">Male</option>
-              <option value="female">Female</option>
-            </select>
-          </div>
-        </div>
-        <p className="empty-hint" style={{ marginTop: 0 }}>
-          Age and sex are used to suggest recommended vitamin and mineral targets, and (with height, below) to estimate TDEE — they're not required otherwise.
-        </p>
+        </details>
 
-        <div className="form-row">
-          <div className="form-group">
-            <label htmlFor="profile-height">Height (cm)</label>
-            <input
-              id="profile-height"
-              type="number"
-              min="120"
-              max="230"
-              placeholder="e.g. 175"
-              value={heightText}
-              onChange={(e) => handleHeightChange(e.target.value)}
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="profile-activity">Activity level</label>
-            <select
-              id="profile-activity"
-              value={prof.activityLevel ?? 'moderate'}
-              onChange={(e) => handleActivityLevelChange(e.target.value as ActivityLevel)}
-            >
-              {ACTIVITY_LEVELS.map((level) => (
-                <option key={level} value={level}>{ACTIVITY_LEVEL_LABELS[level]}</option>
+        <details className="settings-section">
+          <summary>Diet mode</summary>
+          <div className="settings-section-body">
+            <div className="diet-mode-group">
+              {(['strict-keto', 'lazy-keto', 'high-protein-keto'] as const).map((mode) => (
+                <label key={mode} className={`diet-mode-option${tgts.dietMode === mode ? ' diet-mode-option--selected' : ''}`}>
+                  <input
+                    type="radio"
+                    name="diet-mode"
+                    value={mode}
+                    checked={tgts.dietMode === mode}
+                    onChange={() => handleDietMode(mode)}
+                  />
+                  <span className="diet-mode-label">
+                    {mode === 'strict-keto' && 'Strict keto (<=20g)'}
+                    {mode === 'lazy-keto' && 'Lazy keto (<=50g)'}
+                    {mode === 'high-protein-keto' && 'High-protein keto (<=30g)'}
+                  </span>
+                </label>
               ))}
-            </select>
-          </div>
-        </div>
-
-        <div className="section-title">Diet mode</div>
-
-        <div className="diet-mode-group">
-          {(['strict-keto', 'lazy-keto', 'high-protein-keto'] as const).map((mode) => (
-            <label key={mode} className={`diet-mode-option${tgts.dietMode === mode ? ' diet-mode-option--selected' : ''}`}>
-              <input
-                type="radio"
-                name="diet-mode"
-                value={mode}
-                checked={tgts.dietMode === mode}
-                onChange={() => handleDietMode(mode)}
-              />
-              <span className="diet-mode-label">
-                {mode === 'strict-keto' && 'Strict keto (<=20g)'}
-                {mode === 'lazy-keto' && 'Lazy keto (<=50g)'}
-                {mode === 'high-protein-keto' && 'High-protein keto (<=30g)'}
-              </span>
-            </label>
-          ))}
-        </div>
-
-        <div className="section-title">Nutrition calculator</div>
-        <p className="empty-hint" style={{ marginTop: 0 }}>
-          Estimates TDEE (Katch-McArdle from your latest logged weight + body fat, or Mifflin-St Jeor from height/age/sex if no body fat is logged) and solves calories, protein, and fat around your net-carb ceiling above.
-        </p>
-        <div className="form-row">
-          <div className="form-group">
-            <label htmlFor="t-protein-per-kg">Protein target (g/kg)</label>
-            <input
-              id="t-protein-per-kg"
-              type="number"
-              min="1.2"
-              max="3.5"
-              step="0.1"
-              value={proteinPerKgText}
-              onChange={(e) => handleProteinPerKgChange(e.target.value)}
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="t-deficit-percent">Deficit % (negative = surplus)</label>
-            <input
-              id="t-deficit-percent"
-              type="number"
-              min="-20"
-              max="40"
-              step="1"
-              value={deficitPercentText}
-              onChange={(e) => handleDeficitPercentChange(e.target.value)}
-            />
-          </div>
-        </div>
-        <div className="form-actions" style={{ marginTop: 0, marginBottom: 8 }}>
-          <button type="button" className="btn btn--secondary btn--sm" onClick={handleRecalculateMacros}>
-            Recalculate macros from TDEE
-          </button>
-        </div>
-        {tdeeMsg && <p className="empty-hint" style={{ marginTop: 0 }}>{tdeeMsg}</p>}
-
-        <div className="section-title">Daily targets</div>
-
-        <div className="form-row">
-          <div className="form-group">
-            <label htmlFor="t-calories">Calories (kcal)</label>
-            <input id="t-calories" type="number" min="0" placeholder="0" value={targetTexts.calories} onChange={(e) => numTarget('calories', e.target.value)} />
-          </div>
-          <div className="form-group">
-            <label htmlFor="t-protein">Protein (g)</label>
-            <input id="t-protein" type="number" min="0" step="0.1" placeholder="0" value={targetTexts.proteinG} onChange={(e) => numTarget('proteinG', e.target.value)} />
-          </div>
-        </div>
-
-        <div className="form-row">
-          <div className="form-group">
-            <label htmlFor="t-fat">Fat (g)</label>
-            <input id="t-fat" type="number" min="0" step="0.1" placeholder="0" value={targetTexts.fatG} onChange={(e) => numTarget('fatG', e.target.value)} />
-          </div>
-          <div className="form-group">
-            <div className="form-group-header">
-              <label htmlFor="t-net-carbs">Net carbs (g)</label>
-              <label className="checkbox-label">
-                <input type="checkbox" checked={tgts.manualNetCarbs} onChange={handleManualNetCarbs} />
-                Override
-              </label>
             </div>
-            <input
-              id="t-net-carbs"
-              type="number"
-              min="0"
-              step="0.1"
-              placeholder="0"
-              value={targetTexts.netCarbsG}
-              disabled={!tgts.manualNetCarbs}
-              onChange={(e) => numTarget('netCarbsG', e.target.value)}
-            />
           </div>
-        </div>
+        </details>
 
-        <div className="section-title">Electrolyte targets</div>
-
-        <div className="form-row">
-          <div className="form-group">
-            <label htmlFor="t-sodium">Sodium (mg)</label>
-            <input id="t-sodium" type="number" min="0" placeholder="0" value={targetTexts.sodiumMg} onChange={(e) => numTarget('sodiumMg', e.target.value)} />
-          </div>
-          <div className="form-group">
-            <label htmlFor="t-potassium">Potassium (mg)</label>
-            <input id="t-potassium" type="number" min="0" placeholder="0" value={targetTexts.potassiumMg} onChange={(e) => numTarget('potassiumMg', e.target.value)} />
-          </div>
-        </div>
-        <div className="form-row">
-          <div className="form-group">
-            <label htmlFor="t-magnesium">Magnesium (mg)</label>
-            <input id="t-magnesium" type="number" min="0" placeholder="0" value={targetTexts.magnesiumMg} onChange={(e) => numTarget('magnesiumMg', e.target.value)} />
-          </div>
-        </div>
-
-        <div className="section-title">Micronutrient &amp; vitamin targets</div>
-
-        <div className="form-actions" style={{ marginTop: 0, marginBottom: 8 }}>
-          <button type="button" className="btn btn--secondary btn--sm" onClick={handleFillRda}>
-            Fill recommended amounts (RDA)
-          </button>
-        </div>
-        {rdaMsg && <p className="empty-hint" style={{ marginTop: 0 }}>{rdaMsg}</p>}
-
-        <div className="form-row form-row--wrap">
-          {MICRONUTRIENT_FIELDS.map((field) => (
-            <div className="form-group" key={field.key}>
-              <label htmlFor={`t-${field.key}`}>{field.label} ({field.unit})</label>
-              <input
-                id={`t-${field.key}`}
-                type="number"
-                min="0"
-                step={field.unit === 'g' ? '0.01' : '0.1'}
-                placeholder="0"
-                value={targetTexts[field.key] ?? ''}
-                onChange={(e) => numTarget(field.key, e.target.value)}
-              />
+        <details className="settings-section">
+          <summary>Nutrition calculator</summary>
+          <div className="settings-section-body">
+            <p className="empty-hint" style={{ marginTop: 0 }}>
+              Estimates TDEE (Katch-McArdle from your latest logged weight + body fat, or Mifflin-St Jeor from height/age/sex if no body fat is logged) and solves calories, protein, and fat around your net-carb ceiling above.
+            </p>
+            <div className="form-row">
+              <div className="form-group">
+                <label htmlFor="t-protein-per-kg">Protein target (g/kg)</label>
+                <input
+                  id="t-protein-per-kg"
+                  type="number"
+                  min="1.2"
+                  max="3.5"
+                  step="0.1"
+                  value={proteinPerKgText}
+                  onChange={(e) => handleProteinPerKgChange(e.target.value)}
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="t-deficit-percent">Deficit % (negative = surplus)</label>
+                <input
+                  id="t-deficit-percent"
+                  type="number"
+                  min="-20"
+                  max="40"
+                  step="1"
+                  value={deficitPercentText}
+                  onChange={(e) => handleDeficitPercentChange(e.target.value)}
+                />
+              </div>
             </div>
-          ))}
-        </div>
+            <div className="form-actions" style={{ marginTop: 0, marginBottom: 8 }}>
+              <button type="button" className="btn btn--secondary btn--sm" onClick={handleRecalculateMacros}>
+                Recalculate macros from TDEE
+              </button>
+            </div>
+            {tdeeMsg && <p className="empty-hint" style={{ marginTop: 0 }}>{tdeeMsg}</p>}
+          </div>
+        </details>
+
+        <details className="settings-section">
+          <summary>Daily targets</summary>
+          <div className="settings-section-body">
+            <div className="form-row">
+              <div className="form-group">
+                <label htmlFor="t-calories">Calories (kcal)</label>
+                <input id="t-calories" type="number" min="0" placeholder="0" value={targetTexts.calories} onChange={(e) => numTarget('calories', e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label htmlFor="t-protein">Protein (g)</label>
+                <input id="t-protein" type="number" min="0" step="0.1" placeholder="0" value={targetTexts.proteinG} onChange={(e) => numTarget('proteinG', e.target.value)} />
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label htmlFor="t-fat">Fat (g)</label>
+                <input id="t-fat" type="number" min="0" step="0.1" placeholder="0" value={targetTexts.fatG} onChange={(e) => numTarget('fatG', e.target.value)} />
+              </div>
+              <div className="form-group">
+                <div className="form-group-header">
+                  <label htmlFor="t-net-carbs">Net carbs (g)</label>
+                  <label className="checkbox-label">
+                    <input type="checkbox" checked={tgts.manualNetCarbs} onChange={handleManualNetCarbs} />
+                    Override
+                  </label>
+                </div>
+                <input
+                  id="t-net-carbs"
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  placeholder="0"
+                  value={targetTexts.netCarbsG}
+                  disabled={!tgts.manualNetCarbs}
+                  onChange={(e) => numTarget('netCarbsG', e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <details className="settings-section">
+          <summary>Electrolyte targets</summary>
+          <div className="settings-section-body">
+            <div className="form-row">
+              <div className="form-group">
+                <label htmlFor="t-sodium">Sodium (mg)</label>
+                <input id="t-sodium" type="number" min="0" placeholder="0" value={targetTexts.sodiumMg} onChange={(e) => numTarget('sodiumMg', e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label htmlFor="t-potassium">Potassium (mg)</label>
+                <input id="t-potassium" type="number" min="0" placeholder="0" value={targetTexts.potassiumMg} onChange={(e) => numTarget('potassiumMg', e.target.value)} />
+              </div>
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label htmlFor="t-magnesium">Magnesium (mg)</label>
+                <input id="t-magnesium" type="number" min="0" placeholder="0" value={targetTexts.magnesiumMg} onChange={(e) => numTarget('magnesiumMg', e.target.value)} />
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <details className="settings-section">
+          <summary>Micronutrient &amp; vitamin targets</summary>
+          <div className="settings-section-body">
+            <div className="form-actions" style={{ marginTop: 0, marginBottom: 8 }}>
+              <button type="button" className="btn btn--secondary btn--sm" onClick={handleFillRda}>
+                Fill recommended amounts (RDA)
+              </button>
+            </div>
+            {rdaMsg && <p className="empty-hint" style={{ marginTop: 0 }}>{rdaMsg}</p>}
+
+            <div className="form-row form-row--wrap">
+              {MICRONUTRIENT_FIELDS.map((field) => (
+                <div className="form-group" key={field.key}>
+                  <label htmlFor={`t-${field.key}`}>{field.label} ({field.unit})</label>
+                  <input
+                    id={`t-${field.key}`}
+                    type="number"
+                    min="0"
+                    step={field.unit === 'g' ? '0.01' : '0.1'}
+                    placeholder="0"
+                    value={targetTexts[field.key] ?? ''}
+                    onChange={(e) => numTarget(field.key, e.target.value)}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        </details>
 
         <div className="form-actions">
           <button type="submit" className="btn btn--primary">Save settings</button>
@@ -632,117 +651,139 @@ export function Settings({
         {validationError && <p className="form-error" role="alert">{validationError}</p>}
       </form>
 
-      <div className="section-title">Native reminders</div>
-      <div className="reminder-grid">
-        {renderReminder('mealLogging', 'Meal logging', rem.mealLogging)}
-        {renderReminder('weighIn', 'Weigh-in', rem.weighIn)}
-        {renderReminder('electrolytes', 'Electrolytes', rem.electrolytes)}
-        {renderReminder('shopping', 'Shopping list', rem.shopping)}
-      </div>
-      <div className="form-actions">
-        <button type="button" className="btn btn--primary" onClick={() => void handleSaveReminders()}>
-          Save reminders
-        </button>
-        <button type="button" className="btn btn--secondary" onClick={() => void handleTestReminder()}>
-          Send test notification
-        </button>
-      </div>
-      {reminderMsg && (
-        <p className={`import-msg import-msg--${reminderMsg.type}`}>{reminderMsg.text}</p>
-      )}
+      <details className="settings-section">
+        <summary>Native reminders</summary>
+        <div className="settings-section-body">
+          <div className="reminder-grid">
+            {renderReminder('mealLogging', 'Meal logging', rem.mealLogging)}
+            {renderReminder('weighIn', 'Weigh-in', rem.weighIn)}
+            {renderReminder('electrolytes', 'Electrolytes', rem.electrolytes)}
+            {renderReminder('shopping', 'Shopping list', rem.shopping)}
+          </div>
+          <div className="form-actions">
+            <button type="button" className="btn btn--primary" onClick={() => void handleSaveReminders()}>
+              Save reminders
+            </button>
+            <button type="button" className="btn btn--secondary" onClick={() => void handleTestReminder()}>
+              Send test notification
+            </button>
+          </div>
+          {reminderMsg && (
+            <p className={`import-msg import-msg--${reminderMsg.type}`}>{reminderMsg.text}</p>
+          )}
+        </div>
+      </details>
 
-      <div className="section-title">Meal templates</div>
-      <Meals
-        embedded
-        templates={templates}
-        savedFoods={savedFoods}
-        onSave={onSaveTemplate}
-        onDelete={onDeleteTemplate}
-        onAddToLog={onAddTemplateToLog}
-      />
+      <details className="settings-section">
+        <summary>Meal templates</summary>
+        <div className="settings-section-body">
+          <Meals
+            embedded
+            templates={templates}
+            savedFoods={savedFoods}
+            onSave={onSaveTemplate}
+            onDelete={onDeleteTemplate}
+            onAddToLog={onAddTemplateToLog}
+          />
+        </div>
+      </details>
 
-      <div className="section-title">Saved foods</div>
-      <SavedFoods
-        embedded
-        foods={savedFoods}
-        onSave={onSaveFood}
-        onDelete={onDeleteSavedFood}
-        onAddToLog={onAddSavedFoodToLog}
-      />
+      <details className="settings-section">
+        <summary>Saved foods</summary>
+        <div className="settings-section-body">
+          <SavedFoods
+            embedded
+            foods={savedFoods}
+            onSave={onSaveFood}
+            onDelete={onDeleteSavedFood}
+            onAddToLog={onAddSavedFoodToLog}
+          />
+        </div>
+      </details>
 
       {nutritionSyncSupported && (
-        <>
-          <div className="section-title">Share nutrition with Health Connect</div>
-          <label className="checkbox-label">
-            <input
-              type="checkbox"
-              checked={nutritionSyncEnabled}
-              onChange={(event) => onToggleNutritionSync(event.target.checked)}
-            />
-            Push logged meals to Health Connect
-          </label>
+        <details className="settings-section">
+          <summary>Share nutrition with Health Connect</summary>
+          <div className="settings-section-body">
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={nutritionSyncEnabled}
+                onChange={(event) => onToggleNutritionSync(event.target.checked)}
+              />
+              Push logged meals to Health Connect
+            </label>
+            <p className="empty-hint" style={{ marginTop: 0 }}>
+              Lets other Health Connect apps (like RepIQ) read your macros. "Sync Garmin" on the Garmin
+              screen does this automatically too - use this button for a one-off push. Each meal is
+              written once when logged; editing or deleting an entry afterwards won't change what was
+              already sent.
+            </p>
+            <button type="button" className="btn btn--secondary btn--sm" onClick={runNutritionPush} disabled={pushingNutrition}>
+              {pushingNutrition ? 'Pushing…' : 'Push now'}
+            </button>
+            {nutritionPushMessage && <p className="sync-status-line" role="status">{nutritionPushMessage}</p>}
+            {!nutritionPushMessage && nutritionSyncLastAt && (
+              <p className="sync-status-line">Last pushed {new Date(nutritionSyncLastAt).toLocaleString()}</p>
+            )}
+            <p className="empty-hint" style={{ marginTop: '12px' }}>
+              If you deleted today's Nutrition records directly in Health Connect (e.g. to remove a
+              mis-dated duplicate) and they're now missing there, use this to re-send today's entries -
+              this app otherwise thinks they're already synced and won't push them again on its own.
+            </p>
+            <button
+              type="button"
+              className="btn btn--secondary btn--sm"
+              onClick={runForceResyncNutritionToday}
+              disabled={resyncingNutritionToday}
+            >
+              {resyncingNutritionToday ? 'Resyncing…' : "Force resync today's nutrition"}
+            </button>
+            {nutritionResyncMessage && <p className="sync-status-line" role="status">{nutritionResyncMessage}</p>}
+          </div>
+        </details>
+      )}
+
+      <details className="settings-section">
+        <summary>Backup &amp; Restore</summary>
+        <div className="settings-section-body">
           <p className="empty-hint" style={{ marginTop: 0 }}>
-            Lets other Health Connect apps (like RepIQ) read your macros. "Sync Garmin" on the Garmin
-            screen does this automatically too - use this button for a one-off push. Each meal is
-            written once when logged; editing or deleting an entry afterwards won't change what was
-            already sent.
+            Export your data as a JSON file or import a previous backup. Importing replaces all current data.
           </p>
-          <button type="button" className="btn btn--secondary btn--sm" onClick={runNutritionPush} disabled={pushingNutrition}>
-            {pushingNutrition ? 'Pushing…' : 'Push now'}
-          </button>
-          {nutritionPushMessage && <p className="sync-status-line" role="status">{nutritionPushMessage}</p>}
-          {!nutritionPushMessage && nutritionSyncLastAt && (
-            <p className="sync-status-line">Last pushed {new Date(nutritionSyncLastAt).toLocaleString()}</p>
+          <div className="backup-actions">
+            <button className="btn btn--secondary" onClick={handleExport}>Export backup</button>
+            <label className="btn btn--ghost">
+              Import backup
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".json,application/json"
+                style={{ display: 'none' }}
+                onChange={handleImport}
+              />
+            </label>
+          </div>
+          {importMsg && (
+            <p className={`import-msg import-msg--${importMsg.type}`}>{importMsg.text}</p>
           )}
-          <p className="empty-hint" style={{ marginTop: '12px' }}>
-            If you deleted today's Nutrition records directly in Health Connect (e.g. to remove a
-            mis-dated duplicate) and they're now missing there, use this to re-send today's entries -
-            this app otherwise thinks they're already synced and won't push them again on its own.
-          </p>
-          <button
-            type="button"
-            className="btn btn--secondary btn--sm"
-            onClick={runForceResyncNutritionToday}
-            disabled={resyncingNutritionToday}
-          >
-            {resyncingNutritionToday ? 'Resyncing…' : "Force resync today's nutrition"}
-          </button>
-          {nutritionResyncMessage && <p className="sync-status-line" role="status">{nutritionResyncMessage}</p>}
-        </>
-      )}
-
-      <div className="section-title">Backup &amp; Restore</div>
-      <p className="empty-hint" style={{ marginTop: 0 }}>
-        Export your data as a JSON file or import a previous backup. Importing replaces all current data.
-      </p>
-      <div className="backup-actions">
-        <button className="btn btn--secondary" onClick={handleExport}>Export backup</button>
-        <label className="btn btn--ghost">
-          Import backup
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".json,application/json"
-            style={{ display: 'none' }}
-            onChange={handleImport}
-          />
-        </label>
-      </div>
-      {importMsg && (
-        <p className={`import-msg import-msg--${importMsg.type}`}>{importMsg.text}</p>
-      )}
-
-      <div className="section-title">App version</div>
-      <div className="app-version-panel">
-        <div>
-          <strong>Version {APP_VERSION}</strong>
-          <span>Built {formatBuildDate()}</span>
         </div>
-        <p>Feature releases advance the minor version. Improvements and bug fixes advance the patch version. Installed apps check for updates on launch and when reopened.</p>
-        <button className="btn btn--secondary btn--sm" onClick={() => void hardRefreshApp()}>
-          Hard refresh app
-        </button>
-      </div>
+      </details>
+
+      <details className="settings-section">
+        <summary>App version</summary>
+        <div className="settings-section-body">
+          <div className="app-version-panel">
+            <div>
+              <strong>Version {APP_VERSION}</strong>
+              <span>Built {formatBuildDate()}</span>
+            </div>
+            <p>Feature releases advance the minor version. Improvements and bug fixes advance the patch version. Installed apps check for updates on launch and when reopened.</p>
+            <button className="btn btn--secondary btn--sm" onClick={() => void hardRefreshApp()}>
+              Hard refresh app
+            </button>
+          </div>
+        </div>
+      </details>
     </div>
   );
 }

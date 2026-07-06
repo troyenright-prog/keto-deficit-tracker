@@ -41,6 +41,25 @@ function renderSettings(overrides: Partial<NutritionTargets> = {}, onSaveTargets
   return { onSaveTargets };
 }
 
+describe('Settings collapsible sections', () => {
+  it('renders every settings section closed by default, expandable on click', () => {
+    renderSettings();
+    const dailyTargets = screen.getByText('Daily targets').closest('details');
+    expect(dailyTargets).not.toBeNull();
+    expect(dailyTargets?.hasAttribute('open')).toBe(false);
+
+    fireEvent.click(screen.getByText('Daily targets'));
+    expect(dailyTargets?.hasAttribute('open')).toBe(true);
+  });
+
+  it('keeps every top-level section collapsed on first render', () => {
+    renderSettings();
+    const allSections = document.querySelectorAll('details.settings-section');
+    expect(allSections.length).toBeGreaterThan(5);
+    allSections.forEach((section) => expect(section.hasAttribute('open')).toBe(false));
+  });
+});
+
 describe('Settings numeric input UX', () => {
   it('renders a zero micronutrient target as an empty field, not a literal 0', () => {
     // iodineMcg defaults to 0 in DEFAULT_TARGETS.
