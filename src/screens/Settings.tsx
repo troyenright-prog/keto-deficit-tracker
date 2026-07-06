@@ -50,6 +50,11 @@ interface SettingsProps {
   nutritionSyncLastAt: string;
   onToggleNutritionSync: (enabled: boolean) => void;
   onSyncNutritionToHealthConnect: () => Promise<string>;
+  // Recovery action: if today's records were removed directly in Health
+  // Connect (e.g. cleaning up a mis-dated duplicate), this app would
+  // otherwise never re-send them, since each entry is only ever pushed once.
+  // Clears today's entries from the synced-ids list, then re-pushes.
+  onForceResyncNutritionToday: () => Promise<string>;
 }
 
 const WEEKDAYS = [
@@ -90,6 +95,7 @@ export function Settings({
   nutritionSyncLastAt,
   onToggleNutritionSync,
   onSyncNutritionToHealthConnect,
+  onForceResyncNutritionToday,
 }: SettingsProps) {
   const [prof, setProf] = useState<UserProfile>(profile);
   const [ageText, setAgeText] = useState<string>(profile.age ? String(profile.age) : '');
@@ -107,6 +113,8 @@ export function Settings({
   const [reminderMsg, setReminderMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [pushingNutrition, setPushingNutrition] = useState(false);
   const [nutritionPushMessage, setNutritionPushMessage] = useState('');
+  const [resyncingNutritionToday, setResyncingNutritionToday] = useState(false);
+  const [nutritionResyncMessage, setNutritionResyncMessage] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function runNutritionPush() {
@@ -119,6 +127,19 @@ export function Settings({
       setNutritionPushMessage(err instanceof Error ? err.message : 'Could not push nutrition to Health Connect.');
     } finally {
       setPushingNutrition(false);
+    }
+  }
+
+  async function runForceResyncNutritionToday() {
+    if (resyncingNutritionToday) return;
+    setResyncingNutritionToday(true);
+    setNutritionResyncMessage('');
+    try {
+      setNutritionResyncMessage(await onForceResyncNutritionToday());
+    } catch (err) {
+      setNutritionResyncMessage(err instanceof Error ? err.message : 'Could not resync nutrition to Health Connect.');
+    } finally {
+      setResyncingNutritionToday(false);
     }
   }
 
@@ -673,6 +694,20 @@ export function Settings({
           {!nutritionPushMessage && nutritionSyncLastAt && (
             <p className="sync-status-line">Last pushed {new Date(nutritionSyncLastAt).toLocaleString()}</p>
           )}
+          <p className="empty-hint" style={{ marginTop: '12px' }}>
+            If you deleted today's Nutrition records directly in Health Connect (e.g. to remove a
+            mis-dated duplicate) and they're now missing there, use this to re-send today's entries -
+            this app otherwise thinks they're already synced and won't push them again on its own.
+          </p>
+          <button
+            type="button"
+            className="btn btn--secondary btn--sm"
+            onClick={runForceResyncNutritionToday}
+            disabled={resyncingNutritionToday}
+          >
+            {resyncingNutritionToday ? 'Resyncing…' : "Force resync today's nutrition"}
+          </button>
+          {nutritionResyncMessage && <p className="sync-status-line" role="status">{nutritionResyncMessage}</p>}
         </>
       )}
 

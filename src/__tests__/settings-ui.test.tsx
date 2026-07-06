@@ -35,6 +35,7 @@ function renderSettings(overrides: Partial<NutritionTargets> = {}, onSaveTargets
       nutritionSyncLastAt=""
       onToggleNutritionSync={vi.fn()}
       onSyncNutritionToHealthConnect={vi.fn(async () => '')}
+      onForceResyncNutritionToday={vi.fn(async () => '')}
     />,
   );
   return { onSaveTargets };

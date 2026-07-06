@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_NUTRITION_SYNC_SETTINGS,
   NUTRITION_PUSH_INTERVAL_MS,
+  clearSyncedEntryIdsForDate,
   normalizeNutritionSyncSettings,
   pruneAndRecordSyncedIds,
   selectEntriesToPush,
@@ -135,6 +136,28 @@ describe('pruneAndRecordSyncedIds', () => {
     const foodLog = [makeEntry({ id: 'still-here' }), makeEntry({ id: 'pushed-now' })];
     const result = pruneAndRecordSyncedIds(['still-here', 'deleted-entry'], foodLog, ['pushed-now']);
     expect(new Set(result)).toEqual(new Set(['still-here', 'pushed-now']));
+  });
+});
+
+describe('clearSyncedEntryIdsForDate', () => {
+  it('drops only the ids belonging to entries logged on the given date', () => {
+    const foodLog = [
+      makeEntry({ id: 'today-1', date: '2026-07-06' }),
+      makeEntry({ id: 'today-2', date: '2026-07-06' }),
+      makeEntry({ id: 'yesterday-1', date: '2026-07-05' }),
+    ];
+    const result = clearSyncedEntryIdsForDate(
+      ['today-1', 'today-2', 'yesterday-1', 'long-gone-id'],
+      foodLog,
+      '2026-07-06',
+    );
+    expect(new Set(result)).toEqual(new Set(['yesterday-1', 'long-gone-id']));
+  });
+
+  it('is a no-op when nothing in the food log matches the date', () => {
+    const foodLog = [makeEntry({ id: 'yesterday-1', date: '2026-07-05' })];
+    const result = clearSyncedEntryIdsForDate(['yesterday-1'], foodLog, '2026-07-06');
+    expect(result).toEqual(['yesterday-1']);
   });
 });
 

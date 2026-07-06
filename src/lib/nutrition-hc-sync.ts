@@ -140,3 +140,20 @@ export function summarizePush(pushedCount: number): string {
   if (pushedCount <= 0) return 'Already up to date - nothing new to push to Health Connect.';
   return `Pushed ${pushedCount} ${pushedCount === 1 ? 'entry' : 'entries'} to Health Connect.`;
 }
+
+// Health Connect has no delete-notification for this app to observe - if a
+// record gets removed there directly (e.g. the user cleaning up a mis-dated
+// duplicate, see the wrong-day-attribution bug this file's header comment
+// warns about), `syncedEntryIds` still thinks that entry is synced and will
+// never re-push it, permanently losing it from Health Connect even though
+// the entry is still sitting right here in the food log. This drops the ids
+// for a given day's entries from `syncedEntryIds` so the next push re-sends
+// them as if they were new, without touching the food log itself.
+export function clearSyncedEntryIdsForDate(
+  syncedEntryIds: string[],
+  foodLog: FoodLogEntry[],
+  date: string,
+): string[] {
+  const idsForDate = new Set(foodLog.filter((entry) => entry.date === date).map((entry) => entry.id));
+  return syncedEntryIds.filter((id) => !idsForDate.has(id));
+}

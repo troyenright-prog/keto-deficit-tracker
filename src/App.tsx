@@ -83,6 +83,7 @@ import {
   summarizePush,
   toNutritionRecordPayload,
   pruneAndRecordSyncedIds,
+  clearSyncedEntryIdsForDate,
 } from './lib/nutrition-hc-sync';
 import { toGarminReadings, mergeGarminReadings, summarizeMerge } from './lib/garmin-weight-sync';
 import {
@@ -455,6 +456,20 @@ function App() {
   const handleToggleNutritionSyncEnabled = useCallback((enabled: boolean) => {
     persist({ ...nutritionSyncRef.current, enabled }, nutritionSyncRef, setNutritionSync, saveNutritionSync);
   }, [persist]);
+
+  // Recovery action for when today's Health Connect Nutrition records were
+  // removed directly in Health Connect (e.g. cleaning up a mis-dated
+  // duplicate written before the wrong-day-attribution fix) - normally those
+  // entries' ids stay in syncedEntryIds forever and are never re-sent. This
+  // drops today's ids first so the push right after treats them as new.
+  const handleForceResyncNutritionToday = useCallback((): Promise<string> => {
+    const cleared: NutritionSyncSettings = {
+      ...nutritionSyncRef.current,
+      syncedEntryIds: clearSyncedEntryIdsForDate(nutritionSyncRef.current.syncedEntryIds, foodLogRef.current, todayDateString()),
+    };
+    persist(cleared, nutritionSyncRef, setNutritionSync, saveNutritionSync);
+    return pushNutritionToHealthConnect({ requestPermissions: true });
+  }, [persist, pushNutritionToHealthConnect]);
 
   // Best-effort push right after a new entry is saved - silent, and only does
   // anything if write permission was already granted (never prompts mid-log).
@@ -992,6 +1007,7 @@ function App() {
             nutritionSyncLastAt={nutritionSync.lastSyncAt}
             onToggleNutritionSync={handleToggleNutritionSyncEnabled}
             onSyncNutritionToHealthConnect={handleSyncNutritionToHealthConnect}
+            onForceResyncNutritionToday={handleForceResyncNutritionToday}
           />
         )}
       </main>
