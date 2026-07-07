@@ -72,4 +72,60 @@ describe('Progress screen', () => {
     render(<Progress log={[entry({ id: 'a', date: today })]} targets={DEFAULT_TARGETS} />);
     expect(screen.queryByLabelText('Week')).toBeNull();
   });
+
+  it('shows the day breakdown date spelled out as day, month, and year', () => {
+    const today = todayDateString();
+    render(<Progress log={[entry({ id: 'a', date: today })]} targets={DEFAULT_TARGETS} />);
+    const table = screen.getByRole('table');
+    expect(within(table).getByText(/^\d{1,2} [A-Z][a-z]+ \d{4}$/)).toBeTruthy();
+  });
+
+  it('extending the day breakdown range reveals days outside the default 7-day window', () => {
+    const today = todayDateString();
+    const twentyDaysAgo = addLocalDays(today, -20);
+    render(<Progress log={[
+      entry({ id: 'old', date: twentyDaysAgo, calories: 999, proteinG: 77 }),
+      entry({ id: 'today', date: today, calories: 140, proteinG: 12 }),
+    ]} targets={DEFAULT_TARGETS} />);
+
+    expect(within(screen.getByRole('table')).queryByText('999')).toBeNull();
+
+    fireEvent.change(screen.getByLabelText('Range'), { target: { value: '30' } });
+    expect(within(screen.getByRole('table')).getByText('999')).toBeTruthy();
+  });
+
+  it('filters the day breakdown by carb status', () => {
+    const today = todayDateString();
+    const yesterday = addLocalDays(today, -1);
+    render(<Progress log={[
+      entry({ id: 'over', date: yesterday, totalCarbsG: 200, fibreG: 0 }),
+      entry({ id: 'under', date: today, totalCarbsG: 6, fibreG: 2 }),
+    ]} targets={DEFAULT_TARGETS} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Exceeded' }));
+    let table = screen.getByRole('table');
+    expect(within(table).getAllByRole('row')).toHaveLength(2); // header + 1 exceeded day
+    expect(within(table).getByText('200.0g')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Within budget' }));
+    table = screen.getByRole('table');
+    expect(within(table).getAllByRole('row')).toHaveLength(2); // header + 1 within-budget day
+    expect(within(table).getByText('4.0g')).toBeTruthy();
+  });
+
+  it('caps the day breakdown at 10 rows with a load-more button for a larger range', () => {
+    const today = todayDateString();
+    // Every day in the 14-day window is logged, so there is no "untracked
+    // days not shown" note to complicate the count text below.
+    const entries = Array.from({ length: 14 }, (_, i) => entry({ id: `d${i}`, date: addLocalDays(today, -i) }));
+    render(<Progress log={entries} targets={DEFAULT_TARGETS} />);
+
+    fireEvent.change(screen.getByLabelText('Range'), { target: { value: '14' } });
+    expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(11); // header + 10 days
+    expect(screen.getByText('Showing 10 of 14 days')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load 4 more days' }));
+    expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(15); // header + 14 days
+    expect(screen.queryByRole('button', { name: /Load.*more days/ })).toBeNull();
+  });
 });

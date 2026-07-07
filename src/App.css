@@ -1072,13 +1072,70 @@ input:disabled {
   color: var(--gray-700);
 }
 
-.week-table__empty td {
-  color: var(--gray-300);
-}
-
 .cell--danger {
   color: var(--red) !important;
   font-weight: 600;
+}
+
+.cell--warning {
+  color: var(--amber) !important;
+  font-weight: 600;
+}
+
+.cell--success {
+  color: var(--green) !important;
+  font-weight: 600;
+}
+
+/* border-collapse drops borders on <tr>, so the accent goes on the first
+   cell instead of the row itself. */
+.week-table-row--danger td:first-child { box-shadow: inset 3px 0 0 var(--red); }
+.week-table-row--warning td:first-child { box-shadow: inset 3px 0 0 var(--amber); }
+.week-table-row--success td:first-child { box-shadow: inset 3px 0 0 var(--green-light); }
+
+.breakdown-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.breakdown-filters .form-group {
+  margin-bottom: 0;
+  min-width: 140px;
+}
+
+.status-chip-group {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.status-chip {
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--gray-300);
+  background: var(--white);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-500);
+  cursor: pointer;
+}
+
+.status-chip--active.status-chip--all { background: var(--blue-bg); border-color: var(--blue); color: var(--blue-dark); }
+.status-chip--active.status-chip--within { background: var(--green-bg); border-color: var(--green); color: var(--green); }
+.status-chip--active.status-chip--exceeded { background: var(--red-bg); border-color: var(--red); color: var(--red); }
+
+.breakdown-count {
+  font-size: 12px;
+  color: var(--gray-500);
+  margin: 0 0 8px;
+}
+
+.breakdown-load-more {
+  width: 100%;
+  margin-top: 10px;
 }
 
 /* ── Weight ── */

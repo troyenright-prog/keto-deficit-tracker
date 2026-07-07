@@ -85,8 +85,15 @@ export function sevenDayAvgWeight(
 }
 
 export function last7Days(referenceDate: string): string[] {
+  return lastNDays(referenceDate, 7);
+}
+
+// Same idea as last7Days but for an arbitrary window - used by the Progress
+// screen's Day breakdown range filter (7/14/30 days).
+export function lastNDays(referenceDate: string, n: number): string[] {
+  const count = Math.max(0, Math.trunc(n));
   const dates: string[] = [];
-  for (let i = 6; i >= 0; i--) {
+  for (let i = count - 1; i >= 0; i--) {
     dates.push(addLocalDays(referenceDate, -i));
   }
   return dates;

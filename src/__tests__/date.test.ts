@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { addLocalDays, localDateString } from '../lib/date';
-import { last7Days } from '../lib/weekly';
+import { addLocalDays, formatLongDate, localDateString } from '../lib/date';
+import { last7Days, lastNDays } from '../lib/weekly';
 import { summariseDay } from '../lib/nutrition';
 import type { FoodLogEntry } from '../types';
 
@@ -34,5 +34,20 @@ describe('local calendar dates', () => {
       { ...base, id: 'y', date: '2026-06-21' },
     ] as FoodLogEntry[];
     expect(summariseDay('2026-06-21', entries).entryCount).toBe(1);
+  });
+
+  it('formats a date as day, full month name, and year regardless of locale', () => {
+    expect(formatLongDate('2026-07-07')).toBe('7 July 2026');
+    expect(formatLongDate('2026-01-01')).toBe('1 January 2026');
+    expect(formatLongDate('2026-12-25')).toBe('25 December 2026');
+  });
+
+  it('returns the input unchanged for an invalid date string', () => {
+    expect(formatLongDate('not-a-date')).toBe('not-a-date');
+  });
+
+  it('builds an arbitrary-length trailing range with lastNDays', () => {
+    expect(lastNDays('2026-06-20', 3)).toEqual(['2026-06-18', '2026-06-19', '2026-06-20']);
+    expect(lastNDays('2026-06-20', 7)).toEqual(last7Days('2026-06-20'));
   });
 });

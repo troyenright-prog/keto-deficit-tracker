@@ -1,10 +1,33 @@
 import { useMemo, useState } from 'react';
-import type { FoodLogEntry, NutritionTargets } from '../types';
-import { summariseDay, todayDateString } from '../lib/nutrition';
-import { computeWeeklyStats, last7Days } from '../lib/weekly';
+import type { DailyNutritionSummary, FoodLogEntry, NutritionTargets } from '../types';
+import { carbStatus, summariseDay, todayDateString } from '../lib/nutrition';
+import { computeWeeklyStats, last7Days, lastNDays } from '../lib/weekly';
 import { loggedDates } from '../lib/history';
-import { addLocalDays } from '../lib/date';
+import { addLocalDays, formatLongDate } from '../lib/date';
 import { StatCard } from '../components/StatCard';
+
+const BREAKDOWN_RANGE_OPTIONS = [7, 14, 30] as const;
+const BREAKDOWN_PAGE_SIZE = 10;
+
+const STATUS_FILTERS = [
+  { key: 'all', label: 'All' },
+  { key: 'within', label: 'Within budget' },
+  { key: 'exceeded', label: 'Exceeded' },
+] as const;
+type StatusFilter = typeof STATUS_FILTERS[number]['key'];
+
+function matchesStatusFilter(summary: DailyNutritionSummary, targets: NutritionTargets, filter: StatusFilter): boolean {
+  if (filter === 'all') return true;
+  const exceeded = carbStatus(summary, targets) === 'exceeded';
+  return filter === 'exceeded' ? exceeded : !exceeded;
+}
+
+// Mirrors the aligned/approaching/exceeded language already used on the
+// Dashboard's carb status, so a day reads the same way on both screens.
+function carbRowVariant(summary: DailyNutritionSummary, targets: NutritionTargets): 'success' | 'warning' | 'danger' {
+  const status = carbStatus(summary, targets);
+  return status === 'aligned' ? 'success' : status === 'approaching' ? 'warning' : 'danger';
+}
 
 interface ProgressProps {
   log: FoodLogEntry[];
@@ -44,6 +67,34 @@ export function Progress({ log, targets }: ProgressProps) {
   const weekSummaries = useMemo(() => days.map((d) => summariseDay(d, log)), [days, log]);
 
   const stats = useMemo(() => computeWeeklyStats(weekSummaries, targets), [weekSummaries, targets]);
+
+  // Day breakdown: its own range (independent of the week picker above, but
+  // anchored to the same end date so browsing an older week still shows that
+  // week's trailing days) plus a status filter, capped and paginated so a
+  // 30-day view never dumps a huge table at once.
+  const [breakdownRangeDays, setBreakdownRangeDays] = useState<number>(BREAKDOWN_RANGE_OPTIONS[0]);
+  const [breakdownStatus, setBreakdownStatus] = useState<StatusFilter>('all');
+  const [breakdownVisible, setBreakdownVisible] = useState(BREAKDOWN_PAGE_SIZE);
+
+  // Reset the load-more page size whenever the filters change, following
+  // React's "adjust state during render" pattern instead of an effect (an
+  // effect here would commit the stale page size for one extra render).
+  const breakdownFilterKey = `${selectedWeek.endDate}|${breakdownRangeDays}|${breakdownStatus}`;
+  const [lastBreakdownFilterKey, setLastBreakdownFilterKey] = useState(breakdownFilterKey);
+  if (breakdownFilterKey !== lastBreakdownFilterKey) {
+    setLastBreakdownFilterKey(breakdownFilterKey);
+    setBreakdownVisible(BREAKDOWN_PAGE_SIZE);
+  }
+
+  const breakdownAllSummaries = useMemo(
+    () => lastNDays(selectedWeek.endDate, breakdownRangeDays).map((d) => summariseDay(d, log)).reverse(),
+    [selectedWeek.endDate, breakdownRangeDays, log],
+  );
+  const breakdownTracked = breakdownAllSummaries.filter((s) => s.entryCount > 0);
+  const breakdownUntrackedCount = breakdownAllSummaries.length - breakdownTracked.length;
+  const breakdownFiltered = breakdownTracked.filter((s) => matchesStatusFilter(s, targets, breakdownStatus));
+  const breakdownVisibleRows = breakdownFiltered.slice(0, breakdownVisible);
+  const breakdownHasMore = breakdownVisible < breakdownFiltered.length;
   const trackedSummaries = weekSummaries.filter((summary) => summary.entryCount > 0);
   const bestCarbDay = trackedSummaries.length > 0
     ? trackedSummaries.reduce((best, summary) => summary.netCarbsG < best.netCarbsG ? summary : best)
@@ -106,38 +157,86 @@ export function Progress({ log, targets }: ProgressProps) {
             <StatCard
               label="Best carb day"
               value={bestCarbDay ? `${bestCarbDay.netCarbsG.toFixed(1)}g` : '-'}
-              sub={bestCarbDay?.date ?? 'No tracked days'}
+              sub={bestCarbDay ? formatLongDate(bestCarbDay.date) : 'No tracked days'}
               variant="success"
             />
           </div>
 
           <div className="section-title">Day breakdown</div>
-          <div className="week-table-wrap">
-            <table className="week-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>kcal</th>
-                  <th>Protein</th>
-                  <th>Net carbs</th>
-                  <th>Fat</th>
-                </tr>
-              </thead>
-              <tbody>
-                {weekSummaries.map((s) => (
-                  <tr key={s.date} className={s.entryCount === 0 ? 'week-table__empty' : ''}>
-                    <td>{s.date}</td>
-                    <td>{s.entryCount > 0 ? Math.round(s.calories) : '-'}</td>
-                    <td>{s.entryCount > 0 ? `${s.proteinG.toFixed(1)}g` : '-'}</td>
-                    <td className={s.entryCount > 0 && s.netCarbsG > targets.netCarbsG ? 'cell--danger' : ''}>
-                      {s.entryCount > 0 ? `${s.netCarbsG.toFixed(1)}g` : '-'}
-                    </td>
-                    <td>{s.entryCount > 0 ? `${s.fatG.toFixed(1)}g` : '-'}</td>
-                  </tr>
+          <div className="breakdown-filters">
+            <div className="form-group">
+              <label htmlFor="breakdown-range">Range</label>
+              <select
+                id="breakdown-range"
+                value={breakdownRangeDays}
+                onChange={(e) => setBreakdownRangeDays(Number(e.target.value))}
+              >
+                {BREAKDOWN_RANGE_OPTIONS.map((n) => (
+                  <option key={n} value={n}>Last {n} days</option>
                 ))}
-              </tbody>
-            </table>
+              </select>
+            </div>
+            <div className="status-chip-group" role="group" aria-label="Filter by carb status">
+              {STATUS_FILTERS.map((f) => (
+                <button
+                  key={f.key}
+                  type="button"
+                  className={`status-chip status-chip--${f.key}${breakdownStatus === f.key ? ' status-chip--active' : ''}`}
+                  aria-pressed={breakdownStatus === f.key}
+                  onClick={() => setBreakdownStatus(f.key)}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
           </div>
+
+          <p className="breakdown-count">
+            {`Showing ${breakdownVisibleRows.length} of ${breakdownFiltered.length} day${breakdownFiltered.length === 1 ? '' : 's'}`}
+            {breakdownUntrackedCount > 0 && ` (${breakdownUntrackedCount} untracked day${breakdownUntrackedCount === 1 ? '' : 's'} in this range not shown)`}
+          </p>
+
+          {breakdownVisibleRows.length === 0 ? (
+            <p className="empty-hint empty-hint--compact">No days match this filter.</p>
+          ) : (
+            <div className="week-table-wrap">
+              <table className="week-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>kcal</th>
+                    <th>Protein</th>
+                    <th>Net carbs</th>
+                    <th>Fat</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {breakdownVisibleRows.map((s) => {
+                    const variant = carbRowVariant(s, targets);
+                    return (
+                      <tr key={s.date} className={`week-table-row--${variant}`}>
+                        <td>{formatLongDate(s.date)}</td>
+                        <td>{Math.round(s.calories)}</td>
+                        <td>{s.proteinG.toFixed(1)}g</td>
+                        <td className={`cell--${variant}`}>{s.netCarbsG.toFixed(1)}g</td>
+                        <td>{s.fatG.toFixed(1)}g</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {breakdownHasMore && (
+            <button
+              type="button"
+              className="btn btn--secondary btn--sm breakdown-load-more"
+              onClick={() => setBreakdownVisible((v) => v + BREAKDOWN_PAGE_SIZE)}
+            >
+              Load {Math.min(BREAKDOWN_PAGE_SIZE, breakdownFiltered.length - breakdownVisible)} more days
+            </button>
+          )}
         </>
       )}
     </div>
