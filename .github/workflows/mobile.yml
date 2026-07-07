@@ -28,9 +28,50 @@ jobs:
   build-distribute:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      actions: read
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # This workflow triggers on the same push as deploy.yml (Test, Version
+      # and Deploy) and runs in parallel with it, not after it - so this
+      # checkout normally lands on the PRE-bump commit, before deploy.yml's
+      # own "npm version" step has run. Building here as-is would bake the
+      # old version into both build.gradle AND the web assets' __APP_VERSION__
+      # (the in-app "Settings > App version" display), which is exactly what
+      # produced a stale v1.0.0 release-notes email for a v1.1.0 release.
+      # Waiting for deploy.yml to actually finish, then resetting to its
+      # result, guarantees this build always uses the real released version -
+      # for a manual workflow_dispatch run (usually well after a deploy
+      # already succeeded) this resolves immediately with no wait.
+      - name: Wait for the version bump from Test, Version and Deploy
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for i in $(seq 1 30); do
+            INFO=$(gh run list --workflow="Test, Version and Deploy" --commit "${{ github.sha }}" --json status,conclusion --jq '.[0] // {}')
+            STATUS=$(echo "$INFO" | jq -r '.status // "pending"')
+            CONCLUSION=$(echo "$INFO" | jq -r '.conclusion // ""')
+            echo "deploy.yml status=$STATUS conclusion=$CONCLUSION (attempt $i)"
+            if [ "$STATUS" = "completed" ]; then
+              if [ "$CONCLUSION" != "success" ]; then
+                echo "::error::deploy.yml did not succeed for this commit ($CONCLUSION) - skipping the mobile release."
+                exit 1
+              fi
+              break
+            fi
+            if [ "$i" = "30" ]; then
+              echo "::error::Timed out waiting for deploy.yml to finish."
+              exit 1
+            fi
+            sleep 10
+          done
+          git fetch origin master
+          git reset --hard origin/master
 
       - name: Setup Node
         uses: actions/setup-node@v4
