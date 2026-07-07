@@ -44,22 +44,28 @@ jobs:
       # old version into both build.gradle AND the web assets' __APP_VERSION__
       # (the in-app "Settings > App version" display), which is exactly what
       # produced a stale v1.0.0 release-notes email for a v1.1.0 release.
-      # Waiting for deploy.yml to actually finish, then resetting to its
-      # result, guarantees this build always uses the real released version -
-      # for a manual workflow_dispatch run (usually well after a deploy
-      # already succeeded) this resolves immediately with no wait.
+      #
+      # Deliberately checks the LATEST "Test, Version and Deploy" run on
+      # master rather than matching github.sha exactly: deploy.yml's own
+      # release commit carries "[skip ci]", so it never gets a run of its
+      # own - and a manual workflow_dispatch here normally checks out that
+      # exact release commit (master's tip right after any deploy). Matching
+      # by exact commit would then find nothing and always time out. Since
+      # deploy.yml serializes itself (concurrency group "deploy"), the most
+      # recent run for master is always either the one racing this push or
+      # the last one that already finished - both are what we want to wait on.
       - name: Wait for the version bump from Test, Version and Deploy
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           for i in $(seq 1 30); do
-            INFO=$(gh run list --workflow="Test, Version and Deploy" --commit "${{ github.sha }}" --json status,conclusion --jq '.[0] // {}')
-            STATUS=$(echo "$INFO" | jq -r '.status // "pending"')
+            INFO=$(gh run list --workflow="Test, Version and Deploy" --branch master --limit 1 --json status,conclusion --jq '.[0] // {"status":"completed","conclusion":"success"}')
+            STATUS=$(echo "$INFO" | jq -r '.status')
             CONCLUSION=$(echo "$INFO" | jq -r '.conclusion // ""')
-            echo "deploy.yml status=$STATUS conclusion=$CONCLUSION (attempt $i)"
+            echo "latest deploy.yml run: status=$STATUS conclusion=$CONCLUSION (attempt $i)"
             if [ "$STATUS" = "completed" ]; then
               if [ "$CONCLUSION" != "success" ]; then
-                echo "::error::deploy.yml did not succeed for this commit ($CONCLUSION) - skipping the mobile release."
+                echo "::error::The latest deploy did not succeed ($CONCLUSION) - skipping the mobile release."
                 exit 1
               fi
               break
