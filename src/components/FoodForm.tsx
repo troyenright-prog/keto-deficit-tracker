@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { FoodItem, Micronutrients } from '../types';
 import { calcNetCarbs, todayDateString } from '../lib/nutrition';
 import { hasAnyMicronutrients, MICRONUTRIENT_FIELDS, pickMicronutrients, type MicronutrientKey } from '../lib/micronutrients';
+import { parseNumericInput } from '../lib/numeric-field';
 
 export interface FoodFormValues extends Micronutrients {
   name: string;
@@ -32,12 +33,6 @@ const EMPTY: FoodFormValues = {
   potassiumMg: 0,
   magnesiumMg: 0,
 };
-
-function clampNum(val: string, min = 0): number {
-  const n = parseFloat(val);
-  if (!Number.isFinite(n)) return 0;
-  return Math.max(min, n);
-}
 
 function optNum(val: string): number | undefined {
   const n = parseFloat(val);
@@ -98,7 +93,7 @@ export function FoodForm({
 
   function num(key: keyof FoodFormValues, val: string) {
     setTexts((t) => ({ ...t, [key]: val }));
-    setValues((v) => ({ ...v, [key]: clampNum(val) }));
+    setValues((v) => ({ ...v, [key]: parseNumericInput(val) }));
   }
 
   function micro(key: MicronutrientKey, val: string) {

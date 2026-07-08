@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Recipe, RecipeIngredient } from '../types';
 import { calcRecipeTotals, calcRecipePerServing, emptyIngredient } from '../lib/recipes';
 import { nanoid } from '../lib/nanoid';
+import { parseNumericInput } from '../lib/numeric-field';
 
 interface RecipesProps {
   recipes: Recipe[];
@@ -11,11 +12,6 @@ interface RecipesProps {
 }
 
 type View = 'list' | 'edit';
-
-function num(val: string, min = 0): number {
-  const n = parseFloat(val);
-  return Number.isFinite(n) ? Math.max(min, n) : 0;
-}
 
 export function Recipes({ recipes, onSave, onDelete, onAddToLog }: RecipesProps) {
   const [view, setView] = useState<View>('list');
@@ -53,7 +49,7 @@ export function Recipes({ recipes, onSave, onDelete, onAddToLog }: RecipesProps)
         if (field === 'name' || field === 'servingSize') {
           return { ...ing, [field]: value };
         }
-        return { ...ing, [field]: num(value) };
+        return { ...ing, [field]: parseNumericInput(value) };
       }),
     );
   }
@@ -119,7 +115,7 @@ export function Recipes({ recipes, onSave, onDelete, onAddToLog }: RecipesProps)
               min="1"
               step="1"
               value={draftServings}
-              onChange={(e) => setDraftServings(num(e.target.value, 1))}
+              onChange={(e) => setDraftServings(parseNumericInput(e.target.value, 1))}
             />
           </div>
         </div>
