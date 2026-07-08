@@ -80,8 +80,15 @@ export function BarcodeScanner({ foodDatabase, savedFoods, onAdd, onSaveFood, on
   const scannerControlsRef = useRef<IScannerControls | null>(null);
   const stopRef = useRef(false);
   const autoStartedRef = useRef(false);
+  // Bumped by every stopCamera()/startCamera() call so an in-flight
+  // decodeFromConstraints() that resolves after a stop (component unmounted,
+  // or the user tapped "Stop camera" while the camera was still initializing)
+  // can tell it's been superseded and release the stream it just opened,
+  // instead of leaving an orphaned camera running with nothing able to stop it.
+  const startTokenRef = useRef(0);
 
   const stopCamera = useCallback(() => {
+    startTokenRef.current += 1;
     stopRef.current = true;
     scannerControlsRef.current?.stop();
     scannerControlsRef.current = null;
@@ -155,6 +162,7 @@ export function BarcodeScanner({ foodDatabase, savedFoods, onAdd, onSaveFood, on
     setFood(null);
     setScanning(true);
     stopRef.current = false;
+    const myToken = ++startTokenRef.current;
     try {
       const video = await waitForVideoElement();
       const { BarcodeFormat, BrowserMultiFormatReader } = await import('@zxing/browser');
@@ -166,14 +174,14 @@ export function BarcodeScanner({ foodDatabase, savedFoods, onAdd, onSaveFood, on
         BarcodeFormat.UPC_E,
         BarcodeFormat.CODE_128,
       ];
-      scannerControlsRef.current = await reader.decodeFromConstraints(
+      const controls = await reader.decodeFromConstraints(
         { video: { facingMode: { ideal: 'environment' } }, audio: false },
         video,
-        (result, _error, controls) => {
+        (result, _error, resultControls) => {
           if (!result || stopRef.current) return;
           const normalized = normalizeBarcode(result.getText());
           if (!normalized) return;
-          controls.stop();
+          resultControls.stop();
           scannerControlsRef.current = null;
           stopRef.current = true;
           setScanning(false);
@@ -181,6 +189,13 @@ export function BarcodeScanner({ foodDatabase, savedFoods, onAdd, onSaveFood, on
           void lookup(normalized);
         },
       );
+      if (startTokenRef.current !== myToken) {
+        // Superseded by a stop (or another start) while the camera was
+        // still initializing - release the stream we just opened.
+        controls.stop();
+        return;
+      }
+      scannerControlsRef.current = controls;
     } catch (err) {
       const message = err instanceof Error && err.message ? err.message : 'Could not open the camera.';
       setError(`${message} Enter the barcode number instead.`);

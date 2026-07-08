@@ -382,4 +382,39 @@ describe('Barcode scanner screen', () => {
 
     expect(screen.queryByRole('button', { name: 'No barcode? Add manually' })).toBeNull();
   });
+
+  it('releases the camera stream if the component unmounts before the scanner finishes initializing', async () => {
+    Object.defineProperty(navigator, 'mediaDevices', {
+      value: { getUserMedia: vi.fn() },
+      configurable: true,
+    });
+
+    const stop = vi.fn();
+    let resolveDecode: (controls: { stop: () => void }) => void = () => {};
+    const decodePromise = new Promise<{ stop: () => void }>((resolve) => { resolveDecode = resolve; });
+    const decodeFromConstraints = vi.fn(() => decodePromise);
+
+    vi.doMock('@zxing/browser', () => ({
+      BarcodeFormat: { EAN_13: 1, EAN_8: 2, UPC_A: 3, UPC_E: 4, CODE_128: 5 },
+      // A plain function, not an arrow function - `new BrowserMultiFormatReader()`
+      // in the component requires something constructible.
+      BrowserMultiFormatReader: vi.fn().mockImplementation(function BrowserMultiFormatReaderMock() {
+        return { decodeFromConstraints };
+      }),
+    }));
+
+    const { unmount } = render(
+      <BarcodeScanner savedFoods={[]} foodDatabase={[]} onAdd={vi.fn(() => true)} onSaveFood={vi.fn(() => true)} onSaveFoodDatabaseItem={vi.fn(() => true)} autoStart />,
+    );
+
+    // Camera setup is mid-flight (decodeFromConstraints has been called but
+    // not yet resolved) when the user navigates away.
+    await waitFor(() => expect(decodeFromConstraints).toHaveBeenCalled());
+    unmount();
+
+    // The stream "finishes opening" only after the component is gone.
+    resolveDecode({ stop });
+
+    await waitFor(() => expect(stop).toHaveBeenCalledTimes(1));
+  });
 });
