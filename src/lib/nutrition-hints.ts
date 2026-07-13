@@ -1,4 +1,4 @@
-import type { DailyNutritionSummary, FoodLogEntry, Micronutrients, NutritionTargets, UserProfile } from '../types';
+import type { DailyNutritionSummary, FoodLogEntry, MealPlanEntry, Micronutrients, NutritionTargets, UserProfile } from '../types';
 import { MICRONUTRIENT_KEYS, type MicronutrientKey } from './micronutrients';
 import { FIBRE_TARGET_G, NUTRIENT_HINT_CATALOGUE, type HintNutrientKey, type NutrientHintDef } from './nutrient-catalogue';
 import { getRdaForAgeSex } from './rda';
@@ -88,6 +88,30 @@ function confidenceFor(def: NutrientHintDef, dayEntries: FoodLogEntry[]): HintCo
 
 const INCOMPLETE_DATA_CAVEAT = 'Some logged foods may have incomplete micronutrient data, so this is an estimate.';
 
+// Planned-but-not-yet-logged meals for the day. Planned food is never added to
+// logged totals — it only softens "low so far" warnings that the plan itself
+// would resolve (e.g. don't warn about protein when a steak is planned).
+interface PlannedContext {
+  entries: MealPlanEntry[];
+}
+
+function plannedForDay(mealPlan: MealPlanEntry[] | undefined, date: string): PlannedContext {
+  return { entries: (mealPlan ?? []).filter((entry) => entry.date === date && !entry.converted) };
+}
+
+function plannedAmount(planned: PlannedContext, key: HintNutrientKey): { amount: number; names: string[] } {
+  let amount = 0;
+  const names: string[] = [];
+  for (const entry of planned.entries) {
+    const value = (entry as unknown as Record<string, number | undefined>)[key];
+    if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+      amount += value;
+      names.push(entry.name);
+    }
+  }
+  return { amount, names };
+}
+
 interface Candidate {
   hint: NutritionHint;
   score: number;
@@ -130,12 +154,40 @@ function buildLowCandidate(
   dayEntries: FoodLogEntry[],
   today: string,
   recentSummaries: DailyNutritionSummary[] | undefined,
+  planned: PlannedContext,
 ): Candidate | undefined {
   if (!def.lowRatio || ratio >= def.lowRatio) return undefined;
 
   const confidence = confidenceFor(def, dayEntries);
   const timeframe = repeatedLowTimeframe(def, target, today, recentSummaries);
   const reason = `Logged: ${formatAmount(value, def.decimals)} ${def.unit} / ${formatAmount(target, def.decimals)} ${def.unit}`;
+
+  // If today's still-planned meals would lift this nutrient out of the low
+  // zone, say that instead of warning as if the day were over.
+  const plan = plannedAmount(planned, def.key);
+  const planCoversLow = plan.amount > 0 && (value + plan.amount) / target >= def.lowRatio;
+  if (planCoversLow) {
+    return {
+      // Softened score: an on-plan day shouldn't outrank genuinely open gaps.
+      score: (def.priority + Math.min(1, def.lowRatio - ratio) * 10) * 0.5,
+      hint: {
+        id: `${def.key}-low-planned`,
+        nutrientKey: def.key,
+        severity: 'low',
+        confidence,
+        title: `${def.label} is low so far, but your plan should cover it`,
+        reason,
+        suggestions: [
+          `Planned: ${plan.names.join(', ')} adds about ${formatAmount(plan.amount, def.decimals)} ${def.unit}, which should improve this once eaten and logged.`,
+        ],
+        likelyDrivers: [],
+        caveat: confidence === 'high' ? undefined : INCOMPLETE_DATA_CAVEAT,
+        priorityScore: def.priority,
+        timeframe,
+      },
+    };
+  }
+
   const suggestions = [`Try: ${def.lowSuggestion}`];
   if (def.supplementNote) suggestions.push(`Optional: ${def.supplementNote}`);
 
@@ -231,11 +283,33 @@ function buildNextMealCandidate(
   summary: DailyNutritionSummary,
   targets: NutritionTargets,
   lowKeys: Set<HintNutrientKey>,
+  planned: PlannedContext,
 ): Candidate | undefined {
   if (targets.proteinG <= 0 || targets.calories <= 0) return undefined;
   const proteinGap = targets.proteinG - summary.proteinG;
   const remainingCal = targets.calories - summary.calories;
   if (proteinGap < targets.proteinG * 0.2 || remainingCal < 150) return undefined;
+
+  // If planned meals already close most of the protein gap, steer to the plan
+  // instead of suggesting a generic protein meal on top of it.
+  const plannedProtein = plannedAmount(planned, 'proteinG');
+  if (plannedProtein.amount >= proteinGap * 0.8) {
+    return {
+      score: 60,
+      hint: {
+        id: 'next-meal-planned',
+        nutrientKey: 'meal',
+        severity: 'nextMeal',
+        confidence: 'high',
+        title: 'Protein is behind, but your planned meals should close the gap',
+        reason: `${Math.round(proteinGap)}g protein remaining; planned ${plannedProtein.names.join(', ')} adds about ${Math.round(plannedProtein.amount)}g`,
+        suggestions: ['Stick with the plan — log the meal once eaten so totals stay accurate.'],
+        likelyDrivers: [],
+        priorityScore: 60,
+        timeframe: 'today',
+      },
+    };
+  }
 
   const greensPairing: string[] = [];
   if (lowKeys.has('potassiumMg')) greensPairing.push('potassium');
@@ -276,10 +350,12 @@ export function buildNutritionHints(
   profile?: Pick<UserProfile, 'age' | 'sex'>,
   now = new Date(),
   recentSummaries?: DailyNutritionSummary[],
+  mealPlan?: MealPlanEntry[],
 ): NutritionHint[] {
   if (summary.entryCount === 0) return [];
 
   const dayEntries = entries.filter((entry) => entry.date === summary.date);
+  const planned = plannedForDay(mealPlan, summary.date);
   const rdaFallback = getRdaForAgeSex(profile?.age ?? 30, profile?.sex ?? 'male');
   const candidates: Candidate[] = [];
   const lowKeys = new Set<HintNutrientKey>();
@@ -291,8 +367,14 @@ export function buildNutritionHints(
     const value = (summary as unknown as Record<string, number | undefined>)[def.key] ?? 0;
     const ratio = value / target;
 
-    const low = buildLowCandidate(def, value, target, ratio, dayEntries, summary.date, recentSummaries);
-    if (low) { candidates.push(low); lowKeys.add(def.key); continue; }
+    const low = buildLowCandidate(def, value, target, ratio, dayEntries, summary.date, recentSummaries, planned);
+    if (low) {
+      candidates.push(low);
+      // A plan-covered nutrient isn't an open gap, so it shouldn't steer the
+      // next-meal pairing suggestions.
+      if (!low.hint.id.endsWith('-low-planned')) lowKeys.add(def.key);
+      continue;
+    }
     const high = buildHighCandidate(def, value, target, ratio, dayEntries, summary.date, recentSummaries);
     if (high) candidates.push(high);
   }
@@ -300,8 +382,16 @@ export function buildNutritionHints(
   const caloriesHighEarly = buildCaloriesHighEarlyCandidate(summary, targets, now);
   if (caloriesHighEarly) candidates.push(caloriesHighEarly);
 
-  const nextMeal = buildNextMealCandidate(summary, targets, lowKeys);
-  if (nextMeal) candidates.push(nextMeal);
+  const nextMeal = buildNextMealCandidate(summary, targets, lowKeys, planned);
+  if (nextMeal) {
+    candidates.push(nextMeal);
+    // The planned next-meal card already says the plan covers protein — a
+    // second "protein is low so far, but planned" card would repeat it.
+    if (nextMeal.hint.id === 'next-meal-planned') {
+      const duplicate = candidates.findIndex((c) => c.hint.id === 'proteinG-low-planned');
+      if (duplicate !== -1) candidates.splice(duplicate, 1);
+    }
+  }
 
   return candidates
     .sort((a, b) => b.score - a.score)

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ProgressBar } from '../components/ProgressBar';
 import { StatCard } from '../components/StatCard';
-import type { DailyActivityEntry, DailyNutritionSummary, FoodLogEntry, NutritionTargets, Recommendation, UserProfile } from '../types';
+import type { DailyActivityEntry, DailyNutritionSummary, FoodLogEntry, MealPlanEntry, NutritionTargets, Recommendation, UserProfile } from '../types';
 import { calcNetCarbs, carbStatus, carbStatusLabel, remainingCalories } from '../lib/nutrition';
 import { entryMeal, MEAL_SLOTS } from '../lib/meals';
 import { buildSmartSuggestions } from '../lib/suggestions';
@@ -19,6 +19,9 @@ interface DashboardProps {
   // only to tell "low today" from "low most days recently". Optional so
   // callers that don't have it yet still get today-only hints.
   recentSummaries?: DailyNutritionSummary[];
+  // Full meal plan — hints filter it to today's still-planned (unconverted)
+  // entries so "low so far" warnings can acknowledge food that's coming.
+  mealPlan?: MealPlanEntry[];
   onAddFood: () => void;
   onSyncGarmin?: () => Promise<string>;
 }
@@ -66,7 +69,7 @@ function headlineForMove(rec: Recommendation): string {
   return SMART_SUGGESTION_HEADLINES[rec.id] ?? rec.message;
 }
 
-export function Dashboard({ summary, entries, activity, targets, recommendations, profile, recentSummaries, onAddFood, onSyncGarmin }: DashboardProps) {
+export function Dashboard({ summary, entries, activity, targets, recommendations, profile, recentSummaries, mealPlan, onAddFood, onSyncGarmin }: DashboardProps) {
   const [garminSyncing, setGarminSyncing] = useState(false);
   const [garminSyncMessage, setGarminSyncMessage] = useState('');
   const [showAllMicros, setShowAllMicros] = useState(false);
@@ -89,7 +92,7 @@ export function Dashboard({ summary, entries, activity, targets, recommendations
   const allTargetedMicronutrients = allMicronutrientRows.filter((item) => item.target > 0);
   const allUntargetedMicronutrients = allMicronutrientRows.filter((item) => item.target === 0);
 
-  const nutritionHints = buildNutritionHints(summary, targets, entries, profile, new Date(), recentSummaries);
+  const nutritionHints = buildNutritionHints(summary, targets, entries, profile, new Date(), recentSummaries, mealPlan);
   const suggestions = buildSmartSuggestions(summary, targets);
   const nextMove = suggestions[0] ?? recommendations.find((rec) => rec.priority !== 'success') ?? recommendations[0];
   const surfacedMoves = summary.entryCount > 0 && nextMove ? [nextMove] : [];

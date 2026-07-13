@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildNutritionHints } from '../lib/nutrition-hints';
 import { summariseDay } from '../lib/nutrition';
-import type { FoodLogEntry, NutritionTargets } from '../types';
+import type { FoodLogEntry, MealPlanEntry, NutritionTargets } from '../types';
 import { DEFAULT_TARGETS } from '../lib/storage';
 
 const DATE = '2026-07-05';
@@ -59,6 +59,35 @@ function halloumi(overrides: Partial<FoodLogEntry> = {}): FoodLogEntry {
 function hintsFor(entries: FoodLogEntry[], targets: NutritionTargets = TARGETS) {
   const summary = summariseDay(DATE, entries);
   return buildNutritionHints(summary, targets, entries, { age: 30, sex: 'male' });
+}
+
+function makePlanEntry(overrides: Partial<MealPlanEntry> = {}): MealPlanEntry {
+  return {
+    id: Math.random().toString(36),
+    date: DATE,
+    name: 'Ribeye steak',
+    type: 'saved-food',
+    sourceId: 'food-steak',
+    servings: 1,
+    calories: 600,
+    proteinG: 60,
+    fatG: 40,
+    totalCarbsG: 0,
+    fibreG: 0,
+    sugarAlcoholsG: 0,
+    netCarbsG: 0,
+    sodiumMg: 120,
+    potassiumMg: 700,
+    magnesiumMg: 50,
+    converted: false,
+    createdAt: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
+function hintsWithPlan(entries: FoodLogEntry[], plan: MealPlanEntry[], targets: NutritionTargets = TARGETS) {
+  const summary = summariseDay(DATE, entries);
+  return buildNutritionHints(summary, targets, entries, { age: 30, sex: 'male' }, new Date(), undefined, plan);
 }
 
 function suggestionText(hint: { suggestions: string[] }): string {
@@ -259,6 +288,82 @@ describe('buildNutritionHints - next meal logic', () => {
       makeEntry({ calories: 1700, proteinG: 118, fatG: 130, totalCarbsG: 5, fibreG: 20, potassiumMg: 3200, magnesiumMg: 350, sodiumMg: 2200 }),
     ]);
     expect(hints.find((h) => h.id === 'next-meal')).toBeUndefined();
+  });
+});
+
+describe('buildNutritionHints - planned-meal awareness', () => {
+  // 20g protein logged vs a 120g target: clearly low, unless the plan says
+  // more protein is coming later today.
+  const lowProteinDay = () => [
+    makeEntry({ proteinG: 20, fibreG: 20, potassiumMg: 3200, magnesiumMg: 350, sodiumMg: 2200 }),
+  ];
+
+  it('acknowledges a planned steak instead of warning that protein is low', () => {
+    // 70g planned lifts protein out of the low zone without fully closing the
+    // gap, so the softened low card shows rather than the next-meal-planned one.
+    const hints = hintsWithPlan(lowProteinDay(), [makePlanEntry({ proteinG: 70 })]);
+    expect(hints.find((h) => h.id === 'proteinG-low')).toBeUndefined();
+    const hint = hints.find((h) => h.id === 'proteinG-low-planned');
+    expect(hint).toBeDefined();
+    expect(hint!.title).toMatch(/low so far/i);
+    expect(hint!.title).toMatch(/plan/i);
+    expect(suggestionText(hint!)).toMatch(/Ribeye steak/);
+    // Planned food must never be counted as consumed: the reason still shows
+    // only the logged amount.
+    expect(hint!.reason).toMatch(/Logged: 20 g \/ 120 g/);
+  });
+
+  it('shows only the next-meal card, not a duplicate protein card, when the plan fully closes the gap', () => {
+    const hints = hintsWithPlan(lowProteinDay(), [makePlanEntry({ proteinG: 100 })]);
+    expect(hints.find((h) => h.id === 'next-meal-planned')).toBeDefined();
+    expect(hints.find((h) => h.id === 'proteinG-low-planned')).toBeUndefined();
+    expect(hints.find((h) => h.id === 'proteinG-low')).toBeUndefined();
+  });
+
+  it('still warns normally when the planned food is not enough to close the gap', () => {
+    const hints = hintsWithPlan(lowProteinDay(), [makePlanEntry({ proteinG: 5 })]);
+    expect(hints.find((h) => h.id === 'proteinG-low-planned')).toBeUndefined();
+    expect(hints.find((h) => h.id === 'proteinG-low')).toBeDefined();
+  });
+
+  it('ignores plan entries already converted to log entries', () => {
+    const hints = hintsWithPlan(lowProteinDay(), [makePlanEntry({ proteinG: 80, converted: true })]);
+    expect(hints.find((h) => h.id === 'proteinG-low-planned')).toBeUndefined();
+    expect(hints.find((h) => h.id === 'proteinG-low')).toBeDefined();
+  });
+
+  it('ignores plan entries for other days', () => {
+    const hints = hintsWithPlan(lowProteinDay(), [makePlanEntry({ proteinG: 80, date: '2026-07-06' })]);
+    expect(hints.find((h) => h.id === 'proteinG-low-planned')).toBeUndefined();
+    expect(hints.find((h) => h.id === 'proteinG-low')).toBeDefined();
+  });
+
+  it('behaves exactly as before when no plan is passed', () => {
+    const hints = hintsFor(lowProteinDay());
+    expect(hints.find((h) => h.id === 'proteinG-low')).toBeDefined();
+    expect(hints.find((h) => h.id === 'proteinG-low-planned')).toBeUndefined();
+  });
+
+  it('points the next-meal nudge at the plan when planned protein closes the gap', () => {
+    const hints = hintsWithPlan(lowProteinDay(), [makePlanEntry({ proteinG: 90 })]);
+    expect(hints.find((h) => h.id === 'next-meal')).toBeUndefined();
+    const hint = hints.find((h) => h.id === 'next-meal-planned');
+    expect(hint).toBeDefined();
+    expect(hint!.reason).toMatch(/Ribeye steak/);
+    expect(suggestionText(hint!).toLowerCase()).toMatch(/log/);
+  });
+
+  it('drops a plan-covered nutrient from the next-meal pairing suggestions', () => {
+    // Potassium is low from logged food but fully covered by the planned
+    // side of spinach; the next-meal pairing should no longer push potassium.
+    const entries = [
+      makeEntry({ proteinG: 20, fibreG: 20, potassiumMg: 100, magnesiumMg: 350, sodiumMg: 2200 }),
+    ];
+    const plan = [makePlanEntry({ name: 'Spinach salad', proteinG: 0, potassiumMg: 3000 })];
+    const hints = hintsWithPlan(entries, plan);
+    const nextMeal = hints.find((h) => h.id === 'next-meal');
+    expect(nextMeal).toBeDefined();
+    expect(suggestionText(nextMeal!).toLowerCase()).not.toMatch(/potassium/);
   });
 });
 

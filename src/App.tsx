@@ -911,6 +911,7 @@ function App() {
             recommendations={recommendations}
             profile={profile}
             recentSummaries={recentSummaries}
+            mealPlan={mealPlan}
             onAddFood={() => setScreen('barcode')}
             onSyncGarmin={isHealthConnectSupported() ? handleSyncGarmin : undefined}
           />
