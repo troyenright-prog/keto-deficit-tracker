@@ -4,6 +4,7 @@ import { calcNetCarbs, safePositive, todayDateString } from '../lib/nutrition';
 import { FoodForm, type FoodFormValues } from '../components/FoodForm';
 import { entryMeal, mealLabel, MEAL_SLOTS } from '../lib/meals';
 import { entryNeedsNutritionRepair, type RepairResult } from '../lib/barcode';
+import { entrySourceLabel } from '../lib/log-source';
 import { nanoid } from '../lib/nanoid';
 import { pickMicronutrients, scaleMicronutrients } from '../lib/micronutrients';
 
@@ -244,6 +245,7 @@ export function DailyLog({ log, savedFoods, onDelete, onEdit, onDuplicate, onSav
                                 <div className="log-item-actions">
                                   <span className="log-item-full-macros">
                                     {entry.proteinG.toFixed(1)}g protein · {entry.fatG.toFixed(1)}g fat
+                                    {entrySourceLabel(entry) ? ` · ${entrySourceLabel(entry)}` : ''}
                                   </span>
                                   <label className="meal-select-label">
                                     <span>Meal</span>
