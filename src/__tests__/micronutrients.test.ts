@@ -103,7 +103,7 @@ describe('micronutrient snapshots', () => {
     expect(screen.getByText('Vitamin C')).toBeTruthy();
     expect(screen.queryByText('Vitamin A')).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show all 21 nutrients' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Show all 25 nutrients' }));
 
     expect(screen.getByRole('button', { name: 'Show logged only' })).toBeTruthy();
     expect(screen.getByText('Vitamin A')).toBeTruthy();

@@ -93,6 +93,10 @@ describe('barcode lookup endpoint', () => {
             { nutrientName: 'Carbohydrate, by difference', nutrientNumber: '205', value: 6 },
             { nutrientName: 'Fiber, total dietary', nutrientNumber: '291', value: 4 },
             { nutrientName: 'Sodium, Na', nutrientNumber: '307', value: 120 },
+            { nutrientName: 'Fatty acids, total saturated', nutrientNumber: '606', value: 9 },
+            { nutrientName: 'Pantothenic acid', nutrientNumber: '410', value: 1.5 },
+            { nutrientName: 'Biotin', nutrientNumber: '416', value: 10 },
+            { nutrientName: 'Choline, total', nutrientNumber: '421', value: 45 },
           ],
         }],
       });
@@ -117,6 +121,11 @@ describe('barcode lookup endpoint', () => {
       totalCarbsG: 2.4,
       fibreG: 1.6,
       sodiumMg: 48,
+      // Per-100g values scaled to the 40g serving, in FDC's own units.
+      saturatedFatG: 3.6,
+      pantothenicAcidMg: 0.6,
+      biotinMcg: 4,
+      cholineMg: 18,
       attribution: 'USDA FoodData Central',
     });
     expect(fetcher).toHaveBeenCalledTimes(2);

@@ -79,6 +79,12 @@ function normalizeFoodDataCentralSearch(value: unknown, barcode: string) {
     calciumMg: scaled(['calcium, ca', '301']) || undefined,
     ironMg: scaled(['iron, fe', '303']) || undefined,
     zincMg: scaled(['zinc, zn', '309']) || undefined,
+    // FDC reports each nutrient in its own labelled unit, which already
+    // matches these fields (g / mg / mcg) — no conversion needed.
+    saturatedFatG: scaled(['fatty acids, total saturated', '606']) || undefined,
+    pantothenicAcidMg: scaled(['pantothenic acid', '410']) || undefined,
+    biotinMcg: scaled(['biotin', '416']) || undefined,
+    cholineMg: scaled(['choline, total', '421']) || undefined,
     sourceUrl: asNumber(food.fdcId) ? `https://fdc.nal.usda.gov/fdc-app.html#/food-details/${food.fdcId}/nutrients` : undefined,
   };
 }

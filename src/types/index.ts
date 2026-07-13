@@ -50,6 +50,7 @@ export interface NutritionTotals extends Micronutrients {
 
 // Optional micronutrients — most foods won't have all values
 export interface Micronutrients {
+  saturatedFatG?: number;
   calciumMg?: number;
   phosphorusMg?: number;
   ironMg?: number;
@@ -66,9 +67,12 @@ export interface Micronutrients {
   thiaminMg?: number;
   riboflavinMg?: number;
   niacinMg?: number;
+  pantothenicAcidMg?: number;
   vitaminB6Mg?: number;
+  biotinMcg?: number;
   folateMcg?: number;
   vitaminB12Mcg?: number;
+  cholineMg?: number;
   omega3G?: number;
   omega6G?: number;
 }

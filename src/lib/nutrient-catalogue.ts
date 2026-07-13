@@ -113,6 +113,10 @@ export const NUTRIENT_HINT_CATALOGUE: NutrientHintDef[] = [
     lowSuggestion: 'leafy greens, avocado, broccoli, or eggs',
   },
   {
+    key: 'cholineMg', label: 'Choline', unit: 'mg', decimals: 0, lowRatio: 0.5, priority: 35,
+    lowSuggestion: 'eggs, liver, salmon, or beef',
+  },
+  {
     key: 'vitaminDMcg', label: 'Vitamin D', unit: 'mcg', decimals: 1, lowRatio: 0.5, priority: 34,
     lowSuggestion: 'salmon, sardines, or egg yolks',
     supplementNote: 'a vitamin D supplement in low-sun months, if appropriate',
@@ -147,6 +151,14 @@ export const NUTRIENT_HINT_CATALOGUE: NutrientHintDef[] = [
     lowSuggestion: 'pork, salmon, sunflower seeds, or macadamias',
   },
   {
+    key: 'pantothenicAcidMg', label: 'B5 pantothenic acid', unit: 'mg', decimals: 1, lowRatio: 0.5, priority: 19,
+    lowSuggestion: 'chicken, beef, mushrooms, avocado, or eggs',
+  },
+  {
+    key: 'biotinMcg', label: 'B7 biotin', unit: 'mcg', decimals: 0, lowRatio: 0.5, priority: 17,
+    lowSuggestion: 'eggs, salmon, almonds, or liver',
+  },
+  {
     key: 'manganeseMg', label: 'Manganese', unit: 'mg', decimals: 1, lowRatio: 0.5, priority: 18,
     lowSuggestion: 'nuts, leafy greens, or shellfish',
   },
@@ -158,4 +170,7 @@ export const NUTRIENT_HINT_CATALOGUE: NutrientHintDef[] = [
   // way to tell "too much" from typical cooking-oil use — tracked for display
   // only, no hint is generated for it.
   { key: 'omega6G', label: 'Omega-6', unit: 'g', decimals: 1, priority: 0, lowSuggestion: '' },
+  // Saturated fat is a normal part of a keto diet and has no RDA; flagging it
+  // "high" would be alarmist and flagging it "low" nonsensical — display only.
+  { key: 'saturatedFatG', label: 'Saturated fat', unit: 'g', decimals: 1, priority: 0, lowSuggestion: '' },
 ];

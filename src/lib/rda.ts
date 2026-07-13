@@ -5,7 +5,9 @@ import type { MicronutrientKey } from './micronutrients';
 // published NIH Office of Dietary Supplements RDA/AI tables. Values are per
 // day. Where an RDA isn't established, the AI is used (e.g. manganese,
 // omega-3/omega-6). These are population reference values, not medical
-// advice — users can always override them.
+// advice — users can always override them. B5/biotin/choline are AIs (no RDA
+// exists). Saturated fat has no RDA/AI at all — 0 means "no daily target",
+// which the hint engine treats as "never flag", so it stays display-only.
 interface RdaBand {
   minAge: number;
   maxAge: number;
@@ -21,13 +23,13 @@ const RDA_BANDS: RdaBand[] = [
       calciumMg: 1300, phosphorusMg: 1250, ironMg: 11, zincMg: 11, copperMg: 0.89, manganeseMg: 2.2,
       iodineMcg: 150, seleniumMcg: 55, vitaminAMcg: 900, vitaminCMg: 75, vitaminDMcg: 15, vitaminEMg: 15,
       vitaminKMcg: 75, thiaminMg: 1.2, riboflavinMg: 1.3, niacinMg: 16, vitaminB6Mg: 1.3, folateMcg: 400,
-      vitaminB12Mcg: 2.4, omega3G: 1.6, omega6G: 16,
+      vitaminB12Mcg: 2.4, pantothenicAcidMg: 5, biotinMcg: 25, cholineMg: 550, saturatedFatG: 0, omega3G: 1.6, omega6G: 16,
     },
     female: {
       calciumMg: 1300, phosphorusMg: 1250, ironMg: 15, zincMg: 9, copperMg: 0.89, manganeseMg: 1.6,
       iodineMcg: 150, seleniumMcg: 55, vitaminAMcg: 700, vitaminCMg: 65, vitaminDMcg: 15, vitaminEMg: 15,
       vitaminKMcg: 75, thiaminMg: 1, riboflavinMg: 1, niacinMg: 14, vitaminB6Mg: 1.2, folateMcg: 400,
-      vitaminB12Mcg: 2.4, omega3G: 1.1, omega6G: 11,
+      vitaminB12Mcg: 2.4, pantothenicAcidMg: 5, biotinMcg: 25, cholineMg: 400, saturatedFatG: 0, omega3G: 1.1, omega6G: 11,
     },
   },
   {
@@ -37,13 +39,13 @@ const RDA_BANDS: RdaBand[] = [
       calciumMg: 1000, phosphorusMg: 700, ironMg: 8, zincMg: 11, copperMg: 0.9, manganeseMg: 2.3,
       iodineMcg: 150, seleniumMcg: 55, vitaminAMcg: 900, vitaminCMg: 90, vitaminDMcg: 15, vitaminEMg: 15,
       vitaminKMcg: 120, thiaminMg: 1.2, riboflavinMg: 1.3, niacinMg: 16, vitaminB6Mg: 1.3, folateMcg: 400,
-      vitaminB12Mcg: 2.4, omega3G: 1.6, omega6G: 17,
+      vitaminB12Mcg: 2.4, pantothenicAcidMg: 5, biotinMcg: 30, cholineMg: 550, saturatedFatG: 0, omega3G: 1.6, omega6G: 17,
     },
     female: {
       calciumMg: 1000, phosphorusMg: 700, ironMg: 18, zincMg: 8, copperMg: 0.9, manganeseMg: 1.8,
       iodineMcg: 150, seleniumMcg: 55, vitaminAMcg: 700, vitaminCMg: 75, vitaminDMcg: 15, vitaminEMg: 15,
       vitaminKMcg: 90, thiaminMg: 1.1, riboflavinMg: 1.1, niacinMg: 14, vitaminB6Mg: 1.3, folateMcg: 400,
-      vitaminB12Mcg: 2.4, omega3G: 1.1, omega6G: 12,
+      vitaminB12Mcg: 2.4, pantothenicAcidMg: 5, biotinMcg: 30, cholineMg: 425, saturatedFatG: 0, omega3G: 1.1, omega6G: 12,
     },
   },
   {
@@ -53,13 +55,13 @@ const RDA_BANDS: RdaBand[] = [
       calciumMg: 1000, phosphorusMg: 700, ironMg: 8, zincMg: 11, copperMg: 0.9, manganeseMg: 2.3,
       iodineMcg: 150, seleniumMcg: 55, vitaminAMcg: 900, vitaminCMg: 90, vitaminDMcg: 15, vitaminEMg: 15,
       vitaminKMcg: 120, thiaminMg: 1.2, riboflavinMg: 1.3, niacinMg: 16, vitaminB6Mg: 1.3, folateMcg: 400,
-      vitaminB12Mcg: 2.4, omega3G: 1.6, omega6G: 17,
+      vitaminB12Mcg: 2.4, pantothenicAcidMg: 5, biotinMcg: 30, cholineMg: 550, saturatedFatG: 0, omega3G: 1.6, omega6G: 17,
     },
     female: {
       calciumMg: 1000, phosphorusMg: 700, ironMg: 18, zincMg: 8, copperMg: 0.9, manganeseMg: 1.8,
       iodineMcg: 150, seleniumMcg: 55, vitaminAMcg: 700, vitaminCMg: 75, vitaminDMcg: 15, vitaminEMg: 15,
       vitaminKMcg: 90, thiaminMg: 1.1, riboflavinMg: 1.1, niacinMg: 14, vitaminB6Mg: 1.3, folateMcg: 400,
-      vitaminB12Mcg: 2.4, omega3G: 1.1, omega6G: 12,
+      vitaminB12Mcg: 2.4, pantothenicAcidMg: 5, biotinMcg: 30, cholineMg: 425, saturatedFatG: 0, omega3G: 1.1, omega6G: 12,
     },
   },
   {
@@ -69,13 +71,13 @@ const RDA_BANDS: RdaBand[] = [
       calciumMg: 1000, phosphorusMg: 700, ironMg: 8, zincMg: 11, copperMg: 0.9, manganeseMg: 2.3,
       iodineMcg: 150, seleniumMcg: 55, vitaminAMcg: 900, vitaminCMg: 90, vitaminDMcg: 15, vitaminEMg: 15,
       vitaminKMcg: 120, thiaminMg: 1.2, riboflavinMg: 1.3, niacinMg: 16, vitaminB6Mg: 1.7, folateMcg: 400,
-      vitaminB12Mcg: 2.4, omega3G: 1.6, omega6G: 14,
+      vitaminB12Mcg: 2.4, pantothenicAcidMg: 5, biotinMcg: 30, cholineMg: 550, saturatedFatG: 0, omega3G: 1.6, omega6G: 14,
     },
     female: {
       calciumMg: 1200, phosphorusMg: 700, ironMg: 8, zincMg: 8, copperMg: 0.9, manganeseMg: 1.8,
       iodineMcg: 150, seleniumMcg: 55, vitaminAMcg: 700, vitaminCMg: 75, vitaminDMcg: 15, vitaminEMg: 15,
       vitaminKMcg: 90, thiaminMg: 1.1, riboflavinMg: 1.1, niacinMg: 14, vitaminB6Mg: 1.5, folateMcg: 400,
-      vitaminB12Mcg: 2.4, omega3G: 1.1, omega6G: 11,
+      vitaminB12Mcg: 2.4, pantothenicAcidMg: 5, biotinMcg: 30, cholineMg: 425, saturatedFatG: 0, omega3G: 1.1, omega6G: 11,
     },
   },
   {
@@ -85,13 +87,13 @@ const RDA_BANDS: RdaBand[] = [
       calciumMg: 1200, phosphorusMg: 700, ironMg: 8, zincMg: 11, copperMg: 0.9, manganeseMg: 2.3,
       iodineMcg: 150, seleniumMcg: 55, vitaminAMcg: 900, vitaminCMg: 90, vitaminDMcg: 20, vitaminEMg: 15,
       vitaminKMcg: 120, thiaminMg: 1.2, riboflavinMg: 1.3, niacinMg: 16, vitaminB6Mg: 1.7, folateMcg: 400,
-      vitaminB12Mcg: 2.4, omega3G: 1.6, omega6G: 14,
+      vitaminB12Mcg: 2.4, pantothenicAcidMg: 5, biotinMcg: 30, cholineMg: 550, saturatedFatG: 0, omega3G: 1.6, omega6G: 14,
     },
     female: {
       calciumMg: 1200, phosphorusMg: 700, ironMg: 8, zincMg: 8, copperMg: 0.9, manganeseMg: 1.8,
       iodineMcg: 150, seleniumMcg: 55, vitaminAMcg: 700, vitaminCMg: 75, vitaminDMcg: 20, vitaminEMg: 15,
       vitaminKMcg: 90, thiaminMg: 1.1, riboflavinMg: 1.1, niacinMg: 14, vitaminB6Mg: 1.5, folateMcg: 400,
-      vitaminB12Mcg: 2.4, omega3G: 1.1, omega6G: 11,
+      vitaminB12Mcg: 2.4, pantothenicAcidMg: 5, biotinMcg: 30, cholineMg: 425, saturatedFatG: 0, omega3G: 1.1, omega6G: 11,
     },
   },
 ];

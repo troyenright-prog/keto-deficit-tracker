@@ -92,9 +92,13 @@ const OFF_MICRONUTRIENTS: Array<{
   { appKey: 'thiaminMg', offKeys: ['vitamin-b1'], targetUnit: 'mg' },
   { appKey: 'riboflavinMg', offKeys: ['vitamin-b2'], targetUnit: 'mg' },
   { appKey: 'niacinMg', offKeys: ['vitamin-pp', 'vitamin-b3'], targetUnit: 'mg' },
+  { appKey: 'pantothenicAcidMg', offKeys: ['pantothenic-acid'], targetUnit: 'mg' },
   { appKey: 'vitaminB6Mg', offKeys: ['vitamin-b6'], targetUnit: 'mg' },
+  { appKey: 'biotinMcg', offKeys: ['biotin'], targetUnit: 'mcg' },
   { appKey: 'folateMcg', offKeys: ['vitamin-b9', 'folates'], targetUnit: 'mcg' },
   { appKey: 'vitaminB12Mcg', offKeys: ['vitamin-b12'], targetUnit: 'mcg' },
+  { appKey: 'cholineMg', offKeys: ['choline'], targetUnit: 'mg' },
+  { appKey: 'saturatedFatG', offKeys: ['saturated-fat'], targetUnit: 'g' },
   { appKey: 'omega3G', offKeys: ['omega-3-fat'], targetUnit: 'g' },
   { appKey: 'omega6G', offKeys: ['omega-6-fat'], targetUnit: 'g' },
 ];

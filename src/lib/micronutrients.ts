@@ -27,9 +27,13 @@ export const MICRONUTRIENT_FIELDS = [
   { key: 'thiaminMg', label: 'B1 thiamin', unit: 'mg', decimals: 2, group: 'vitamins' },
   { key: 'riboflavinMg', label: 'B2 riboflavin', unit: 'mg', decimals: 2, group: 'vitamins' },
   { key: 'niacinMg', label: 'B3 niacin', unit: 'mg', decimals: 1, group: 'vitamins' },
+  { key: 'pantothenicAcidMg', label: 'B5 pantothenic acid', unit: 'mg', decimals: 1, group: 'vitamins' },
   { key: 'vitaminB6Mg', label: 'Vitamin B6', unit: 'mg', decimals: 2, group: 'vitamins' },
+  { key: 'biotinMcg', label: 'B7 biotin', unit: 'mcg', decimals: 1, group: 'vitamins' },
   { key: 'folateMcg', label: 'Folate', unit: 'mcg', decimals: 1, group: 'vitamins' },
   { key: 'vitaminB12Mcg', label: 'Vitamin B12', unit: 'mcg', decimals: 1, group: 'vitamins' },
+  { key: 'cholineMg', label: 'Choline', unit: 'mg', decimals: 1, group: 'vitamins' },
+  { key: 'saturatedFatG', label: 'Saturated fat', unit: 'g', decimals: 1, group: 'fats' },
   { key: 'omega3G', label: 'Omega-3', unit: 'g', decimals: 2, group: 'fats' },
   { key: 'omega6G', label: 'Omega-6', unit: 'g', decimals: 2, group: 'fats' },
 ] as const satisfies readonly MicronutrientField[];

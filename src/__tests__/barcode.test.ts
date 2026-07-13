@@ -45,6 +45,13 @@ const openFoodFactsResponse = {
       iodine_unit: 'mcg',
       'vitamin-b12_serving': 0.0000024, // grams (label: 2.4 mcg)
       'vitamin-b12_unit': 'mcg',
+      'saturated-fat_serving': 5.5, // grams
+      'pantothenic-acid_serving': 0.002, // grams (label: 2 mg)
+      'pantothenic-acid_unit': 'mg',
+      biotin_serving: 0.00003, // grams (label: 30 mcg)
+      biotin_unit: 'µg',
+      choline_serving: 0.185, // grams (label: 185 mg)
+      choline_unit: 'mg',
     },
   },
 };
@@ -116,6 +123,10 @@ describe('barcode food mapping', () => {
       vitaminCMg: 12,
       iodineMcg: 150,
       vitaminB12Mcg: 2.4,
+      saturatedFatG: 5.5,
+      pantothenicAcidMg: 2,
+      biotinMcg: 30,
+      cholineMg: 185,
     });
   });
 
