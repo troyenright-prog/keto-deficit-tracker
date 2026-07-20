@@ -27,7 +27,7 @@ describe('Dashboard screen', () => {
     expect(screen.getByText('Over target')).toBeTruthy();
   });
 
-  it('shows needs-attention recommendations near the top of home', () => {
+  it('shows recommendations in one priorities panel near the top of home', () => {
     const { container } = render(
       <Dashboard
         summary={summariseDay('2026-01-01', [])}
@@ -38,10 +38,12 @@ describe('Dashboard screen', () => {
       />,
     );
 
-    expect(screen.getAllByText('Needs attention')).toHaveLength(1);
+    expect(screen.getAllByText("Today's priorities")).toHaveLength(1);
     expect(screen.getByText('Top up electrolytes today.')).toBeTruthy();
     const text = container.textContent ?? '';
-    expect(text.indexOf('Needs attention')).toBeLessThan(text.indexOf('Daily progress'));
+    expect(text.indexOf("Today's priorities")).toBeLessThan(text.indexOf('Daily progress'));
+    expect(screen.queryByText('Needs attention')).toBeNull();
+    expect(screen.queryByText('What to fix next')).toBeNull();
   });
 
   it('shows synced Garmin steps when activity is available', () => {
@@ -86,7 +88,7 @@ describe('Dashboard screen', () => {
     await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Garmin sync complete.'));
   });
 
-  it('keeps next-move advice concise and removes duplicate needs-attention items', () => {
+  it('keeps one concise, deduplicated priorities panel', () => {
     const summary: DailyNutritionSummary = {
       date: '2026-01-01',
       calories: 700,
@@ -120,7 +122,8 @@ describe('Dashboard screen', () => {
     expect(screen.getByText('Prioritise protein next.')).toBeTruthy();
     expect(screen.queryByText(/80g protein to go/)).toBeNull();
     expect(screen.queryByText(/protein-forward meal/)).toBeNull();
-    expect(screen.getByText('Sodium is low. Consider broth, salted meat, pickles, or an electrolyte drink.')).toBeTruthy();
-    expect(screen.getByText('Magnesium is low. Spinach, pumpkin seeds, almonds, or avocado are useful options.')).toBeTruthy();
+    expect(screen.getAllByText("Today's priorities")).toHaveLength(1);
+    expect(screen.queryByText('Needs attention')).toBeNull();
+    expect(screen.queryByText('What to fix next')).toBeNull();
   });
 });

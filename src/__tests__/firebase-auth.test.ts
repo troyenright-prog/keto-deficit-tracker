@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  resolveDbRequestUrl, parseSignUpResponse, parseRefreshTokenResponse,
+  resolveDbRequestUrl, parseSignUpResponse, parseRefreshTokenResponse, parseFirebaseStreamPayload,
   AUTH_UNAVAILABLE_MESSAGE, DB_UNCONFIGURED_MESSAGE,
 } from '../lib/firebase-db';
 
@@ -55,5 +55,20 @@ describe('auth token response parsing', () => {
   it('rejects a refresh response missing id_token or refresh_token', () => {
     expect(parseRefreshTokenResponse({ id_token: 'id-2' })).toBeNull();
     expect(parseRefreshTokenResponse({})).toBeNull();
+  });
+});
+
+describe('Firebase stream payload parsing', () => {
+  it('accepts Firebase put and patch payloads', () => {
+    expect(parseFirebaseStreamPayload('{"path":"/","data":{"version":6}}')).toEqual({
+      path: '/',
+      data: { version: 6 },
+    });
+  });
+
+  it('rejects malformed stream messages', () => {
+    expect(parseFirebaseStreamPayload('not json')).toBeNull();
+    expect(parseFirebaseStreamPayload('{"data":null}')).toBeNull();
+    expect(parseFirebaseStreamPayload('{"path":"/"}')).toBeNull();
   });
 });

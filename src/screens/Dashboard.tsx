@@ -101,6 +101,14 @@ export function Dashboard({ summary, entries, activity, targets, recommendations
   const visibleRecommendations = recommendations.filter(
     (rec) => !surfacedMoves.some((move) => move.id === rec.id) && !surfacedTopics.has(recommendationTopic(rec.id)),
   );
+  const priorityHints = nutritionHints
+    .filter((hint) => !surfacedTopics.has(recommendationTopic(hint.id)))
+    .slice(0, 2);
+  const priorityHintTopics = new Set(priorityHints.map((hint) => recommendationTopic(hint.id)));
+  const priorityRecommendations = visibleRecommendations
+    .filter((rec) => !priorityHintTopics.has(recommendationTopic(rec.id)))
+    .slice(0, Math.max(0, 2 - priorityHints.length));
+  const showPriorities = surfacedMoves.length > 0 || priorityHints.length > 0 || priorityRecommendations.length > 0;
   const mealSummaries = MEAL_SLOTS.map((slot) => {
     const mealEntries = entries.filter((entry) => entryMeal(entry) === slot.id);
     return {
@@ -126,18 +134,31 @@ export function Dashboard({ summary, entries, activity, targets, recommendations
 
   return (
     <div className="screen">
-      {summary.entryCount > 0 && (
-        <div className="suggestions-section" aria-label="What should I eat next">
-          <div className="section-title">What should I eat next?</div>
-          {nextMove ? (
+      {showPriorities && (
+        <section className="suggestions-section" aria-label="Today's priorities">
+          <div className="section-title">Today's priorities</div>
+          {surfacedMoves.length > 0 && nextMove && (
             <div className={`next-move next-move--${nextMove.priority}`}>
               <strong>{nextMove.priority === 'warning' ? 'Check this first' : 'Next move'}</strong>
               <span>{headlineForMove(nextMove)}</span>
             </div>
-          ) : (
-            <p className="empty-hint empty-hint--compact">You are on track - keep the next meal protein-first and low carb.</p>
           )}
-        </div>
+          {(priorityHints.length > 0 || priorityRecommendations.length > 0) && (
+            <ul className="priority-list">
+              {priorityHints.map((hint) => (
+                <li key={hint.id} className={`priority-item priority-item--${hint.severity}`}>
+                  <strong>{hint.title}</strong>
+                  <span>{hint.suggestions[0] ?? hint.reason}</span>
+                </li>
+              ))}
+              {priorityRecommendations.map((rec) => (
+                <li key={rec.id} className={`priority-item priority-item--${rec.priority}`}>
+                  <span>{rec.message}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       )}
 
       <div className="dashboard-hero dashboard-hero--compact">
@@ -187,19 +208,6 @@ export function Dashboard({ summary, entries, activity, targets, recommendations
         <div className={`keto-status keto-status--${statusVariant}`}>
           {carbStatusLabel(status)}
         </div>
-      )}
-
-      {visibleRecommendations.length > 0 && (
-        <>
-          <div className="section-title">Needs attention</div>
-          <ul className="recommendations">
-            {visibleRecommendations.map((r) => (
-              <li key={r.id} className={`rec rec--${r.priority}`}>
-                {r.message}
-              </li>
-            ))}
-          </ul>
-        </>
       )}
 
       {summary.entryCount === 0 && (
@@ -333,27 +341,6 @@ export function Dashboard({ summary, entries, activity, targets, recommendations
           variant={summary.magnesiumMg >= targets.magnesiumMg ? 'success' : 'default'}
         />
       </div>
-
-      {nutritionHints.length > 0 && (
-        <>
-          <div className="section-title">What to fix next</div>
-          <ul className="nutrition-hints">
-            {nutritionHints.map((hint) => (
-              <li key={hint.id} className={`nutrition-hint nutrition-hint--${hint.severity}`}>
-                <strong>{hint.title}</strong>
-                <span>{hint.reason}</span>
-                {hint.likelyDrivers.length > 0 && (
-                  <span className="nutrition-hint__drivers">Likely from: {hint.likelyDrivers.join(', ')}</span>
-                )}
-                {hint.suggestions.map((suggestion) => (
-                  <span className="nutrition-hint__advice" key={suggestion}>{suggestion}</span>
-                ))}
-                {hint.caveat && <small>{hint.caveat}</small>}
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
 
       {(loggedMicronutrientRows.length > 0 || summary.entryCount > 0) && (
         <>

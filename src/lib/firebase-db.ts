@@ -16,8 +16,30 @@ type QueueState = {
 const KETO_DB_BASE = (import.meta.env.VITE_KETO_FIREBASE_DB_BASE || '').replace(/\/+$/, '');
 const FIREBASE_API_KEY = import.meta.env.VITE_FIREBASE_API_KEY || '';
 const REQUEST_TIMEOUT_MS = 15_000;
-const POLL_INTERVAL_MS = 5_000;
+const FALLBACK_POLL_INTERVAL_MS = 60_000;
+const STREAM_RECONNECT_DELAY_MS = 5_000;
 const SYNC_RETRY_INTERVAL_MS = 10_000;
+
+type RemoteStreamEvent = { data: string };
+
+export interface RemoteEventSource {
+  addEventListener(type: string, listener: (event: RemoteStreamEvent) => void): void;
+  close(): void;
+}
+
+type RemoteEventSourceFactory = (url: string) => RemoteEventSource;
+
+export function parseFirebaseStreamPayload(value: string): { path: string; data: unknown } | null {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!parsed || typeof parsed !== 'object') return null;
+    const record = parsed as { path?: unknown; data?: unknown };
+    if (typeof record.path !== 'string' || !Object.prototype.hasOwnProperty.call(record, 'data')) return null;
+    return { path: record.path, data: record.data };
+  } catch {
+    return null;
+  }
+}
 
 export function firebaseAuthEnvIsComplete(env: Record<string, string | undefined> = {}): boolean {
   return Boolean(
@@ -357,15 +379,24 @@ function isPageHidden(): boolean {
 export function subscribeRemoteAppData(
   userKey: AppUserKey,
   callback: (bundle: AppStateBundle | null) => void,
-  { onError, intervalMs = POLL_INTERVAL_MS }: { onError?: (error: unknown) => void; intervalMs?: number } = {},
+  {
+    onError,
+    fallbackIntervalMs = FALLBACK_POLL_INTERVAL_MS,
+    eventSourceFactory,
+  }: {
+    onError?: (error: unknown) => void;
+    fallbackIntervalMs?: number;
+    eventSourceFactory?: RemoteEventSourceFactory;
+  } = {},
 ): () => void {
   let stopped = false;
   let inFlight = false;
+  let source: RemoteEventSource | null = null;
+  let fallbackTimer: ReturnType<typeof setInterval> | null = null;
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  let connectionGeneration = 0;
+
   const poll = async () => {
-    // Skip while backgrounded: a poll here can't reach the user (there's no UI
-    // to update) and it downloads the whole app-state bundle for nothing. The
-    // visibilitychange listener below runs one immediately on the way back to
-    // the foreground, so this never delays picking up a real remote change.
     if (stopped || inFlight || isPageHidden()) return;
     inFlight = true;
     try {
@@ -377,15 +408,111 @@ export function subscribeRemoteAppData(
       inFlight = false;
     }
   };
-  void poll();
-  const id = setInterval(() => { void poll(); }, intervalMs);
+
+  const closeSource = () => {
+    source?.close();
+    source = null;
+  };
+
+  const stopFallback = () => {
+    if (fallbackTimer) clearInterval(fallbackTimer);
+    fallbackTimer = null;
+  };
+
+  const startFallback = () => {
+    if (stopped || fallbackTimer || isPageHidden()) return;
+    void poll();
+    fallbackTimer = setInterval(() => { void poll(); }, fallbackIntervalMs);
+  };
+
+  const scheduleReconnect = (error: unknown) => {
+    if (stopped || reconnectTimer || isPageHidden()) return;
+    onError?.(error);
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      void connect();
+    }, STREAM_RECONNECT_DELAY_MS);
+  };
+
+  const configuredFactory: RemoteEventSourceFactory | null = eventSourceFactory
+    ?? (typeof EventSource !== 'undefined' ? (url) => new EventSource(url) : null);
+
+  const connect = async () => {
+    if (stopped || isPageHidden()) return;
+    if (!configuredFactory) {
+      startFallback();
+      return;
+    }
+
+    stopFallback();
+    closeSource();
+    const generation = ++connectionGeneration;
+    try {
+      const url = await dbUrl(userPath(userKey));
+      if (stopped || isPageHidden() || generation !== connectionGeneration) return;
+      const nextSource = configuredFactory(url);
+      source = nextSource;
+
+      nextSource.addEventListener('put', (event) => {
+        if (source !== nextSource) return;
+        const message = parseFirebaseStreamPayload(event.data);
+        if (!message) {
+          onError?.(new Error('Firebase stream returned an invalid update.'));
+          return;
+        }
+        if (message.path === '/') {
+          callback(normalizeAppBundle(message.data));
+        } else {
+          // App writes replace the root bundle. If an administrative or future
+          // client changes a nested path, refresh once to rebuild a safe,
+          // normalized snapshot instead of maintaining a second merge engine.
+          void poll();
+        }
+      });
+      nextSource.addEventListener('patch', () => {
+        if (source === nextSource) void poll();
+      });
+      nextSource.addEventListener('cancel', (event) => {
+        if (source !== nextSource) return;
+        closeSource();
+        scheduleReconnect(new Error(`Firebase stream cancelled: ${event.data || 'permission denied'}`));
+      });
+      nextSource.addEventListener('auth_revoked', (event) => {
+        if (source !== nextSource) return;
+        cachedToken = null;
+        tokenExpiry = 0;
+        closeSource();
+        scheduleReconnect(new Error(`Firebase stream authentication expired: ${event.data || 'token revoked'}`));
+      });
+      nextSource.addEventListener('error', () => {
+        if (source !== nextSource) return;
+        closeSource();
+        scheduleReconnect(new Error('Firebase stream disconnected.'));
+      });
+    } catch (error) {
+      scheduleReconnect(error);
+    }
+  };
+
+  void connect();
   const onVisibilityChange = () => {
-    if (!isPageHidden()) void poll();
+    connectionGeneration += 1;
+    if (isPageHidden()) {
+      closeSource();
+      stopFallback();
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    } else {
+      void connect();
+    }
   };
   if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisibilityChange);
   return () => {
     stopped = true;
-    clearInterval(id);
+    connectionGeneration += 1;
+    closeSource();
+    stopFallback();
+    if (reconnectTimer) clearTimeout(reconnectTimer);
     if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisibilityChange);
   };
 }
