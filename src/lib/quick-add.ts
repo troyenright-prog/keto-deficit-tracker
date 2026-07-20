@@ -3,6 +3,7 @@ import { foodDatabaseItemToSavedFood, foodDatabaseSignature } from './food-datab
 import { nanoid } from './nanoid';
 import { safePositive } from './nutrition';
 import { MICRONUTRIENT_KEYS } from './micronutrients';
+import { implausibleMacroMassMessage } from './nutrition-validation';
 
 export function foodSignature(item: Pick<FoodItem, 'name' | 'servingSize'>): string {
   return `${item.name.trim().toLowerCase()}|${item.servingSize.trim().toLowerCase()}`;
@@ -65,10 +66,12 @@ export function buildQuickAddGroups(options: {
 }): QuickAddGroup[] {
   const query = options.query.trim().toLowerCase();
   const matches = (name: string) => !query || name.toLowerCase().includes(query);
-  const favourites = options.savedFoods.filter((food) => food.isFavourite && matches(food.name));
-  const saved = options.savedFoods.filter((food) => !food.isFavourite && matches(food.name));
-  const existingFoods = new Set(options.savedFoods.map((food) => food.barcode ? `barcode:${food.barcode}` : `sig:${foodSignature(food)}`));
-  const databaseFoods = (options.foodDatabase ?? [])
+  const plausibleSavedFoods = options.savedFoods.filter((food) => !implausibleMacroMassMessage(food));
+  const plausibleDatabase = (options.foodDatabase ?? []).filter((food) => !implausibleMacroMassMessage(food));
+  const favourites = plausibleSavedFoods.filter((food) => food.isFavourite && matches(food.name));
+  const saved = plausibleSavedFoods.filter((food) => !food.isFavourite && matches(food.name));
+  const existingFoods = new Set(plausibleSavedFoods.map((food) => food.barcode ? `barcode:${food.barcode}` : `sig:${foodSignature(food)}`));
+  const databaseFoods = plausibleDatabase
     .filter((item) => {
       const key = item.barcode ? `barcode:${item.barcode}` : `sig:${foodDatabaseSignature(item)}`;
       return !existingFoods.has(key) && matches(`${item.name} ${item.brand ?? ''} ${item.barcode ?? ''}`);
@@ -78,17 +81,17 @@ export function buildQuickAddGroups(options: {
   // locally so the same product does not appear twice.
   const localKeys = new Set([
     ...existingFoods,
-    ...(options.foodDatabase ?? []).map((item) => item.barcode ? `barcode:${item.barcode}` : `sig:${foodDatabaseSignature(item)}`),
+    ...plausibleDatabase.map((item) => item.barcode ? `barcode:${item.barcode}` : `sig:${foodDatabaseSignature(item)}`),
   ]);
   const remote = (options.remoteFoods ?? []).filter((food) => {
     const key = food.barcode ? `barcode:${food.barcode}` : `sig:${foodSignature(food)}`;
     return !localKeys.has(key);
   });
-  const recent = options.recentFoods.filter((food) => matches(food.name));
+  const recent = options.recentFoods.filter((food) => !implausibleMacroMassMessage(food) && matches(food.name));
   const recipes = options.recipes.filter((recipe) => matches(recipe.name));
   const shortcuts = options.templates.filter((template) => template.mealType && matches(template.name));
   const templates = options.templates.filter((template) => !template.mealType && matches(template.name));
-  const existing = new Set(options.savedFoods.map(foodSignature));
+  const existing = new Set(plausibleSavedFoods.map(foodSignature));
   const starters = options.starterFoods.filter((food) => !existing.has(foodSignature(food)) && matches(food.name));
 
   const groups: QuickAddGroup[] = [

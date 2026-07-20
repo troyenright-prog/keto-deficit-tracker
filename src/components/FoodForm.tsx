@@ -3,6 +3,7 @@ import type { FoodItem, Micronutrients } from '../types';
 import { calcNetCarbs, todayDateString } from '../lib/nutrition';
 import { hasAnyMicronutrients, MICRONUTRIENT_FIELDS, pickMicronutrients, type MicronutrientKey } from '../lib/micronutrients';
 import { parseNumericInput } from '../lib/numeric-field';
+import { implausibleMacroMassMessage } from '../lib/nutrition-validation';
 
 export interface FoodFormValues extends Micronutrients {
   name: string;
@@ -118,6 +119,8 @@ export function FoodForm({
       e.fibreG = e.fibreG ?? 'Fibre and sugar alcohols cannot exceed total carbs';
       e.sugarAlcoholsG = e.sugarAlcoholsG ?? 'Fibre and sugar alcohols cannot exceed total carbs';
     }
+    const macroMassError = implausibleMacroMassMessage(values);
+    if (macroMassError) e.macros = macroMassError;
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -261,6 +264,7 @@ export function FoodForm({
       )}
 
       <div className="form-section-title">Macros</div>
+      {errors.macros && <span className="form-error">{errors.macros}</span>}
       <div className="form-row">
         <div className="form-group">
           <label htmlFor="calories">Calories</label>

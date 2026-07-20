@@ -59,6 +59,28 @@ describe('searchFoodsByName', () => {
     expect(foods[0].attribution).toBe('Open Food Facts');
   });
 
+  it('drops products whose macros cannot fit in the labelled serving', async () => {
+    const fetcher = vi.fn(async () => Response.json({
+      results: [{
+        barcode: '999',
+        name: 'Corrupt wafer',
+        servingSize: '40g',
+        dataBasis: 'serving',
+        calories: 216,
+        proteinG: 400,
+        fatG: 524,
+        totalCarbsG: 388,
+        fibreG: 1,
+        sugarAlcoholsG: 0,
+        sodiumMg: 60,
+        potassiumMg: 0,
+        magnesiumMg: 0,
+      }],
+    })) as unknown as typeof fetch;
+
+    await expect(searchFoodsByName('wafer', fetcher)).resolves.toEqual([]);
+  });
+
   it('normalizes Search-a-licious hits and coerces array brands', async () => {
     const fetcher = vi.fn(async () => Response.json({
       hits: [

@@ -1,4 +1,5 @@
 import { normalizeBarcode, normalizeOpenFoodFactsProduct } from '../../src/lib/barcode';
+import { implausibleMacroMassMessage } from '../../src/lib/nutrition-validation';
 
 type Env = {
   OPEN_FOOD_FACTS_USER_AGENT?: string;
@@ -106,7 +107,7 @@ async function lookupOpenFoodFacts(code: string, env: Env, fetcher: typeof fetch
 
   const body = await response.json() as unknown;
   const normalized = normalizeOpenFoodFactsProduct(body, code);
-  if (!normalized) return { status: 'incomplete' as const };
+  if (!normalized || implausibleMacroMassMessage(normalized)) return { status: 'incomplete' as const };
   return {
     status: 'found' as const,
     food: {
@@ -129,7 +130,7 @@ async function lookupFoodDataCentral(code: string, env: Env, fetcher: typeof fet
   if (response.status === 429 || response.status === 503) return { status: 'limited' as const };
   if (!response.ok) return { status: 'failed' as const };
   const normalized = normalizeFoodDataCentralSearch(await response.json(), code);
-  if (!normalized) return { status: 'missing' as const };
+  if (!normalized || implausibleMacroMassMessage(normalized)) return { status: 'missing' as const };
   return {
     status: 'found' as const,
     food: {

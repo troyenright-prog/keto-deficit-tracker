@@ -2,6 +2,7 @@ import type { FoodItem, FoodLogEntry, MealSlot, Micronutrients } from '../types'
 import { safeNonNegative, safePositive } from './nutrition';
 import { nanoid } from './nanoid';
 import { MICRONUTRIENT_KEYS, pickMicronutrients, scaleMicronutrients, type MicronutrientKey } from './micronutrients';
+import { implausibleMacroMassMessage } from './nutrition-validation';
 
 export interface BarcodeFood extends Micronutrients {
   barcode: string;
@@ -276,7 +277,12 @@ export async function lookupBarcodeFood(barcode: string, fetcher: typeof fetch =
     }
 
     const food = normalizeOpenFoodFactsProduct(body, normalized);
-    if (food) return food;
+    if (food) {
+      const sanityError = implausibleMacroMassMessage(food);
+      if (!sanityError) return food;
+      lastError = `Barcode nutrition looks invalid. ${sanityError}`;
+      continue;
+    }
     lastError = 'Barcode lookup returned incomplete nutrition data.';
   }
 

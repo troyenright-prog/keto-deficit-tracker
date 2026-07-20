@@ -17,6 +17,21 @@ describe('FoodForm validation', () => {
     expect(screen.getAllByText('Fibre and sugar alcohols cannot exceed total carbs')).toHaveLength(2);
   });
 
+  it('rejects macros that cannot fit in the labelled serving', () => {
+    const onSubmit = vi.fn();
+    render(<FoodForm onSubmit={onSubmit} />);
+
+    fireEvent.change(screen.getByLabelText('Food name *'), { target: { value: 'Corrupt wafer' } });
+    fireEvent.change(screen.getByLabelText('Serving size'), { target: { value: '40g' } });
+    fireEvent.change(screen.getByLabelText('Protein (g)'), { target: { value: '400' } });
+    fireEvent.change(screen.getByLabelText('Fat (g)'), { target: { value: '524' } });
+    fireEvent.change(screen.getByLabelText('Total carbs (g)'), { target: { value: '388' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add to Log' }));
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.getByText(/cannot fit in a 40\.0g serving/)).toBeTruthy();
+  });
+
   it('shows numeric fields empty with a placeholder instead of a locked 0', () => {
     render(<FoodForm onSubmit={vi.fn()} />);
     const calories = screen.getByLabelText('Calories') as HTMLInputElement;

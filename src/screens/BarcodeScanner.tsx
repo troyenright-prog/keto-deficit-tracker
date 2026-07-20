@@ -5,6 +5,7 @@ import { barcodeFoodToLogEntry, barcodeFoodToSavedFood, hasPositiveNutrition, lo
 import { barcodeFoodToFoodDatabaseItem, findFoodDatabaseByBarcode, foodDatabaseItemToBarcodeFood, savedFoodToBarcodeFood } from '../lib/food-database';
 import { inferMealSlot, MEAL_SLOTS } from '../lib/meals';
 import { calcNetCarbs, todayDateString } from '../lib/nutrition';
+import { implausibleMacroMassMessage } from '../lib/nutrition-validation';
 import { isDateString } from '../lib/date';
 import { formatMicronutrientAmount, hasAnyMicronutrients, MICRONUTRIENT_FIELDS, MICRONUTRIENT_KEYS } from '../lib/micronutrients';
 
@@ -122,7 +123,7 @@ export function BarcodeScanner({ foodDatabase, savedFoods, onAdd, onSaveFood, on
     // Use the cached copy only when it has tracked nutrition or the user edited it;
     // a cached 0-calorie row (e.g. saved during the OFF v3 empty-nutriments bug)
     // is treated as a miss so we re-fetch fresh data.
-    if (local && (local.userEdited || hasPositiveNutrition(local))) {
+    if (local && (local.userEdited || hasPositiveNutrition(local)) && !implausibleMacroMassMessage(local)) {
       setFood(foodDatabaseItemToBarcodeFood(local));
       setOrigin(local.userEdited ? 'corrected' : 'local');
       setError('');
@@ -139,7 +140,7 @@ export function BarcodeScanner({ foodDatabase, savedFoods, onAdd, onSaveFood, on
         onSaveFoodDatabaseItem(barcodeFoodToFoodDatabaseItem(remoteFood, local));
       }
     } catch (err) {
-      if (local) {
+      if (local && !implausibleMacroMassMessage(local)) {
         // The fresh lookup failed but we have a cached copy (e.g. a supplement
         // Open Food Facts doesn't carry) - show it rather than a dead "not found".
         setFood(foodDatabaseItemToBarcodeFood(local));
@@ -236,6 +237,12 @@ export function BarcodeScanner({ foodDatabase, savedFoods, onAdd, onSaveFood, on
     }
     if (food.fibreG + food.sugarAlcoholsG > food.totalCarbsG) {
       setError('Fibre and sugar alcohols cannot exceed total carbs.');
+      return false;
+    }
+    const macroMassError = implausibleMacroMassMessage(food);
+    if (macroMassError) {
+      setError(macroMassError);
+      setEditing(true);
       return false;
     }
     return true;

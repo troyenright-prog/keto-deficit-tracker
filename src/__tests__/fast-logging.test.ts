@@ -78,6 +78,39 @@ describe('unified quick-add grouping', () => {
     const groups = buildQuickAddGroups({ query: 'saved', savedFoods: [saved], recentFoods: [], recipes: [], templates: [], starterFoods: [food({ id: 'starter', name: saved.name, servingSize: saved.servingSize, isStarter: true })] });
     expect(groups.find((group) => group.key === 'starters')).toBeUndefined();
   });
+
+  it('hides poisoned local macros without suppressing a valid remote replacement', () => {
+    const poisoned = food({
+      id: 'bad-wafer',
+      barcode: '999',
+      name: 'Musashi wafer',
+      servingSize: '40g',
+      proteinG: 400,
+      fatG: 524,
+      totalCarbsG: 388,
+    });
+    const corrected = food({
+      id: 'remote-wafer',
+      barcode: '999',
+      name: 'Musashi wafer',
+      servingSize: '40g',
+      proteinG: 10,
+      fatG: 13.1,
+      totalCarbsG: 9.7,
+    });
+    const groups = buildQuickAddGroups({
+      query: 'musashi',
+      savedFoods: [poisoned],
+      recentFoods: [poisoned],
+      recipes: [],
+      templates: [],
+      starterFoods: [],
+      remoteFoods: [corrected],
+    });
+
+    expect(groups.map((group) => group.key)).toEqual(['remote']);
+    expect(groups[0].items[0].id).toBe('remote-wafer');
+  });
 });
 
 describe('favourite and meal shortcut storage defaults', () => {

@@ -1,4 +1,5 @@
 import { hasPositiveNutrition, normalizeOpenFoodFactsProduct, type BarcodeFood } from './barcode';
+import { implausibleMacroMassMessage } from './nutrition-validation';
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -133,7 +134,7 @@ function resultsFromBody(body: unknown): BarcodeFood[] {
   const seen = new Set<string>();
   for (const item of raw) {
     const food = normalizeOpenFoodFactsProduct(coerceProduct(item));
-    if (!food || !hasPositiveNutrition(food) || seen.has(food.barcode)) continue;
+    if (!food || !hasPositiveNutrition(food) || implausibleMacroMassMessage(food) || seen.has(food.barcode)) continue;
     seen.add(food.barcode);
     foods.push(food.attribution ? food : { ...food, attribution: 'Open Food Facts', attributionUrl: 'https://world.openfoodfacts.org' });
     if (foods.length >= MAX_RESULTS) break;
