@@ -5,6 +5,8 @@ import {
   getLocalDataModifiedAt,
   ensureLocalModifiedBaseline,
   configureStorageScope,
+  hasLocalUserData,
+  migrateIfNeeded,
 } from '../lib/storage';
 
 beforeEach(() => {
@@ -34,6 +36,41 @@ describe('remoteBundleShouldReplaceLocal', () => {
   it('rejects an equal-timestamp remote bundle (nothing to gain)', () => {
     expect(remoteBundleShouldReplaceLocal('2026-07-02T09:00:00.000Z', '2026-07-02T09:00:00.000Z', true)).toBe(false);
   });
+
+  it('uses the startup snapshot so a first edit while connecting cannot clobber populated remote data', () => {
+    const startup = { modifiedAt: '', hasData: false };
+
+    // The edit happens after sync starts but before the first remote GET returns.
+    markLocalDataModified('2026-07-02T11:00:00.000Z');
+    localStorage.setItem('keto_saved_foods', JSON.stringify([{ id: 'new', name: 'New local food' }]));
+
+    expect(hasLocalUserData()).toBe(true);
+    expect(remoteBundleShouldReplaceLocal(
+      '2026-07-02T10:00:00.000Z',
+      startup.modifiedAt,
+      startup.hasData,
+    )).toBe(true);
+  });
+});
+
+describe('hasLocalUserData', () => {
+  it('treats a migrated fresh install with defaults as empty so populated remote data hydrates', () => {
+    migrateIfNeeded();
+
+    expect(hasLocalUserData()).toBe(false);
+    expect(remoteBundleShouldReplaceLocal('2026-07-02T10:00:00.000Z', getLocalDataModifiedAt(), hasLocalUserData())).toBe(true);
+  });
+
+  it('counts real food content but not profile or reminder configuration', () => {
+    localStorage.setItem('keto_profile', JSON.stringify({ name: 'Troy', weightUnit: 'kg' }));
+    localStorage.setItem('keto_reminders', JSON.stringify({
+      mealLogging: { enabled: true, time: '19:00', weekday: 1, days: [1] },
+    }));
+    expect(hasLocalUserData()).toBe(false);
+
+    localStorage.setItem('keto_saved_foods', JSON.stringify([{ id: 'food-1', name: 'Steak' }]));
+    expect(hasLocalUserData()).toBe(true);
+  });
 });
 
 describe('local freshness marker', () => {
@@ -50,14 +87,14 @@ describe('local freshness marker', () => {
     ensureLocalModifiedBaseline();
     expect(getLocalDataModifiedAt()).toBe(''); // nothing to protect yet
 
-    localStorage.setItem('keto_profile', JSON.stringify({ name: 'Troy', weightUnit: 'kg', createdAt: '2026-01-01T00:00:00.000Z' }));
+    localStorage.setItem('keto_saved_foods', JSON.stringify([{ id: 'food-1', name: 'Steak' }]));
     ensureLocalModifiedBaseline();
     expect(getLocalDataModifiedAt()).not.toBe('');
   });
 
   it('does not overwrite an existing marker', () => {
     markLocalDataModified('2026-07-01T00:00:00.000Z');
-    localStorage.setItem('keto_profile', JSON.stringify({ name: 'Troy', weightUnit: 'kg', createdAt: '2026-01-01T00:00:00.000Z' }));
+    localStorage.setItem('keto_saved_foods', JSON.stringify([{ id: 'food-1', name: 'Steak' }]));
     ensureLocalModifiedBaseline();
     expect(getLocalDataModifiedAt()).toBe('2026-07-01T00:00:00.000Z');
   });

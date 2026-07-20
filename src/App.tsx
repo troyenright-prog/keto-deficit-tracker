@@ -222,6 +222,10 @@ function App() {
   const currentUserRef = useRef(currentUser);
   const applyingRemoteRef = useRef(false);
   const remoteStampRef = useRef<string | null>(null);
+  // Outbound writes are unsafe until the first remote read establishes whether
+  // this is a fresh device that must hydrate or an existing device that may push.
+  const remoteReadReadyRef = useRef(false);
+  const pendingSyncRef = useRef(false);
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const garminSyncInFlightRef = useRef(false);
   const lastGarminSyncAttemptRef = useRef(0);
@@ -272,7 +276,12 @@ function App() {
   const syncNow = useCallback(async () => {
     const userKey = currentUserRef.current;
     if (!SYNC_ENABLED || !userKey || applyingRemoteRef.current) return;
+    if (!remoteReadReadyRef.current) {
+      pendingSyncRef.current = true;
+      return;
+    }
 
+    pendingSyncRef.current = false;
     const bundle = exportAppData();
     setSyncStatus({ tone: 'syncing', text: 'Syncing' });
     const result = await saveRemoteAppData(userKey, bundle);
@@ -296,6 +305,8 @@ function App() {
     prepareStorageForUser(userKey);
     currentUserRef.current = userKey;
     remoteStampRef.current = null;
+    remoteReadReadyRef.current = false;
+    pendingSyncRef.current = false;
     applyLoadedData(reloadAll());
     setCurrentUser(userKey);
     setStorageError('');
@@ -307,6 +318,8 @@ function App() {
     configureStorageScope(null);
     currentUserRef.current = null;
     remoteStampRef.current = null;
+    remoteReadReadyRef.current = false;
+    pendingSyncRef.current = false;
     setCurrentUser(null);
     setSyncStatus({ tone: 'idle', text: 'Pick user' });
   }, []);
@@ -337,6 +350,12 @@ function App() {
 
     let sawFirstRemoteRead = false;
     let consecutiveFailures = 0;
+    // Use the state that existed when sync started for the first conflict
+    // decision. A user edit made while the initial GET is in flight must not
+    // make a genuinely fresh install overwrite a populated remote bundle.
+    const initialLocalModifiedAt = getLocalDataModifiedAt();
+    const initialLocalHasData = hasLocalUserData();
+    remoteReadReadyRef.current = false;
     void initAuth();
 
     const applyRemoteBundle = (bundle: AppStateBundle) => {
@@ -360,9 +379,13 @@ function App() {
       const firstRead = !sawFirstRemoteRead;
       sawFirstRemoteRead = true;
       if (!bundle) {
+        remoteReadReadyRef.current = true;
         // Remote is empty. On the first read, push local data up; on later reads
         // just confirm we're connected so a stale "Offline" can't stick.
-        if (firstRead && hasLocalUserData()) { void syncNow(); return; }
+        if (firstRead && (initialLocalHasData || pendingSyncRef.current || hasLocalUserData())) {
+          void syncNow();
+          return;
+        }
         setSyncStatus((prev) => (prev.tone === 'synced' ? prev : { tone: 'synced', text: 'Synced' }));
         return;
       }
@@ -374,10 +397,15 @@ function App() {
       // otherwise keep local (which is newer) and push it up so remote catches
       // up. This prevents an older remote read — on first poll, user switch,
       // reinstall, or queued-sync recovery — from clobbering newer local edits.
-      if (remoteBundleShouldReplaceLocal(bundle.exportedAt, getLocalDataModifiedAt(), hasLocalUserData())) {
+      const localModifiedAt = firstRead ? initialLocalModifiedAt : getLocalDataModifiedAt();
+      const localHasData = firstRead ? initialLocalHasData : hasLocalUserData();
+      if (remoteBundleShouldReplaceLocal(bundle.exportedAt, localModifiedAt, localHasData)) {
         applyRemoteBundle(bundle);
+        pendingSyncRef.current = false;
+        remoteReadReadyRef.current = true;
       } else {
         remoteStampRef.current = bundle.exportedAt;
+        remoteReadReadyRef.current = true;
         void syncNow();
       }
     }, {
@@ -390,6 +418,7 @@ function App() {
     });
 
     return () => {
+      remoteReadReadyRef.current = false;
       stop();
     };
   }, [currentUser, applyLoadedData, syncNow]);

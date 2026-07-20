@@ -10,7 +10,7 @@ import { isMealSlot } from './meals';
 import { calcNetCarbs, safeNonNegative, safePositive } from './nutrition';
 import { getStarterFoodOptions } from './australianFoods';
 import { ACTIVITY_LEVELS } from './tdee';
-import { DEFAULT_REMINDERS, hasEnabledReminders, normalizeReminderSettings } from './reminders';
+import { DEFAULT_REMINDERS, normalizeReminderSettings } from './reminders';
 import { MICRONUTRIENT_KEYS, zeroMicronutrients } from './micronutrients';
 import { normalizeNutritionSyncSettings } from './nutrition-hc-sync';
 
@@ -542,6 +542,7 @@ export function saveFoodLogAndMealPlan(log: FoodLogEntry[], plan: MealPlanEntry[
 function hasUserData(): boolean {
   return loadFoodLog().length > 0 ||
     loadSavedFoods().length > 0 ||
+    loadFoodDatabase().length > 0 ||
     loadWeightEntries().length > 0 ||
     loadDailyActivity().length > 0 ||
     loadSleepEntries().length > 0 ||
@@ -549,9 +550,7 @@ function hasUserData(): boolean {
     loadMealTemplates().length > 0 ||
     loadRecipes().length > 0 ||
     loadShoppingList().length > 0 ||
-    loadMealPlan().length > 0 ||
-    hasEnabledReminders(loadReminders()) ||
-    loadProfile().name.trim().length > 0;
+    loadMealPlan().length > 0;
 }
 
 export const hasLocalUserData = hasUserData;
