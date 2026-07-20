@@ -1224,26 +1224,25 @@ input:disabled {
 
 .priority-list {
   display: grid;
-  gap: 6px;
-  margin: 6px 0 0;
+  gap: 8px;
+  margin: 8px 0 0;
   padding: 0;
   list-style: none;
 }
 
 .priority-item {
   display: flex;
-  gap: 8px;
-  align-items: baseline;
-  padding: 8px 10px;
-  border-radius: 10px;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px;
+  border-radius: 12px;
   background: var(--blue-bg);
   color: var(--blue);
-  font-size: 12px;
-  line-height: 1.35;
+  font-size: 13px;
+  line-height: 1.4;
 }
 
 .priority-item strong {
-  flex: 0 0 auto;
   color: var(--gray-900);
 }
 
