@@ -24,6 +24,14 @@ export const AUSTRALIAN_STARTER_FOODS: Omit<FoodItem, 'id' | 'createdAt'>[] = [
     vitaminAMcg: 80, vitaminDMcg: 1.1, vitaminEMg: 0.5, riboflavinMg: 0.23, pantothenicAcidMg: 0.77, vitaminB6Mg: 0.09,
     biotinMcg: 10, folateMcg: 24, vitaminB12Mcg: 0.45, cholineMg: 147, omega3G: 0.04,
   },
+  // Harris Farm 700g eggs — 700g per dozen, so ~58g per egg. Micronutrients
+  // scaled from the USDA large-egg panel above (×58/55).
+  {
+    name: 'Eggs 700g (Harris Farm)', servingSize: '1 egg (58g)', calories: 83, proteinG: 6.7, fatG: 5.6, totalCarbsG: 0.6, fibreG: 0, sugarAlcoholsG: 0, sodiumMg: 66, potassiumMg: 67, magnesiumMg: 6,
+    saturatedFatG: 1.7, calciumMg: 30, phosphorusMg: 105, ironMg: 0.95, zincMg: 0.69, seleniumMcg: 16, iodineMcg: 25,
+    vitaminAMcg: 85, vitaminDMcg: 1.2, vitaminEMg: 0.53, riboflavinMg: 0.24, pantothenicAcidMg: 0.81, vitaminB6Mg: 0.1,
+    biotinMcg: 10.5, folateMcg: 25, vitaminB12Mcg: 0.48, cholineMg: 155, omega3G: 0.04,
+  },
   {
     name: 'Chicken breast (raw, skinless)', servingSize: '100g', calories: 120, proteinG: 22.5, fatG: 2.6, totalCarbsG: 0, fibreG: 0, sugarAlcoholsG: 0, sodiumMg: 74, potassiumMg: 360, magnesiumMg: 29,
     saturatedFatG: 0.6, phosphorusMg: 210, ironMg: 0.4, zincMg: 0.7, seleniumMcg: 22, thiaminMg: 0.07, riboflavinMg: 0.09,
@@ -45,6 +53,14 @@ export const AUSTRALIAN_STARTER_FOODS: Omit<FoodItem, 'id' | 'createdAt'>[] = [
   {
     name: 'Beef porterhouse steak with herb & garlic butter (raw)', servingSize: '100g', calories: 263, proteinG: 19.5, fatG: 20.3, totalCarbsG: 1.0, fibreG: 0, sugarAlcoholsG: 0, sodiumMg: 157, potassiumMg: 320, magnesiumMg: 22,
     saturatedFatG: 9.5,
+  },
+  // Super Butcher thick-cut rib fillet, sold as ~300g steaks. Values are
+  // USDA/AUSNUT-typical raw beef ribeye (scotch fillet) per 100g, ×3 for the
+  // whole steak.
+  {
+    name: 'Beef rib fillet thick cut (Super Butcher, raw)', servingSize: '1 steak (300g)', calories: 620, proteinG: 60.0, fatG: 42.0, totalCarbsG: 0, fibreG: 0, sugarAlcoholsG: 0, sodiumMg: 156, potassiumMg: 960, magnesiumMg: 63,
+    saturatedFatG: 17.7, phosphorusMg: 570, ironMg: 5.4, zincMg: 12.0, seleniumMcg: 66, thiaminMg: 0.21, riboflavinMg: 0.45,
+    niacinMg: 15.0, pantothenicAcidMg: 1.8, vitaminB6Mg: 1.5, biotinMcg: 13, vitaminB12Mcg: 6.6, cholineMg: 170,
   },
   {
     name: 'Salmon (Atlantic, raw)', servingSize: '100g', calories: 208, proteinG: 20.0, fatG: 13.0, totalCarbsG: 0, fibreG: 0, sugarAlcoholsG: 0, sodiumMg: 59, potassiumMg: 490, magnesiumMg: 29,
@@ -97,6 +113,19 @@ export const AUSTRALIAN_STARTER_FOODS: Omit<FoodItem, 'id' | 'createdAt'>[] = [
     saturatedFatG: 3.9, calciumMg: 236, phosphorusMg: 139, zincMg: 0.55, seleniumMcg: 4.5,
     vitaminAMcg: 49, riboflavinMg: 0.07, vitaminB12Mcg: 0.45, cholineMg: 3,
   },
+  // Wicked Sister High Protein Pudding 170g tubs — label values per tub
+  // (energy converted from kJ). Sweetened with erythritol/stevia but the label
+  // doesn't split out polyol grams, so sugar alcohols stay 0 (carbs as
+  // labelled). Fibre is listed "-" (not available) → 0. Potassium/magnesium
+  // aren't on the label; estimated from the skim-milk/dairy base.
+  {
+    name: 'Wicked Sister High Protein Pudding — Caramel', servingSize: '1 tub (170g)', calories: 157, proteinG: 15.6, fatG: 5.3, totalCarbsG: 10.4, fibreG: 0, sugarAlcoholsG: 0, sodiumMg: 175, potassiumMg: 250, magnesiumMg: 19,
+    saturatedFatG: 3.4,
+  },
+  {
+    name: 'Wicked Sister High Protein Pudding — Chocolate', servingSize: '1 tub (170g)', calories: 169, proteinG: 15.3, fatG: 6.3, totalCarbsG: 9.9, fibreG: 0, sugarAlcoholsG: 0, sodiumMg: 163, potassiumMg: 260, magnesiumMg: 24,
+    saturatedFatG: 3.9,
+  },
   {
     name: 'Butter (salted)', servingSize: '10g', calories: 72, proteinG: 0.1, fatG: 8.1, totalCarbsG: 0, fibreG: 0, sugarAlcoholsG: 0, sodiumMg: 82, potassiumMg: 2, magnesiumMg: 0,
     saturatedFatG: 5.1, vitaminAMcg: 68, vitaminDMcg: 0.15, vitaminEMg: 0.23, vitaminKMcg: 0.7, cholineMg: 1.9,
@@ -113,6 +142,13 @@ export const AUSTRALIAN_STARTER_FOODS: Omit<FoodItem, 'id' | 'createdAt'>[] = [
   {
     name: 'Olive oil (extra virgin)', servingSize: '1 tbsp (15ml)', calories: 133, proteinG: 0, fatG: 15.0, totalCarbsG: 0, fibreG: 0, sugarAlcoholsG: 0, sodiumMg: 0, potassiumMg: 0, magnesiumMg: 0,
     saturatedFatG: 2.1, vitaminEMg: 2.2, vitaminKMcg: 9.1, omega3G: 0.11, omega6G: 1.5,
+  },
+  // Sol Ghee (grass fed, Byron Bay) — label values per 10g serve (370kJ).
+  // Vitamins A/E/K estimated from USDA ghee/butter-oil since the label claims
+  // them but gives no amounts.
+  {
+    name: 'Sol Ghee (grass fed)', servingSize: '10g', calories: 88, proteinG: 0.1, fatG: 10.0, totalCarbsG: 0, fibreG: 0, sugarAlcoholsG: 0, sodiumMg: 0, potassiumMg: 0, magnesiumMg: 0,
+    saturatedFatG: 6.5, vitaminAMcg: 84, vitaminEMg: 0.28, vitaminKMcg: 0.9, omega3G: 0.15,
   },
   {
     name: 'Coconut oil', servingSize: '1 tbsp (15ml)', calories: 130, proteinG: 0, fatG: 14.4, totalCarbsG: 0, fibreG: 0, sugarAlcoholsG: 0, sodiumMg: 0, potassiumMg: 0, magnesiumMg: 0,
