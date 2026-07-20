@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import type { FoodItem, MealSlot, MealTemplate, UserProfile, NutritionTargets, ReminderKey, ReminderRule, ReminderSettings, WeightEntry, ActivityLevel } from '../types';
+import type { FoodItem, FoodDatabaseItem, MealSlot, MealTemplate, UserProfile, NutritionTargets, ReminderKey, ReminderRule, ReminderSettings, WeightEntry, ActivityLevel } from '../types';
 import { dietModeDefaultNetCarbs } from '../lib/nutrition';
 import { exportAppData, validateAppBundle, importAppData } from '../lib/storage';
 import { localDateString } from '../lib/date';
@@ -30,6 +30,7 @@ interface SettingsProps {
   reminders: ReminderSettings;
   templates: MealTemplate[];
   savedFoods: FoodItem[];
+  foodDatabase: FoodDatabaseItem[];
   weightEntries: WeightEntry[];
   onSaveProfile: (p: UserProfile) => boolean;
   onSaveTargets: (t: NutritionTargets) => boolean;
@@ -79,6 +80,7 @@ export function Settings({
   reminders,
   templates,
   savedFoods,
+  foodDatabase,
   weightEntries,
   onSaveProfile,
   onSaveTargets,
@@ -675,6 +677,7 @@ export function Settings({
             embedded
             templates={templates}
             savedFoods={savedFoods}
+            foodDatabase={foodDatabase}
             onSave={onSaveTemplate}
             onDelete={onDeleteTemplate}
             onAddToLog={onAddTemplateToLog}

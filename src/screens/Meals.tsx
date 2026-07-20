@@ -1,12 +1,15 @@
-import { useState } from 'react';
-import type { MealSlot, MealTemplate, MealTemplateItem, FoodItem } from '../types';
+import { useMemo, useState } from 'react';
+import type { MealSlot, MealTemplate, MealTemplateItem, FoodItem, FoodDatabaseItem } from '../types';
 import { calcTemplateTotals, foodItemToTemplateItem } from '../lib/meal-templates';
 import { nanoid } from '../lib/nanoid';
 import { MEAL_SLOTS } from '../lib/meals';
+import { getStarterFoodOptions } from '../lib/australianFoods';
+import { foodSignature } from '../lib/quick-add';
 
 interface MealsProps {
   templates: MealTemplate[];
   savedFoods: FoodItem[];
+  foodDatabase?: FoodDatabaseItem[];
   onSave: (template: MealTemplate) => boolean;
   onDelete: (id: string) => void;
   onAddToLog: (template: MealTemplate, meal?: MealSlot) => void;
@@ -15,7 +18,7 @@ interface MealsProps {
 
 type View = 'list' | 'edit';
 
-export function Meals({ templates, savedFoods, onSave, onDelete, onAddToLog, embedded = false }: MealsProps) {
+export function Meals({ templates, savedFoods, foodDatabase = [], onSave, onDelete, onAddToLog, embedded = false }: MealsProps) {
   const [view, setView] = useState<View>('list');
   const [editTarget, setEditTarget] = useState<MealTemplate | null>(null);
   const [draftName, setDraftName] = useState('');
@@ -46,7 +49,7 @@ export function Meals({ templates, savedFoods, onSave, onDelete, onAddToLog, emb
     setFoodSearch('');
   }
 
-  function addFoodToTemplate(food: FoodItem) {
+  function addFoodToTemplate(food: FoodItem | FoodDatabaseItem) {
     setDraftItems((items) => [...items, foodItemToTemplateItem(food)]);
     setFoodSearch('');
   }
@@ -79,8 +82,23 @@ export function Meals({ templates, savedFoods, onSave, onDelete, onAddToLog, emb
     setFoodSearch('');
   }
 
+  // Search the whole food library, not just saved foods: starter foods and
+  // database items (barcode scans / online lookups) are equally valid template
+  // ingredients. Saved foods win on signature clashes so user edits stick.
+  const searchableFoods = useMemo(() => {
+    const seen = new Set(savedFoods.map(foodSignature));
+    const pool: (FoodItem | FoodDatabaseItem)[] = [...savedFoods];
+    for (const food of [...getStarterFoodOptions(), ...foodDatabase]) {
+      const sig = foodSignature(food);
+      if (seen.has(sig)) continue;
+      seen.add(sig);
+      pool.push(food);
+    }
+    return pool;
+  }, [savedFoods, foodDatabase]);
+
   const matchingFoods = foodSearch.length >= 1
-    ? savedFoods.filter((f) => f.name.toLowerCase().includes(foodSearch.toLowerCase()))
+    ? searchableFoods.filter((f) => f.name.toLowerCase().includes(foodSearch.toLowerCase()))
     : [];
   const shellClass = embedded ? 'settings-template-panel' : 'screen';
   const applyMeal = (template: MealTemplate): MealSlot => applyMeals[template.id] ?? template.mealType ?? 'breakfast';
@@ -120,7 +138,7 @@ export function Meals({ templates, savedFoods, onSave, onDelete, onAddToLog, emb
         <div className="form-group">
           <input
             type="search"
-            placeholder="Search saved foods…"
+            placeholder="Search your food library…"
             value={foodSearch}
             onChange={(e) => setFoodSearch(e.target.value)}
             className="search-input"

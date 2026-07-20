@@ -960,6 +960,7 @@ function App() {
           <Meals
             templates={mealTemplates}
             savedFoods={savedFoods}
+            foodDatabase={foodDatabase}
             onSave={handleSaveTemplate}
             onDelete={handleDeleteTemplate}
             onAddToLog={handleAddTemplateToLog}
@@ -1002,6 +1003,7 @@ function App() {
             reminders={reminders}
             templates={mealTemplates}
             savedFoods={savedFoods}
+            foodDatabase={foodDatabase}
             weightEntries={weightEntries}
             onSaveProfile={handleSaveProfile}
             onSaveTargets={handleSaveTargets}
