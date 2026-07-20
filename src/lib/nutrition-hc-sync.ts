@@ -1,19 +1,18 @@
 import type { FoodLogEntry, MealSlot, NutritionSyncSettings } from '../types';
+import { calcNetCarbs } from './nutrition';
 
-// Write-side "push nutrition to Health Connect" support, so read-only Health
-// Connect apps (e.g. RepIQ) can pick up this app's food log as Nutrition
-// records. The Health Connect plugin only supports INSERT (no update/delete),
-// so this is deliberately insert-once-per-entry: each food-log entry becomes
-// exactly one Nutrition record, tracked by id in `syncedEntryIds` so it is
-// never re-pushed (which would double-count it in any reader that sums
-// records per day). Edits/deletes made in this app after an entry has already
-// been pushed are NOT reflected in Health Connect - there is no way to
-// retract or update a record already written by this plugin version.
+// Write-side Health Connect support for read-only consumers such as RepIQ.
+// Sync v2 publishes one replaceable daily total. The legacy per-entry helpers
+// remain below only to normalize/migrate devices that already tracked pushed
+// entry ids under v1.
 export const DEFAULT_NUTRITION_SYNC_SETTINGS: NutritionSyncSettings = {
   enabled: true,
   syncedEntryIds: [],
   lastSyncAt: '',
+  schemaVersion: 1,
+  daySignatures: {},
 };
+export const CURRENT_NUTRITION_SYNC_SCHEMA = 2;
 
 // Periodic catch-up push, mirroring garmin-auto-sync.ts's interval. New
 // entries are pushed immediately on add; this only catches entries that
@@ -69,6 +68,10 @@ export function normalizeNutritionSyncSettings(value: unknown): NutritionSyncSet
     enabled: typeof record.enabled === 'boolean' ? record.enabled : DEFAULT_NUTRITION_SYNC_SETTINGS.enabled,
     syncedEntryIds,
     lastSyncAt: typeof record.lastSyncAt === 'string' && Number.isFinite(Date.parse(record.lastSyncAt)) ? record.lastSyncAt : '',
+    schemaVersion: typeof record.schemaVersion === 'number' && Number.isFinite(record.schemaVersion) ? record.schemaVersion : 1,
+    daySignatures: isRecord(record.daySignatures)
+      ? Object.fromEntries(Object.entries(record.daySignatures).filter((entry): entry is [string, string] => typeof entry[1] === 'string'))
+      : {},
   };
 }
 
@@ -121,6 +124,59 @@ export function toNutritionRecordPayload(entry: FoodLogEntry): NutritionRecordPa
     totalCarbsG: Math.max(0, Math.round(entry.totalCarbsG || 0)),
     fatG: Math.max(0, Math.round(entry.fatG || 0)),
   };
+}
+
+function localNoon(date: string): string {
+  const [year, month, day] = date.split('-').map(Number);
+  return new Date(year, month - 1, day, 12, 0, 0, 0).toISOString();
+}
+
+// RepIQ consumes one set of daily macro totals. A single authoritative record
+// per day makes Health Connect replaceable after food edits/deletes and avoids
+// accumulating stale per-food records. Carbohydrate is the app's keto-facing
+// net-carb total so the value matches the Health Tracker dashboard.
+export function buildDailyNutritionPayloads(foodLog: FoodLogEntry[]): NutritionRecordPayload[] {
+  const totals = new Map<string, { calories: number; proteinG: number; netCarbsG: number; fatG: number }>();
+  for (const entry of foodLog) {
+    if (!entry.date || !hasUsableMacros(entry)) continue;
+    const day = totals.get(entry.date) ?? { calories: 0, proteinG: 0, netCarbsG: 0, fatG: 0 };
+    day.calories += entry.calories;
+    day.proteinG += entry.proteinG;
+    day.netCarbsG += calcNetCarbs(entry.totalCarbsG, entry.fibreG, entry.sugarAlcoholsG);
+    day.fatG += entry.fatG;
+    totals.set(entry.date, day);
+  }
+  return [...totals.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, total]) => ({
+      id: `day:${date}`,
+      time: localNoon(date),
+      name: 'Health Tracker daily macros',
+      mealType: MEAL_TYPE_UNKNOWN,
+      calories: Math.max(0, Math.round(total.calories)),
+      proteinG: Math.max(0, Math.round(total.proteinG)),
+      totalCarbsG: Math.max(0, Math.round(total.netCarbsG)),
+      fatG: Math.max(0, Math.round(total.fatG)),
+    }));
+}
+
+export function nutritionPayloadDate(payload: NutritionRecordPayload): string {
+  return payload.id.startsWith('day:') ? payload.id.slice(4) : '';
+}
+
+export function nutritionDaySignatures(payloads: NutritionRecordPayload[]): Record<string, string> {
+  return Object.fromEntries(payloads.map((payload) => [
+    nutritionPayloadDate(payload),
+    [payload.calories, payload.proteinG, payload.totalCarbsG, payload.fatG].join('|'),
+  ]));
+}
+
+export function nutritionDaysNeedingSync(
+  current: Record<string, string>,
+  previous: Record<string, string>,
+): string[] {
+  const dates = new Set([...Object.keys(current), ...Object.keys(previous)]);
+  return [...dates].filter((date) => current[date] !== previous[date]).sort();
 }
 
 // Drop ids for entries no longer in the food log (deleted) so the tracking

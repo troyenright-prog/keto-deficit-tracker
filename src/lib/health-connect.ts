@@ -132,9 +132,8 @@ export async function ensureNutritionWritePermission(): Promise<boolean> {
   throw new Error('Grant Health Tracker permission to write Nutrition in Health Connect, then try again.');
 }
 
-// Insert one Nutrition record per payload. The plugin has no update/delete, so
-// each payload must be a food-log entry that hasn't been pushed before -
-// callers track that via `NutritionSyncSettings.syncedEntryIds`.
+// Insert one Nutrition record per payload. Daily records use a stable client id
+// and are deleted before replacement by the sync coordinator.
 //
 // IMPORTANT: the native plugin's Nutrition serializer (Serializer.kt#toRecord)
 // reads every one of these Mass/Energy fields unconditionally via
@@ -173,6 +172,9 @@ const ZERO_MICRONUTRIENTS = {
 // before endTime" otherwise) - a single logged meal has no real duration, so
 // this stands in for "instantaneous".
 const NUTRITION_RECORD_DURATION_MS = 60_000;
+const healthConnectWithNutritionDelete = HealthConnect as typeof HealthConnect & {
+  deleteNutritionRecords(options: { startTime: string; endTime: string }): Promise<void>;
+};
 
 export async function writeNutritionRecords(payloads: NutritionRecordPayload[]): Promise<number> {
   if (!payloads.length) return 0;
@@ -185,6 +187,11 @@ export async function writeNutritionRecords(payloads: NutritionRecordPayload[]):
       endTime,
       name: payload.name,
       mealType: payload.mealType,
+      metadata: {
+        clientRecordId: `health-tracker:${payload.id}`,
+        clientRecordVersion: Date.now(),
+        recordingMethod: 'manualEntry',
+      },
       energy: { unit: 'kilocalories', value: payload.calories } satisfies WritableEnergy,
       protein: { unit: 'gram', value: payload.proteinG } satisfies Mass,
       totalCarbohydrate: { unit: 'gram', value: payload.totalCarbsG } satisfies Mass,
@@ -197,6 +204,27 @@ export async function writeNutritionRecords(payloads: NutritionRecordPayload[]):
   // `insertRecords`'s declared param type without this cast.
   const { recordIds } = await HealthConnect.insertRecords({ records: records as unknown as Parameters<typeof HealthConnect.insertRecords>[0]['records'] });
   return recordIds.length;
+}
+
+export async function deleteNutritionRecordsBetween(startTime: Date, endTime: Date): Promise<void> {
+  await healthConnectWithNutritionDelete.deleteNutritionRecords({
+    startTime: startTime.toISOString(),
+    endTime: endTime.toISOString(),
+  });
+}
+
+export async function deleteNutritionRecordsForDate(date: string): Promise<void> {
+  const [year, month, day] = date.split('-').map(Number);
+  const start = new Date(year, month - 1, day);
+  const end = new Date(year, month - 1, day + 1);
+  await deleteNutritionRecordsBetween(start, end);
+}
+
+export async function deleteAllNutritionRecords(): Promise<void> {
+  await deleteNutritionRecordsBetween(
+    new Date('2000-01-01T00:00:00.000Z'),
+    new Date('2100-01-01T00:00:00.000Z'),
+  );
 }
 
 function massToKg(mass: Mass | undefined): number | null {

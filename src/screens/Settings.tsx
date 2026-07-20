@@ -712,9 +712,8 @@ export function Settings({
             </label>
             <p className="empty-hint" style={{ marginTop: 0 }}>
               Lets other Health Connect apps (like RepIQ) read your macros. "Sync Garmin" on the Garmin
-              screen does this automatically too - use this button for a one-off push. Each meal is
-              written once when logged; editing or deleting an entry afterwards won't change what was
-              already sent.
+              screen does this automatically too - use this button for a one-off push. Health Tracker
+              keeps one replaceable daily total, so food edits and deletions are reflected on the next sync.
             </p>
             <button type="button" className="btn btn--secondary btn--sm" onClick={runNutritionPush} disabled={pushingNutrition}>
               {pushingNutrition ? 'Pushing…' : 'Push now'}
@@ -724,9 +723,8 @@ export function Settings({
               <p className="sync-status-line">Last pushed {new Date(nutritionSyncLastAt).toLocaleString()}</p>
             )}
             <p className="empty-hint" style={{ marginTop: '12px' }}>
-              If you deleted today's Nutrition records directly in Health Connect (e.g. to remove a
-              mis-dated duplicate) and they're now missing there, use this to re-send today's entries -
-              this app otherwise thinks they're already synced and won't push them again on its own.
+              If another app still shows an old total, use this to delete Health Tracker's prior
+              Nutrition record for today and write the current total again.
             </p>
             <button
               type="button"

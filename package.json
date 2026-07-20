@@ -4,6 +4,7 @@
   "version": "1.4.1",
   "type": "module",
   "scripts": {
+    "postinstall": "node scripts/patch-health-connect-delete.mjs",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",

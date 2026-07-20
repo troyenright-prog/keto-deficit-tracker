@@ -389,6 +389,8 @@ export interface NutritionSyncSettings {
   enabled: boolean;
   syncedEntryIds: string[];
   lastSyncAt: string;
+  schemaVersion: number;
+  daySignatures: Record<string, string>;
 }
 
 // ── Import / export ────────────────────────────────────────────────────────────

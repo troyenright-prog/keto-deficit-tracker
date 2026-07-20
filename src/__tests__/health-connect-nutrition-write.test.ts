@@ -22,10 +22,12 @@ const VALID_WRITE_ENERGY_UNITS = new Set(['calories', 'kilocalories', 'joules', 
 const VALID_WRITE_MASS_UNITS = new Set(['gram', 'kilogram', 'milligram', 'microgram', 'ounce', 'pound']);
 
 const insertRecords = vi.fn().mockResolvedValue({ recordIds: ['id-1'] });
+const deleteNutritionRecords = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('@kiwi-health/capacitor-health-connect', () => ({
   HealthConnect: {
     insertRecords: (...args: unknown[]) => insertRecords(...args),
+    deleteNutritionRecords: (...args: unknown[]) => deleteNutritionRecords(...args),
   },
 }));
 
@@ -74,6 +76,36 @@ describe('writeNutritionRecords', () => {
     for (const field of ['protein', 'totalCarbohydrate', 'totalFat', 'sodium', 'potassium', 'zinc']) {
       expect(VALID_WRITE_MASS_UNITS.has(record[field]!.unit)).toBe(true);
     }
+  });
+
+  it('uses a stable client record id so the daily total is replaceable', async () => {
+    const { writeNutritionRecords } = await import('../lib/health-connect');
+    insertRecords.mockClear();
+    await writeNutritionRecords([{
+      id: 'day:2026-07-05',
+      time: '2026-07-05T12:00:00.000Z',
+      name: 'Health Tracker daily macros',
+      mealType: 0,
+      calories: 500,
+      proteinG: 50,
+      totalCarbsG: 14,
+      fatG: 30,
+    }]);
+
+    const [{ records }] = insertRecords.mock.calls[0] as [{ records: Array<{ metadata: { clientRecordId: string; clientRecordVersion: number } }> }];
+    expect(records[0].metadata.clientRecordId).toBe('health-tracker:day:2026-07-05');
+    expect(records[0].metadata.clientRecordVersion).toBeGreaterThan(0);
+  });
+
+  it('deletes the app-owned Nutrition records for a local date before replacement', async () => {
+    const { deleteNutritionRecordsForDate } = await import('../lib/health-connect');
+    deleteNutritionRecords.mockClear();
+
+    await deleteNutritionRecordsForDate('2026-07-05');
+
+    expect(deleteNutritionRecords).toHaveBeenCalledTimes(1);
+    const [range] = deleteNutritionRecords.mock.calls[0] as [{ startTime: string; endTime: string }];
+    expect(new Date(range.endTime).getTime() - new Date(range.startTime).getTime()).toBe(24 * 60 * 60 * 1000);
   });
 
   it('makes endTime strictly after startTime (NutritionRecord requires a real range)', async () => {

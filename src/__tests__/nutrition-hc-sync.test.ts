@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_NUTRITION_SYNC_SETTINGS,
   NUTRITION_PUSH_INTERVAL_MS,
+  buildDailyNutritionPayloads,
   clearSyncedEntryIdsForDate,
+  nutritionDaySignatures,
+  nutritionDaysNeedingSync,
   normalizeNutritionSyncSettings,
   pruneAndRecordSyncedIds,
   selectEntriesToPush,
@@ -51,6 +54,8 @@ describe('normalizeNutritionSyncSettings', () => {
       enabled: false,
       syncedEntryIds: ['a', 'b'],
       lastSyncAt: '2026-07-05T08:00:00.000Z',
+      schemaVersion: 1,
+      daySignatures: {},
     });
   });
 
@@ -128,6 +133,54 @@ describe('toNutritionRecordPayload', () => {
   it('leaves the time untouched when date and loggedAt already agree (the common case)', () => {
     const entry = makeEntry();
     expect(toNutritionRecordPayload(entry).time).toBe(entry.loggedAt);
+  });
+});
+
+describe('daily Nutrition records', () => {
+  it('builds one RepIQ-facing daily total using net carbs', () => {
+    const payloads = buildDailyNutritionPayloads([
+      makeEntry({
+        id: 'one',
+        calories: 200.4,
+        proteinG: 20.2,
+        fatG: 10.1,
+        totalCarbsG: 12,
+        fibreG: 3,
+        sugarAlcoholsG: 2,
+      }),
+      makeEntry({
+        id: 'two',
+        calories: 300.4,
+        proteinG: 30.2,
+        fatG: 20.1,
+        totalCarbsG: 8,
+        fibreG: 1,
+        sugarAlcoholsG: 0,
+      }),
+    ]);
+
+    expect(payloads).toEqual([expect.objectContaining({
+      id: 'day:2026-07-05',
+      name: 'Health Tracker daily macros',
+      calories: 501,
+      proteinG: 50,
+      totalCarbsG: 14,
+      fatG: 30,
+    })]);
+  });
+
+  it('detects changed, added, and removed days from signatures', () => {
+    const current = nutritionDaySignatures(buildDailyNutritionPayloads([
+      makeEntry({ date: '2026-07-05' }),
+      makeEntry({ id: 'new', date: '2026-07-06', calories: 100 }),
+    ]));
+    const previous = {
+      '2026-07-05': 'old-values',
+      '2026-07-04': 'deleted-day',
+    };
+
+    expect(nutritionDaysNeedingSync(current, previous))
+      .toEqual(['2026-07-04', '2026-07-05', '2026-07-06']);
   });
 });
 

@@ -71,6 +71,7 @@ import {
   fetchStepHistory, fetchWeightHistory, fetchActivityExtrasHistory, fetchSleepHistory, fetchVitalsHistory,
   hasStepPermissions, hasWeightPermissions, hasActivityExtrasPermissions, hasSleepPermissions, hasVitalsPermissions,
   ensureNutritionWritePermission, hasNutritionWritePermission, writeNutritionRecords,
+  deleteAllNutritionRecords, deleteNutritionRecordsForDate,
 } from './lib/health-connect';
 import {
   GARMIN_AUTO_SYNC_HISTORY_DAYS,
@@ -80,11 +81,12 @@ import {
   shouldRunGarminAutoSync,
 } from './lib/garmin-auto-sync';
 import {
-  selectEntriesToPush,
+  buildDailyNutritionPayloads,
+  CURRENT_NUTRITION_SYNC_SCHEMA,
+  nutritionDaySignatures,
+  nutritionDaysNeedingSync,
+  nutritionPayloadDate,
   summarizePush,
-  toNutritionRecordPayload,
-  pruneAndRecordSyncedIds,
-  clearSyncedEntryIdsForDate,
 } from './lib/nutrition-hc-sync';
 import { toGarminReadings, mergeGarminReadings, summarizeMerge } from './lib/garmin-weight-sync';
 import {
@@ -449,11 +451,11 @@ function App() {
   const recentSummaries = last7Days(today).map((date) => summariseDay(date, foodLog));
 
   // ── Nutrition → Health Connect (write) ──────────────────────────────────────
-  // The plugin only supports insert (no update/delete), so this pushes each
-  // food-log entry to Health Connect exactly once, tracked by id in
-  // nutritionSync.syncedEntryIds. See lib/nutrition-hc-sync.ts for the rules.
+  // RepIQ reads Nutrition records from Health Connect. Sync v2 keeps one
+  // replaceable record per logged day so edits/deletes cannot leave stale
+  // macros behind. See lib/nutrition-hc-sync.ts for the aggregation rules.
 
-  const pushNutritionToHealthConnect = useCallback(async (options: { requestPermissions: boolean }): Promise<string> => {
+  const pushNutritionToHealthConnect = useCallback(async (options: { requestPermissions: boolean; forceDates?: string[] }): Promise<string> => {
     if (nutritionPushInFlightRef.current) return 'Push already running.';
     nutritionPushInFlightRef.current = true;
     try {
@@ -465,22 +467,46 @@ function App() {
         return options.requestPermissions ? 'Grant nutrition-write permission in Health Connect, then try again.' : '';
       }
 
-      const pending = selectEntriesToPush(foodLogRef.current, nutritionSyncRef.current.syncedEntryIds);
       const importedAt = new Date().toISOString();
-      if (!pending.length) {
-        persist({ ...nutritionSyncRef.current, lastSyncAt: importedAt }, nutritionSyncRef, setNutritionSync, saveNutritionSync);
-        return summarizePush(0);
+      const payloads = buildDailyNutritionPayloads(foodLogRef.current);
+      const signatures = nutritionDaySignatures(payloads);
+      const legacyRecords = nutritionSyncRef.current.schemaVersion < CURRENT_NUTRITION_SYNC_SCHEMA;
+      const changedDates = legacyRecords
+        ? Object.keys(signatures)
+        : [...new Set([
+          ...nutritionDaysNeedingSync(signatures, nutritionSyncRef.current.daySignatures),
+          ...(options.forceDates ?? []),
+        ])].sort();
+
+      if (legacyRecords) {
+        // v1 wrote an immutable record per food entry. That left corrected and
+        // deleted foods behind and allowed force-resync to duplicate them. Clear
+        // every Nutrition record written by this app once, then replace them
+        // with one authoritative daily total per logged date.
+        await deleteAllNutritionRecords();
+      } else {
+        for (const date of changedDates) await deleteNutritionRecordsForDate(date);
       }
 
-      const payloads = pending.map(toNutritionRecordPayload);
-      const written = await writeNutritionRecords(payloads);
+      const changed = legacyRecords
+        ? payloads
+        : payloads.filter((payload) => changedDates.includes(nutritionPayloadDate(payload)));
+      const written = await writeNutritionRecords(changed);
       const next: NutritionSyncSettings = {
         enabled: nutritionSyncRef.current.enabled,
-        syncedEntryIds: pruneAndRecordSyncedIds(nutritionSyncRef.current.syncedEntryIds, foodLogRef.current, payloads.map((p) => p.id)),
+        syncedEntryIds: [],
         lastSyncAt: importedAt,
+        schemaVersion: CURRENT_NUTRITION_SYNC_SCHEMA,
+        daySignatures: signatures,
       };
       persist(next, nutritionSyncRef, setNutritionSync, saveNutritionSync);
-      return summarizePush(written);
+
+      if (!changedDates.length && !legacyRecords) {
+        return summarizePush(0);
+      }
+      return legacyRecords
+        ? `Replaced old Health Connect nutrition with ${written} corrected daily ${written === 1 ? 'total' : 'totals'}.`
+        : `Updated ${changedDates.length} Health Connect ${changedDates.length === 1 ? 'day' : 'days'}.`;
     } catch (error) {
       if (!options.requestPermissions) return ''; // silent/auto path is best-effort
       throw error instanceof Error ? error : new Error('Could not push nutrition to Health Connect.');
@@ -497,19 +523,11 @@ function App() {
     persist({ ...nutritionSyncRef.current, enabled }, nutritionSyncRef, setNutritionSync, saveNutritionSync);
   }, [persist]);
 
-  // Recovery action for when today's Health Connect Nutrition records were
-  // removed directly in Health Connect (e.g. cleaning up a mis-dated
-  // duplicate written before the wrong-day-attribution fix) - normally those
-  // entries' ids stay in syncedEntryIds forever and are never re-sent. This
-  // drops today's ids first so the push right after treats them as new.
+  // Delete today's prior app-owned record first, then write the current daily
+  // total. This now repairs edits/deletes as well as externally removed data.
   const handleForceResyncNutritionToday = useCallback((): Promise<string> => {
-    const cleared: NutritionSyncSettings = {
-      ...nutritionSyncRef.current,
-      syncedEntryIds: clearSyncedEntryIdsForDate(nutritionSyncRef.current.syncedEntryIds, foodLogRef.current, todayDateString()),
-    };
-    persist(cleared, nutritionSyncRef, setNutritionSync, saveNutritionSync);
-    return pushNutritionToHealthConnect({ requestPermissions: true });
-  }, [persist, pushNutritionToHealthConnect]);
+    return pushNutritionToHealthConnect({ requestPermissions: true, forceDates: [todayDateString()] });
+  }, [pushNutritionToHealthConnect]);
 
   // Best-effort push right after a new entry is saved - silent, and only does
   // anything if write permission was already granted (never prompts mid-log).
@@ -519,6 +537,16 @@ function App() {
       // best-effort; the next Garmin sync and the manual Settings button still cover this.
     });
   }, [pushNutritionToHealthConnect]);
+
+  // Upgrade the old append-only Health Connect records without waiting for a
+  // manual Garmin sync. Existing permission is reused; this never prompts.
+  useEffect(() => {
+    if (!currentUser || !nutritionSync.enabled || nutritionSync.schemaVersion >= CURRENT_NUTRITION_SYNC_SCHEMA || !isHealthConnectSupported()) return;
+    const timer = setTimeout(() => {
+      void pushNutritionToHealthConnect({ requestPermissions: false });
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [currentUser, nutritionSync.enabled, nutritionSync.schemaVersion, pushNutritionToHealthConnect]);
 
   // Note: there's no separate periodic nutrition-push effect - "Sync Garmin"
   // (handleAutoSyncGarmin's effect, further below) now pushes nutrition as
@@ -541,11 +569,17 @@ function App() {
     return ok;
   }, [persist, autoPushNutrition]);
 
-  const handleDeleteEntry = useCallback((id: string) =>
-    persist(foodLogRef.current.filter((e) => e.id !== id), foodLogRef, setFoodLog, saveFoodLog), [persist]);
+  const handleDeleteEntry = useCallback((id: string) => {
+    const ok = persist(foodLogRef.current.filter((e) => e.id !== id), foodLogRef, setFoodLog, saveFoodLog);
+    if (ok) autoPushNutrition();
+    return ok;
+  }, [persist, autoPushNutrition]);
 
-  const handleEditEntry = useCallback((updated: FoodLogEntry) =>
-    persist(foodLogRef.current.map((e) => e.id === updated.id ? updated : e), foodLogRef, setFoodLog, saveFoodLog), [persist]);
+  const handleEditEntry = useCallback((updated: FoodLogEntry) => {
+    const ok = persist(foodLogRef.current.map((e) => e.id === updated.id ? updated : e), foodLogRef, setFoodLog, saveFoodLog);
+    if (ok) autoPushNutrition();
+    return ok;
+  }, [persist, autoPushNutrition]);
 
   // ── Saved foods ────────────────────────────────────────────────────────────
 
