@@ -23,6 +23,7 @@ export function Meals({ templates, savedFoods, foodDatabase = [], onSave, onDele
   const [editTarget, setEditTarget] = useState<MealTemplate | null>(null);
   const [draftName, setDraftName] = useState('');
   const [draftItems, setDraftItems] = useState<MealTemplateItem[]>([]);
+  const [quantityInputs, setQuantityInputs] = useState<Record<string, string>>({});
   const [foodSearch, setFoodSearch] = useState('');
   const [validationError, setValidationError] = useState('');
   const [draftMealType, setDraftMealType] = useState<MealTemplate['mealType']>(undefined);
@@ -31,6 +32,7 @@ export function Meals({ templates, savedFoods, foodDatabase = [], onSave, onDele
   function startNew() {
     setDraftName('');
     setDraftItems([]);
+    setQuantityInputs({});
     setEditTarget(null);
     setDraftMealType(undefined);
     setView('edit');
@@ -39,6 +41,7 @@ export function Meals({ templates, savedFoods, foodDatabase = [], onSave, onDele
   function startEdit(template: MealTemplate) {
     setDraftName(template.name);
     setDraftItems([...template.items]);
+    setQuantityInputs(Object.fromEntries(template.items.map((item) => [item.id, String(item.quantity)])));
     setEditTarget(template);
     setDraftMealType(template.mealType);
     setView('edit');
@@ -50,16 +53,35 @@ export function Meals({ templates, savedFoods, foodDatabase = [], onSave, onDele
   }
 
   function addFoodToTemplate(food: FoodItem | FoodDatabaseItem) {
-    setDraftItems((items) => [...items, foodItemToTemplateItem(food)]);
+    const item = foodItemToTemplateItem(food);
+    setDraftItems((items) => [...items, item]);
+    setQuantityInputs((inputs) => ({ ...inputs, [item.id]: String(item.quantity) }));
     setFoodSearch('');
   }
 
-  function updateItemQty(id: string, qty: number) {
-    setDraftItems((items) => items.map((i) => i.id === id ? { ...i, quantity: Math.max(0.1, qty) } : i));
+  function updateItemQty(id: string, value: string) {
+    setQuantityInputs((inputs) => ({ ...inputs, [id]: value }));
+    if (!value.trim()) return;
+    const qty = Number(value);
+    if (!Number.isFinite(qty) || qty < 0.1) return;
+    setDraftItems((items) => items.map((item) => item.id === id ? { ...item, quantity: qty } : item));
+  }
+
+  function finishItemQty(item: MealTemplateItem) {
+    const value = quantityInputs[item.id] ?? String(item.quantity);
+    const qty = Number(value);
+    const normalized = Number.isFinite(qty) && qty >= 0.1 ? qty : item.quantity;
+    setDraftItems((items) => items.map((current) => current.id === item.id ? { ...current, quantity: normalized } : current));
+    setQuantityInputs((inputs) => ({ ...inputs, [item.id]: String(normalized) }));
   }
 
   function removeItem(id: string) {
     setDraftItems((items) => items.filter((i) => i.id !== id));
+    setQuantityInputs((inputs) => {
+      const next = { ...inputs };
+      delete next[id];
+      return next;
+    });
   }
 
   function saveTemplate() {
@@ -170,9 +192,12 @@ export function Meals({ templates, savedFoods, foodDatabase = [], onSave, onDele
                       type="number"
                       min="0.1"
                       step="0.1"
-                      value={item.quantity}
+                      value={quantityInputs[item.id] ?? String(item.quantity)}
                       className="qty-input"
-                      onChange={(e) => updateItemQty(item.id, parseFloat(e.target.value) || 0.1)}
+                      aria-label={`Servings of ${item.name}`}
+                      onFocus={(event) => event.currentTarget.select()}
+                      onChange={(event) => updateItemQty(item.id, event.target.value)}
+                      onBlur={() => finishItemQty(item)}
                     />
                     <button className="btn btn--danger btn--xs" onClick={() => removeItem(item.id)}>✕</button>
                   </div>

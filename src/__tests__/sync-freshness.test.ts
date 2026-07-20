@@ -7,6 +7,8 @@ import {
   configureStorageScope,
   hasLocalUserData,
   migrateIfNeeded,
+  ensureTroyMealTemplates,
+  loadMealTemplates,
 } from '../lib/storage';
 
 beforeEach(() => {
@@ -97,5 +99,42 @@ describe('local freshness marker', () => {
     localStorage.setItem('keto_saved_foods', JSON.stringify([{ id: 'food-1', name: 'Steak' }]));
     ensureLocalModifiedBaseline();
     expect(getLocalDataModifiedAt()).toBe('2026-07-01T00:00:00.000Z');
+  });
+});
+
+describe('Troy meal-template repair', () => {
+  it('restores the requested shortcuts once with the intended serving quantities', () => {
+    configureStorageScope({ environment: 'production', userKey: 'troy' });
+
+    expect(ensureTroyMealTemplates('troy')).toBe(true);
+    expect(loadMealTemplates()).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'troy-steak-ghee-v1',
+        name: 'Steak & Ghee',
+        mealType: 'dinner',
+        items: [
+          expect.objectContaining({ name: 'Beef rib fillet thick cut (Super Butcher, raw)', quantity: 1 }),
+          expect.objectContaining({ name: 'Sol Ghee (grass fed)', quantity: 4 }),
+        ],
+      }),
+      expect.objectContaining({
+        id: 'troy-eggs-ghee-v1',
+        name: 'Eggs & Ghee',
+        items: [
+          expect.objectContaining({ name: 'Eggs 700g (Harris Farm)', quantity: 4 }),
+          expect.objectContaining({ name: 'Sol Ghee (grass fed)', quantity: 2 }),
+        ],
+      }),
+    ]));
+    expect(getLocalDataModifiedAt()).not.toBe('');
+    expect(ensureTroyMealTemplates('troy')).toBe(false);
+    expect(loadMealTemplates()).toHaveLength(2);
+  });
+
+  it('does not seed another user', () => {
+    configureStorageScope({ environment: 'production', userKey: 'angela' });
+
+    expect(ensureTroyMealTemplates('angela')).toBe(false);
+    expect(loadMealTemplates()).toEqual([]);
   });
 });

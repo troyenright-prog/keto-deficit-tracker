@@ -26,6 +26,7 @@ const KEYS = {
 } as const;
 
 const DEMO_SEED_KEY = 'keto_demo_seed_v1';
+const TROY_MEAL_SEED_KEY = 'keto_troy_meal_templates_v1';
 const LEGACY_CLAIM_KEY = 'keto_legacy_data_claimed_by';
 
 type StorageScope = {
@@ -94,6 +95,69 @@ export function getLocalDataModifiedAt(): string {
 // a stale remote bundle can't overwrite local data that predates the marker.
 export function ensureLocalModifiedBaseline(): void {
   if (!getLocalDataModifiedAt() && hasUserData()) markLocalDataModified();
+}
+
+// Restore Troy's requested meal shortcuts once per device. They were originally
+// added from another synced client, but an older phone bundle later replaced the
+// meal-template collection. Seeding them locally gives the active device the
+// authoritative copy and a fresh sync timestamp without affecting other users.
+export function ensureTroyMealTemplates(userKey: string): boolean {
+  if (userKey !== 'troy') return false;
+  try {
+    if (localStorage.getItem(scopedKey(TROY_MEAL_SEED_KEY)) === '1') return false;
+  } catch {
+    return false;
+  }
+
+  const foods = getStarterFoodOptions();
+  const byName = (name: string) => foods.find((food) => food.name === name);
+  const steak = byName('Beef rib fillet thick cut (Super Butcher, raw)');
+  const eggs = byName('Eggs 700g (Harris Farm)');
+  const ghee = byName('Sol Ghee (grass fed)');
+  if (!steak || !eggs || !ghee) return false;
+
+  const item = (food: FoodItem, id: string, quantity: number): MealTemplateItem => ({
+    ...food,
+    id,
+    savedFoodId: food.id,
+    quantity,
+  });
+  const existing = loadMealTemplates();
+  const existingNames = new Set(existing.map((template) => template.name.toLowerCase()));
+  const createdAt = new Date().toISOString();
+  const requested: MealTemplate[] = [
+    {
+      id: 'troy-steak-ghee-v1',
+      name: 'Steak & Ghee',
+      mealType: 'dinner',
+      items: [
+        item(steak, 'troy-steak-ghee-steak-v1', 1),
+        item(ghee, 'troy-steak-ghee-ghee-v1', 4),
+      ],
+      createdAt,
+    },
+    {
+      id: 'troy-eggs-ghee-v1',
+      name: 'Eggs & Ghee',
+      items: [
+        item(eggs, 'troy-eggs-ghee-eggs-v1', 4),
+        item(ghee, 'troy-eggs-ghee-ghee-v1', 2),
+      ],
+      createdAt,
+    },
+  ];
+  const missing = requested.filter((template) => !existingNames.has(template.name.toLowerCase()));
+  if (missing.length > 0) {
+    if (!saveMealTemplates([...existing, ...missing])) return false;
+    markLocalDataModified(createdAt);
+  }
+  try {
+    localStorage.setItem(scopedKey(TROY_MEAL_SEED_KEY), '1');
+  } catch {
+    // The templates are still available for this session even if the marker
+    // cannot be persisted.
+  }
+  return missing.length > 0;
 }
 
 // Decide whether an incoming remote bundle should replace local data. Remote

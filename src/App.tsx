@@ -41,6 +41,7 @@ import {
   markLocalDataModified,
   getLocalDataModifiedAt,
   ensureLocalModifiedBaseline,
+  ensureTroyMealTemplates,
   remoteBundleShouldReplaceLocal,
 } from './lib/storage';
 import {
@@ -185,6 +186,7 @@ function prepareStorageForUser(userKey: AppUserKey) {
   claimLegacyDataForActiveScope();
   migrateIfNeeded();
   seedDemoDataIfEmpty();
+  ensureTroyMealTemplates(userKey);
   ensureLocalModifiedBaseline();
 }
 
