@@ -127,6 +127,33 @@ describe('writeNutritionRecords', () => {
     expect(record.endTime.getTime()).toBeGreaterThan(record.startTime.getTime());
   });
 
+  it('clamps a future record time so Health Connect never rejects it as future-dated', async () => {
+    const { writeNutritionRecords } = await import('../lib/health-connect');
+    insertRecords.mockClear();
+    // Daily totals are stamped at local noon; before midday, today's noon is in
+    // the future. Health Connect throws IllegalArgumentException on a future
+    // start time and the native insert crashes the app, so this must be clamped.
+    const future = new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString();
+    const before = Date.now();
+    await writeNutritionRecords([{
+      id: 'day:today',
+      time: future,
+      name: 'Health Tracker daily macros',
+      mealType: 0,
+      calories: 500,
+      proteinG: 50,
+      totalCarbsG: 14,
+      fatG: 30,
+    }]);
+    const after = Date.now();
+
+    const [{ records }] = insertRecords.mock.calls[0] as [{ records: Array<{ startTime: Date; endTime: Date }> }];
+    const record = records[0];
+    expect(record.endTime.getTime()).toBeLessThanOrEqual(after);
+    expect(record.startTime.getTime()).toBeLessThanOrEqual(before);
+    expect(record.endTime.getTime()).toBeGreaterThan(record.startTime.getTime());
+  });
+
   it('does not call insertRecords for an empty payload list', async () => {
     insertRecords.mockClear();
     const { writeNutritionRecords } = await import('../lib/health-connect');

@@ -178,8 +178,14 @@ const healthConnectWithNutritionDelete = HealthConnect as typeof HealthConnect &
 
 export async function writeNutritionRecords(payloads: NutritionRecordPayload[]): Promise<number> {
   if (!payloads.length) return 0;
+  // Health Connect rejects any record whose time is in the future, and the
+  // native insertRecords coroutine does not catch that - it crashes the whole
+  // app (IllegalArgumentException: "Record start time must not be in the
+  // future"). Daily totals are stamped at local noon, so today's record is in
+  // the future for any sync before midday; clamp so endTime never passes now.
+  const latestStart = Date.now() - NUTRITION_RECORD_DURATION_MS;
   const records = payloads.map((payload) => {
-    const startTime = new Date(payload.time);
+    const startTime = new Date(Math.min(new Date(payload.time).getTime(), latestStart));
     const endTime = new Date(startTime.getTime() + NUTRITION_RECORD_DURATION_MS);
     return {
       type: 'Nutrition' as const,
