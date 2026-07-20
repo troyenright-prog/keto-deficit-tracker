@@ -6,6 +6,27 @@ import { DEFAULT_TARGETS } from '../lib/storage';
 import type { DailyNutritionSummary } from '../types';
 
 describe('Dashboard screen', () => {
+  it('makes an over-target calorie result explicit', () => {
+    const summary: DailyNutritionSummary = {
+      ...summariseDay('2026-01-01', []),
+      calories: DEFAULT_TARGETS.calories + 703,
+      entryCount: 1,
+    };
+
+    render(
+      <Dashboard
+        summary={summary}
+        entries={[]}
+        targets={DEFAULT_TARGETS}
+        recommendations={[]}
+        onAddFood={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('heading', { name: '703 calories over target' }).textContent).toBe('+703');
+    expect(screen.getByText('Over target')).toBeTruthy();
+  });
+
   it('shows needs-attention recommendations near the top of home', () => {
     const { container } = render(
       <Dashboard

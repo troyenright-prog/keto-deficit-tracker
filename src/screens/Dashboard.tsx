@@ -79,6 +79,7 @@ export function Dashboard({ summary, entries, activity, targets, recommendations
   const carbVariant = status === 'aligned' ? 'success' : status === 'approaching' ? 'warning' : 'danger';
   const caloriesPercent = targets.calories > 0 ? Math.min(100, Math.max(0, (summary.calories / targets.calories) * 100)) : 0;
   const displayRemaining = Math.round(remaining);
+  const isOverCalorieTarget = displayRemaining < 0;
   const proteinGap = Math.max(0, targets.proteinG - summary.proteinG);
   const fatRemaining = Math.max(0, targets.fatG - summary.fatG);
   const allMicronutrientRows = MICRONUTRIENT_FIELDS.map((field) => ({
@@ -143,8 +144,20 @@ export function Dashboard({ summary, entries, activity, targets, recommendations
         <div className="dashboard-hero__top">
           <div>
             <span className="eyebrow">Today</span>
-            <h1>{displayRemaining >= 0 ? displayRemaining : Math.abs(displayRemaining)}</h1>
-            <p>{displayRemaining >= 0 ? 'calories remaining' : 'calories over target'}</p>
+            <h1
+              className={isOverCalorieTarget ? 'dashboard-hero__calorie-value dashboard-hero__calorie-value--over' : 'dashboard-hero__calorie-value'}
+              aria-label={`${Math.abs(displayRemaining)} calories ${isOverCalorieTarget ? 'over target' : 'remaining'}`}
+            >
+              <span aria-hidden="true">{isOverCalorieTarget ? `+${Math.abs(displayRemaining)}` : displayRemaining}</span>
+            </h1>
+            {isOverCalorieTarget ? (
+              <p className="dashboard-hero__calorie-label dashboard-hero__calorie-label--over">
+                <span>calories</span>
+                <strong>Over target</strong>
+              </p>
+            ) : (
+              <p className="dashboard-hero__calorie-label">calories remaining</p>
+            )}
           </div>
           <div className="dashboard-hero__actions">
             <button className="btn btn--primary" onClick={onAddFood}>+ Add food</button>
