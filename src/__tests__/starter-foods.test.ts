@@ -75,4 +75,33 @@ describe('starter foods', () => {
     expect(groups.find((group) => group.key === 'starters')?.items[0].name)
       .toBe("Swisse Ultivite Men's Multivitamin");
   });
+
+  it('includes the two label-verified Musashi protein wafers', () => {
+    const byBarcode = (barcode: string) => getStarterFoodOptions().find((food) => food.barcode === barcode);
+
+    expect(byBarcode('9400581052855')).toMatchObject({
+      name: 'Musashi Protein Wafer — White Chocolate',
+      servingSize: '1 wafer (40g)',
+      calories: 216,
+      proteinG: 10,
+      fatG: 13.1,
+      totalCarbsG: 9.7,
+      fibreG: 0,
+      sugarAlcoholsG: 4.8,
+      sodiumMg: 59,
+      saturatedFatG: 7.3,
+    });
+    expect(byBarcode('9400581053869')).toMatchObject({
+      name: 'Musashi Protein Wafer — White Choc Caramel',
+      servingSize: '1 wafer (40g)',
+      calories: 215,
+      proteinG: 10,
+      fatG: 13.2,
+      totalCarbsG: 9.6,
+      fibreG: 0,
+      sugarAlcoholsG: 7.2,
+      sodiumMg: 96,
+      saturatedFatG: 7.3,
+    });
+  });
 });

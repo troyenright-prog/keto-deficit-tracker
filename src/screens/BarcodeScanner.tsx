@@ -3,6 +3,7 @@ import type { IScannerControls } from '@zxing/browser';
 import type { FoodDatabaseItem, FoodItem, FoodLogEntry } from '../types';
 import { barcodeFoodToLogEntry, barcodeFoodToSavedFood, hasPositiveNutrition, lookupBarcodeFood, normalizeBarcode, type BarcodeFood } from '../lib/barcode';
 import { barcodeFoodToFoodDatabaseItem, findFoodDatabaseByBarcode, foodDatabaseItemToBarcodeFood, savedFoodToBarcodeFood } from '../lib/food-database';
+import { findStarterFoodByBarcode } from '../lib/australianFoods';
 import { inferMealSlot, MEAL_SLOTS } from '../lib/meals';
 import { calcNetCarbs, todayDateString } from '../lib/nutrition';
 import { implausibleMacroMassMessage } from '../lib/nutrition-validation';
@@ -19,10 +20,11 @@ interface BarcodeScannerProps {
   autoStart?: boolean;
 }
 
-type FoodOrigin = 'local' | 'openFoodFacts' | 'foodDataCentral' | 'manual' | 'corrected' | 'linked';
+type FoodOrigin = 'local' | 'starter' | 'openFoodFacts' | 'foodDataCentral' | 'manual' | 'corrected' | 'linked';
 
 const originLabels: Record<FoodOrigin, string> = {
   local: 'Local database',
+  starter: 'Verified product label',
   openFoodFacts: 'Open Food Facts',
   foodDataCentral: 'USDA FoodData Central',
   manual: 'Manually created food',
@@ -120,12 +122,30 @@ export function BarcodeScanner({ foodDatabase, savedFoods, onAdd, onSaveFood, on
     if (!normalized) { setError('Enter or scan a valid barcode.'); return; }
 
     const local = findFoodDatabaseByBarcode(foodDatabase, normalized);
-    // Use the cached copy only when it has tracked nutrition or the user edited it;
-    // a cached 0-calorie row (e.g. saved during the OFF v3 empty-nutriments bug)
-    // is treated as a miss so we re-fetch fresh data.
-    if (local && (local.userEdited || hasPositiveNutrition(local)) && !implausibleMacroMassMessage(local)) {
+    // Explicit user corrections always win, including over a built-in product
+    // label. This preserves a person's ability to correct a reformulated food.
+    if (local?.userEdited && !implausibleMacroMassMessage(local)) {
       setFood(foodDatabaseItemToBarcodeFood(local));
-      setOrigin(local.userEdited ? 'corrected' : 'local');
+      setOrigin('corrected');
+      setError('');
+      return;
+    }
+
+    // Prefer label-verified built-in products over non-edited crowd-sourced
+    // cache rows. This prevents a poisoned barcode record from reappearing.
+    const starter = findStarterFoodByBarcode(normalized);
+    if (starter) {
+      setFood(savedFoodToBarcodeFood(starter, normalized));
+      setOrigin('starter');
+      setError('');
+      return;
+    }
+
+    // Use the cached copy only when it has tracked nutrition; a cached
+    // 0-calorie row is treated as a miss so we re-fetch fresh data.
+    if (local && hasPositiveNutrition(local) && !implausibleMacroMassMessage(local)) {
+      setFood(foodDatabaseItemToBarcodeFood(local));
+      setOrigin('local');
       setError('');
       return;
     }
@@ -273,7 +293,7 @@ export function BarcodeScanner({ foodDatabase, savedFoods, onAdd, onSaveFood, on
   // the first keystroke instead of leaving the caret stuck after the 0 (mobile).
   const selectOnFocus = (event: React.FocusEvent<HTMLInputElement>) => event.currentTarget.select();
 
-  function persistReviewedFood(userEdited = origin === 'corrected' || origin === 'manual') {
+  function persistReviewedFood(userEdited = origin === 'corrected' || origin === 'manual' || origin === 'starter') {
     if (!food) return false;
     const existing = findFoodDatabaseByBarcode(foodDatabase, food.barcode);
     if (shouldSkipEmptyRemoteCacheWrite(existing, food, userEdited)) return true;

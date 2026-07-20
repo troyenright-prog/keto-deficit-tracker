@@ -134,6 +134,39 @@ export const AUSTRALIAN_STARTER_FOODS: Omit<FoodItem, 'id' | 'createdAt'>[] = [
     vitaminAMcg: 45, vitaminDMcg: 0.2, thiaminMg: 0.15, riboflavinMg: 0.6, pantothenicAcidMg: 1.2, vitaminB6Mg: 0.15,
     folateMcg: 20, vitaminB12Mcg: 1.5, cholineMg: 60,
   },
+  // Musashi Protein Wafers — Australian pack-label values per 40g bar.
+  // The labels declare maltitol separately, so it is recorded as sugar alcohol
+  // and deducted from total carbohydrate by the app's net-carb calculation.
+  {
+    barcode: '9400581052855',
+    name: 'Musashi Protein Wafer — White Chocolate',
+    servingSize: '1 wafer (40g)',
+    calories: 216,
+    proteinG: 10,
+    fatG: 13.1,
+    totalCarbsG: 9.7,
+    fibreG: 0,
+    sugarAlcoholsG: 4.8,
+    sodiumMg: 59,
+    potassiumMg: 0,
+    magnesiumMg: 0,
+    saturatedFatG: 7.3,
+  },
+  {
+    barcode: '9400581053869',
+    name: 'Musashi Protein Wafer — White Choc Caramel',
+    servingSize: '1 wafer (40g)',
+    calories: 215,
+    proteinG: 10,
+    fatG: 13.2,
+    totalCarbsG: 9.6,
+    fibreG: 0,
+    sugarAlcoholsG: 7.2,
+    sodiumMg: 96,
+    potassiumMg: 0,
+    magnesiumMg: 0,
+    saturatedFatG: 7.3,
+  },
   {
     name: 'Butter (salted)', servingSize: '10g', calories: 72, proteinG: 0.1, fatG: 8.1, totalCarbsG: 0, fibreG: 0, sugarAlcoholsG: 0, sodiumMg: 82, potassiumMg: 2, magnesiumMg: 0,
     saturatedFatG: 5.1, vitaminAMcg: 68, vitaminDMcg: 0.15, vitaminEMg: 0.23, vitaminKMcg: 0.7, cholineMg: 1.9,
@@ -304,4 +337,8 @@ export function getStarterFoodOptions(): FoodItem[] {
     isStarter: true,
     isFavourite: false,
   }));
+}
+
+export function findStarterFoodByBarcode(barcode: string): FoodItem | undefined {
+  return getStarterFoodOptions().find((food) => food.barcode === barcode);
 }

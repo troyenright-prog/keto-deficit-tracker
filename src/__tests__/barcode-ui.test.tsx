@@ -212,6 +212,72 @@ describe('Barcode scanner screen', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('uses a verified starter barcode instead of a non-edited poisoned cache row', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const onAdd = vi.fn(() => true);
+    const onSaveFoodDatabaseItem = vi.fn(() => true);
+    const poisonedCache = {
+      ...localFood,
+      barcode: '9400581052855',
+      name: 'Crowd-sourced wafer',
+      servingSize: '40g',
+      calories: 216,
+      proteinG: 40,
+      fatG: 0,
+      totalCarbsG: 0,
+    };
+    render(<BarcodeScanner savedFoods={[]} foodDatabase={[poisonedCache]} onAdd={onAdd} onSaveFood={vi.fn(() => true)} onSaveFoodDatabaseItem={onSaveFoodDatabaseItem} />);
+
+    fireEvent.change(screen.getByLabelText('Barcode number'), { target: { value: '9400581052855' } });
+    fireEvent.click(screen.getByRole('button', { name: /Look up barcode/ }));
+
+    await screen.findByText('Musashi Protein Wafer — White Chocolate');
+    expect(screen.getByText('Verified product label')).toBeTruthy();
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Add to log' })[0]);
+    await waitFor(() => expect(onSaveFoodDatabaseItem).toHaveBeenCalledWith(expect.objectContaining({
+      barcode: '9400581052855',
+      calories: 216,
+      proteinG: 10,
+      fatG: 13.1,
+      totalCarbsG: 9.7,
+      sugarAlcoholsG: 4.8,
+      userEdited: true,
+    })));
+    expect(onAdd).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'Musashi Protein Wafer — White Chocolate',
+      calories: 216,
+      totalCarbsG: 9.7,
+      sugarAlcoholsG: 4.8,
+    }));
+  });
+
+  it('keeps a user correction ahead of a verified starter barcode', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const corrected = {
+      ...localFood,
+      barcode: '9400581052855',
+      name: 'My reformulated wafer',
+      servingSize: '1 wafer (40g)',
+      calories: 210,
+      proteinG: 11,
+      fatG: 12,
+      totalCarbsG: 8,
+      userEdited: true,
+    };
+    render(<BarcodeScanner savedFoods={[]} foodDatabase={[corrected]} onAdd={vi.fn(() => true)} onSaveFood={vi.fn(() => true)} onSaveFoodDatabaseItem={vi.fn(() => true)} />);
+
+    fireEvent.change(screen.getByLabelText('Barcode number'), { target: { value: '9400581052855' } });
+    fireEvent.click(screen.getByRole('button', { name: /Look up barcode/ }));
+
+    await screen.findByText('My reformulated wafer');
+    expect(screen.getByText('User-corrected food')).toBeTruthy();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('shows not found with manual creation available when no cache exists', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => Response.json({ error: 'Not found' }, { status: 404 })));
     render(<BarcodeScanner savedFoods={[]} foodDatabase={[]} onAdd={vi.fn(() => true)} onSaveFood={vi.fn(() => true)} onSaveFoodDatabaseItem={vi.fn(() => true)} />);
