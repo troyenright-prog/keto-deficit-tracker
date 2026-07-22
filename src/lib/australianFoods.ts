@@ -1,4 +1,5 @@
 import type { FoodItem } from '../types';
+import { barcodesEquivalent } from './barcode';
 import { nanoid } from './nanoid';
 
 // Approximate nutritional values for common Australian keto foods.
@@ -340,5 +341,5 @@ export function getStarterFoodOptions(): FoodItem[] {
 }
 
 export function findStarterFoodByBarcode(barcode: string): FoodItem | undefined {
-  return getStarterFoodOptions().find((food) => food.barcode === barcode);
+  return getStarterFoodOptions().find((food) => barcodesEquivalent(food.barcode, barcode));
 }

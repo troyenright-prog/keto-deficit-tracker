@@ -1,4 +1,4 @@
-import type { BarcodeFood } from './barcode';
+import { barcodesEquivalent, type BarcodeFood } from './barcode';
 import type { FoodDatabaseItem, FoodItem } from '../types';
 import { calcNetCarbs } from './nutrition';
 import { nanoid } from './nanoid';
@@ -15,7 +15,7 @@ export function foodDatabaseSignature(item: Pick<FoodDatabaseItem | FoodItem, 'n
 }
 
 export function findFoodDatabaseByBarcode(items: FoodDatabaseItem[], barcode: string): FoodDatabaseItem | undefined {
-  return items.find((item) => item.barcode === barcode);
+  return items.find((item) => barcodesEquivalent(item.barcode, barcode));
 }
 
 export function foodDatabaseItemToSavedFood(item: FoodDatabaseItem): FoodItem {
@@ -146,7 +146,7 @@ export function foodDatabaseItemToBarcodeFood(item: FoodDatabaseItem): BarcodeFo
 
 export function upsertFoodDatabaseItem(items: FoodDatabaseItem[], item: FoodDatabaseItem): FoodDatabaseItem[] {
   const existingIndex = items.findIndex((candidate) =>
-    (item.barcode && candidate.barcode === item.barcode) ||
+    (item.barcode && barcodesEquivalent(candidate.barcode, item.barcode)) ||
     (!item.barcode && foodDatabaseSignature(candidate) === foodDatabaseSignature(item))
   );
   if (existingIndex < 0) return [...items, item];

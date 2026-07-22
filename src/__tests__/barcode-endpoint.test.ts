@@ -37,7 +37,7 @@ describe('barcode lookup endpoint', () => {
     })) as unknown as typeof fetch;
     const response = await handleLookupBarcode(new Request('https://example.com/api/lookup-barcode?code=1234567890123'), {}, fetcher);
     expect(response.status).toBe(200);
-    expect(response.headers.get('cache-control')).toBe('public, max-age=3600');
+    expect(response.headers.get('cache-control')).toBe('public, max-age=3600, s-maxage=604800');
     await expect(response.json()).resolves.toMatchObject({
       barcode: '1234567890123',
       name: 'Cheese snack',
@@ -45,6 +45,37 @@ describe('barcode lookup endpoint', () => {
       sodiumMg: 500,
       attribution: 'Open Food Facts',
     });
+  });
+
+  it('shares successful provider hits through the edge barcode cache', async () => {
+    const stored = new Map<string, Response>();
+    const cache = {
+      match: vi.fn(async (request: Request) => stored.get(request.url)?.clone()),
+      put: vi.fn(async (request: Request, response: Response) => { stored.set(request.url, response.clone()); }),
+    };
+    const pending: Promise<unknown>[] = [];
+    const fetcher = vi.fn(async () => Response.json({
+      code: '036000291452',
+      product: {
+        code: '036000291452',
+        product_name: 'Cached cereal',
+        nutriments: { 'energy-kcal_100g': 370, proteins_100g: 8 },
+      },
+    })) as unknown as typeof fetch;
+
+    const first = await handleLookupBarcode(
+      new Request('https://example.com/api/lookup-barcode?code=036000291452'),
+      {}, fetcher, cache, (promise) => pending.push(promise),
+    );
+    expect(first.status).toBe(200);
+    await Promise.all(pending);
+
+    const second = await handleLookupBarcode(
+      new Request('https://example.com/api/lookup-barcode?code=0036000291452'),
+      {}, fetcher, cache,
+    );
+    await expect(second.json()).resolves.toMatchObject({ name: 'Cached cereal' });
+    expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
   it('returns found Open Food Facts products with zero macro nutrition', async () => {
@@ -76,7 +107,7 @@ describe('barcode lookup endpoint', () => {
   it('falls back to USDA FoodData Central and converts per-100g nutrition to per-serving', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
-      if (url.includes('openfoodfacts')) return new Response('{}', { status: 404 });
+      if (url.includes('openfoodfacts')) return new Response('{}', { status: 429 });
       return Response.json({
         foods: [{
           fdcId: 123,

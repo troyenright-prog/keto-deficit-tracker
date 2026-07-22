@@ -34,6 +34,61 @@ export function normalizeBarcode(raw: string): string {
   return raw.replace(/\D/g, '').slice(0, 32);
 }
 
+// GTINs are commonly surfaced in different container forms by scanners and
+// databases (for example UPC-A 12 digits versus EAN-13 with a leading zero).
+// Use a GTIN-14 comparison key internally while preserving the printed value
+// for display and upstream APIs. Short non-GTIN codes remain supported for the
+// app's user-created foods.
+export function barcodeComparisonKey(raw: string): string {
+  const code = normalizeBarcode(raw);
+  return [8, 12, 13, 14].includes(code.length) ? code.padStart(14, '0') : code;
+}
+
+export function barcodesEquivalent(left: string | undefined, right: string | undefined): boolean {
+  if (!left || !right) return false;
+  return barcodeComparisonKey(left) === barcodeComparisonKey(right);
+}
+
+export function hasValidGtinCheckDigit(raw: string): boolean {
+  const code = normalizeBarcode(raw);
+  if (![8, 12, 13, 14].includes(code.length)) return false;
+  const digits = [...code].map(Number);
+  const expected = digits.pop() as number;
+  let sum = 0;
+  for (let index = digits.length - 1, position = 0; index >= 0; index -= 1, position += 1) {
+    sum += digits[index] * (position % 2 === 0 ? 3 : 1);
+  }
+  return (10 - (sum % 10)) % 10 === expected;
+}
+
+// UPC-E suppresses zeroes from a UPC-A. ZXing reports the compact eight-digit
+// value, so expand it before lookup/cache matching. The first digit is the
+// number system and the last is the existing check digit.
+export function expandUpce(raw: string): string {
+  const code = normalizeBarcode(raw);
+  if (code.length !== 8) return code;
+  const numberSystem = code[0];
+  const body = code.slice(1, 7);
+  const check = code[7];
+  const last = body[5];
+  let manufacturer: string;
+  let product: string;
+  if (last === '0' || last === '1' || last === '2') {
+    manufacturer = `${body.slice(0, 2)}${last}00`;
+    product = `00${body.slice(2, 5)}`;
+  } else if (last === '3') {
+    manufacturer = `${body.slice(0, 3)}00`;
+    product = `000${body.slice(3, 5)}`;
+  } else if (last === '4') {
+    manufacturer = `${body.slice(0, 4)}0`;
+    product = `0000${body[4]}`;
+  } else {
+    manufacturer = body.slice(0, 5);
+    product = `0000${last}`;
+  }
+  return `${numberSystem}${manufacturer}${product}${check}`;
+}
+
 function nutrient(nutriments: UnknownRecord, key: string, basis: 'serving' | '100g'): number {
   return safeNonNegative(nutriments[`${key}_${basis}`]);
 }
@@ -244,7 +299,9 @@ export async function lookupBarcodeFood(barcode: string, fetcher: typeof fetch =
   if (!normalized) throw new Error('Enter a valid barcode number.');
 
   let lastError = 'No food was found for that barcode.';
-  for (const url of barcodeLookupUrls(normalized)) {
+  const urls = barcodeLookupUrls(normalized);
+  for (let index = 0; index < urls.length; index += 1) {
+    const url = urls[index];
     let response: Response;
     try {
       // `no-store` avoids serving a stale cached response; `accept` is a
@@ -257,6 +314,10 @@ export async function lookupBarcodeFood(barcode: string, fetcher: typeof fetch =
 
     if (response.status === 404) {
       lastError = 'No food was found for that barcode.';
+      // The app endpoint already aggregates Open Food Facts and the configured
+      // server-side fallbacks. A definitive miss there must not immediately
+      // repeat the same Open Food Facts request from the client.
+      if (index === 0 && !url.startsWith(OPEN_FOOD_FACTS_BASE)) break;
       continue;
     }
     if (response.status === 429 || response.status === 503) {

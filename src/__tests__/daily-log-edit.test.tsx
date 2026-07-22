@@ -154,6 +154,9 @@ describe('DailyLog move to another day', () => {
     renderLog([entry], onMove);
 
     fireEvent.click(screen.getByText(entry.name));
+    expect(screen.queryByRole('button', { name: '← Yesterday' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    fireEvent.click(screen.getByText('Meal & date'));
     fireEvent.click(screen.getByRole('button', { name: '← Yesterday' }));
 
     expect(onMove).toHaveBeenCalledWith(['e1'], yesterday);
@@ -166,9 +169,26 @@ describe('DailyLog move to another day', () => {
     renderLog([a, b], onMove);
 
     fireEvent.click(screen.getByText(a.name));
-    expect(screen.getByText('moves all 2 meal items')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    fireEvent.click(screen.getByText('Meal & date'));
+    expect(screen.getByText('Moves all 2 meal items together')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: '← Yesterday' }));
 
     expect(onMove).toHaveBeenCalledWith(['t1', 't2'], yesterday);
+  });
+
+  it('keeps the edit form compact until nutrition details are requested', () => {
+    const entry = makeEntry();
+    renderLog([entry]);
+
+    fireEvent.click(screen.getByText(entry.name));
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+
+    expect(screen.getByLabelText('Food name *')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Save changes' })).toBeTruthy();
+    expect(screen.queryByLabelText('Calories')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show macros & nutrients' }));
+    expect(screen.getByLabelText('Calories')).toBeTruthy();
   });
 });

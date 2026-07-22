@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { IScannerControls } from '@zxing/browser';
+import { Capacitor } from '@capacitor/core';
 import type { FoodDatabaseItem, FoodItem, FoodLogEntry } from '../types';
-import { barcodeFoodToLogEntry, barcodeFoodToSavedFood, hasPositiveNutrition, lookupBarcodeFood, normalizeBarcode, type BarcodeFood } from '../lib/barcode';
+import { barcodeFoodToLogEntry, barcodeFoodToSavedFood, expandUpce, hasPositiveNutrition, hasValidGtinCheckDigit, lookupBarcodeFood, normalizeBarcode, type BarcodeFood } from '../lib/barcode';
 import { barcodeFoodToFoodDatabaseItem, findFoodDatabaseByBarcode, foodDatabaseItemToBarcodeFood, savedFoodToBarcodeFood } from '../lib/food-database';
 import { findStarterFoodByBarcode } from '../lib/australianFoods';
 import { inferMealSlot, MEAL_SLOTS } from '../lib/meals';
@@ -36,7 +37,10 @@ function remoteFoodOrigin(food: BarcodeFood): FoodOrigin {
   return food.attribution === 'USDA FoodData Central' ? 'foodDataCentral' : 'openFoodFacts';
 }
 
-const canUseCamera = (): boolean => typeof navigator !== 'undefined' && Boolean(navigator.mediaDevices?.getUserMedia);
+const canUseCamera = (): boolean => (
+  (Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('BarcodeScanner')) ||
+  (typeof navigator !== 'undefined' && Boolean(navigator.mediaDevices?.getUserMedia))
+);
 
 const QUICK_SERVING_AMOUNTS = [0.5, 1, 1.5, 2];
 
@@ -177,7 +181,6 @@ export function BarcodeScanner({ foodDatabase, savedFoods, onAdd, onSaveFood, on
   const startCamera = useCallback(async () => {
     if (scanning) return;
     if (!cameraSupported) { setError('Camera access is not available. Enter the barcode number instead.'); return; }
-    if (!navigator.mediaDevices?.getUserMedia) { setError('Camera access is not available. Enter the barcode number instead.'); return; }
     setError('');
     setSuccess('');
     setFood(null);
@@ -185,6 +188,34 @@ export function BarcodeScanner({ foodDatabase, savedFoods, onAdd, onSaveFood, on
     stopRef.current = false;
     const myToken = ++startTokenRef.current;
     try {
+      if (Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('BarcodeScanner')) {
+        const { BarcodeFormat, BarcodeScanner: NativeBarcodeScanner } = await import('@capacitor-mlkit/barcode-scanning');
+        const supported = await NativeBarcodeScanner.isSupported();
+        if (!supported.supported) throw new Error('Barcode scanning is not supported on this device.');
+        const result = await NativeBarcodeScanner.scan({
+          formats: [BarcodeFormat.Ean13, BarcodeFormat.Ean8, BarcodeFormat.UpcA, BarcodeFormat.UpcE, BarcodeFormat.Code128],
+          autoZoom: true,
+        });
+        if (startTokenRef.current !== myToken) return;
+        const detected = result.barcodes[0];
+        if (!detected) {
+          setScanning(false);
+          return;
+        }
+        const raw = detected.format === BarcodeFormat.UpcE ? expandUpce(detected.displayValue) : detected.displayValue;
+        const normalized = normalizeBarcode(raw);
+        if (!normalized) throw new Error('The camera could not read a barcode number.');
+        if ([8, 12, 13, 14].includes(normalized.length) && !hasValidGtinCheckDigit(normalized)) {
+          throw new Error('The barcode was not read clearly. Please scan it again.');
+        }
+        if (typeof navigator.vibrate === 'function') navigator.vibrate(60);
+        setScanning(false);
+        setBarcode(normalized);
+        void lookup(normalized);
+        return;
+      }
+
+      if (!navigator.mediaDevices?.getUserMedia) throw new Error('Camera access is not available.');
       const video = await waitForVideoElement();
       const { BarcodeFormat, BrowserMultiFormatReader } = await import('@zxing/browser');
       const reader = new BrowserMultiFormatReader();
@@ -200,13 +231,17 @@ export function BarcodeScanner({ foodDatabase, savedFoods, onAdd, onSaveFood, on
         video,
         (result, _error, resultControls) => {
           if (!result || stopRef.current) return;
-          const normalized = normalizeBarcode(result.getText());
+          const format = result.getBarcodeFormat();
+          const raw = format === BarcodeFormat.UPC_E ? expandUpce(result.getText()) : result.getText();
+          const normalized = normalizeBarcode(raw);
           if (!normalized) return;
+          if ([8, 12, 13, 14].includes(normalized.length) && !hasValidGtinCheckDigit(normalized)) return;
           resultControls.stop();
           scannerControlsRef.current = null;
           stopRef.current = true;
           setScanning(false);
           setBarcode(normalized);
+          if (typeof navigator.vibrate === 'function') navigator.vibrate(60);
           void lookup(normalized);
         },
       );

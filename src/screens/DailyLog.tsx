@@ -6,8 +6,7 @@ import { FoodForm, type FoodFormValues } from '../components/FoodForm';
 import { entryMeal, mealLabel, MEAL_SLOTS } from '../lib/meals';
 import { entryNeedsNutritionRepair, type RepairResult } from '../lib/barcode';
 import { entrySourceLabel } from '../lib/log-source';
-import { nanoid } from '../lib/nanoid';
-import { pickMicronutrients, scaleMicronutrients } from '../lib/micronutrients';
+import { scaleMicronutrients } from '../lib/micronutrients';
 
 interface DailyLogProps {
   log: FoodLogEntry[];
@@ -27,7 +26,7 @@ function formatLoggedTime(iso: string): string {
   return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
 }
 
-export function DailyLog({ log, savedFoods, onDelete, onEdit, onMove, onDuplicate, onSaveFood, onRepairScannedNutrition, onAddFood }: DailyLogProps) {
+export function DailyLog({ log, onDelete, onEdit, onMove, onDuplicate, onRepairScannedNutrition, onAddFood }: DailyLogProps) {
   const [selectedDate, setSelectedDate] = useState(todayDateString());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -90,27 +89,6 @@ export function DailyLog({ log, savedFoods, onDelete, onEdit, onMove, onDuplicat
     }
   }
 
-  function saveEditedEntryAsFood(values: FoodFormValues) {
-    if (onSaveFood({
-      id: nanoid(),
-      name: values.name,
-      servingSize: values.servingSize,
-      calories: values.calories,
-      proteinG: values.proteinG,
-      fatG: values.fatG,
-      totalCarbsG: values.totalCarbsG,
-      fibreG: values.fibreG,
-      sugarAlcoholsG: values.sugarAlcoholsG,
-      sodiumMg: values.sodiumMg,
-      potassiumMg: values.potassiumMg,
-      magnesiumMg: values.magnesiumMg,
-      ...pickMicronutrients(values),
-      createdAt: new Date().toISOString(),
-    })) {
-      showMessage(`Saved "${values.name}" to foods.`);
-    }
-  }
-
   function initialValues(entry: FoodLogEntry): Partial<FoodFormValues> {
     // The form edits per-serving values and re-scales by servingMultiplier on
     // save, so the divisor must be the multiplier itself — clamping it to >= 1
@@ -150,6 +128,7 @@ export function DailyLog({ log, savedFoods, onDelete, onEdit, onMove, onDuplicat
       const dayLabel = targetDate === todayDateString() ? 'today' : targetDate;
       showMessage(ids.length > 1 ? `Moved ${ids.length} items to ${dayLabel}.` : `Moved "${entry.name}" to ${dayLabel}.`);
       setExpandedId(null);
+      setEditingId(null);
     }
   }
 
@@ -228,16 +207,54 @@ export function DailyLog({ log, savedFoods, onDelete, onEdit, onMove, onDuplicat
                         <li key={entry.id} className="log-item">
                           {editingId === entry.id ? (
                             <div className="log-item-edit">
+                              <div className="log-item-edit-header">
+                                <strong>Edit entry</strong>
+                                <button className="btn btn--ghost btn--sm" onClick={() => setEditingId(null)}>
+                                  Cancel
+                                </button>
+                              </div>
                               <FoodForm
                                 initial={initialValues(entry)}
                                 onSubmit={(vals) => handleEditSubmit(entry, vals)}
                                 submitLabel="Save changes"
-                                savedFoods={savedFoods}
-                                onSaveAsFood={saveEditedEntryAsFood}
+                                compact
                               />
-                              <button className="btn btn--ghost" onClick={() => setEditingId(null)}>
-                                Cancel
-                              </button>
+                              <details className="log-edit-options">
+                                <summary>Meal &amp; date</summary>
+                                <div className="log-edit-options-content">
+                                  <label className="meal-select-label">
+                                    <span>Meal</span>
+                                    <select
+                                      value={entryMeal(entry)}
+                                      aria-label={`Meal for ${entry.name}`}
+                                      onChange={(event) => {
+                                        const nextMeal = event.target.value as MealSlot;
+                                        if (onEdit({ ...entry, meal: nextMeal })) {
+                                          showMessage(`Moved "${entry.name}" to ${mealLabel(nextMeal)}.`);
+                                        }
+                                      }}
+                                    >
+                                      {MEAL_SLOTS.map((slot) => <option key={slot.id} value={slot.id}>{mealLabel(slot.id)}</option>)}
+                                    </select>
+                                  </label>
+                                  <div className="day-move" aria-label={`Move ${entry.name} to another day`}>
+                                    <span>Move date</span>
+                                    <button className="btn btn--secondary btn--sm" onClick={() => moveEntryDay(entry, -1)}>
+                                      ← {entry.date === todayDateString() ? 'Yesterday' : 'Prev day'}
+                                    </button>
+                                    <button
+                                      className="btn btn--secondary btn--sm"
+                                      disabled={entry.date >= todayDateString()}
+                                      onClick={() => moveEntryDay(entry, 1)}
+                                    >
+                                      Next day →
+                                    </button>
+                                    {entryGroupIds(entry).length > 1 && (
+                                      <span className="dim">Moves all {entryGroupIds(entry).length} meal items together</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </details>
                             </div>
                           ) : (
                             <>
@@ -268,40 +285,6 @@ export function DailyLog({ log, savedFoods, onDelete, onEdit, onMove, onDuplicat
                                     {entry.proteinG.toFixed(1)}g protein · {entry.fatG.toFixed(1)}g fat
                                     {entrySourceLabel(entry) ? ` · ${entrySourceLabel(entry)}` : ''}
                                   </span>
-                                  <label className="meal-select-label">
-                                    <span>Meal</span>
-                                    <select
-                                      value={entryMeal(entry)}
-                                      aria-label={`Meal for ${entry.name}`}
-                                      onChange={(event) => {
-                                        const nextMeal = event.target.value as MealSlot;
-                                        if (onEdit({ ...entry, meal: nextMeal })) {
-                                          showMessage(`Moved "${entry.name}" to ${mealLabel(nextMeal)}.`);
-                                        }
-                                      }}
-                                    >
-                                      {MEAL_SLOTS.map((slot) => <option key={slot.id} value={slot.id}>{mealLabel(slot.id)}</option>)}
-                                    </select>
-                                  </label>
-                                  <div className="day-move" aria-label={`Move ${entry.name} to another day`}>
-                                    <span>Day</span>
-                                    <button
-                                      className="btn btn--secondary btn--sm"
-                                      onClick={() => moveEntryDay(entry, -1)}
-                                    >
-                                      ← {entry.date === todayDateString() ? 'Yesterday' : 'Prev day'}
-                                    </button>
-                                    <button
-                                      className="btn btn--secondary btn--sm"
-                                      disabled={entry.date >= todayDateString()}
-                                      onClick={() => moveEntryDay(entry, 1)}
-                                    >
-                                      Next day →
-                                    </button>
-                                    {entryGroupIds(entry).length > 1 && (
-                                      <span className="dim">moves all {entryGroupIds(entry).length} meal items</span>
-                                    )}
-                                  </div>
                                   <button
                                     className="btn btn--secondary btn--sm"
                                     onClick={() => {

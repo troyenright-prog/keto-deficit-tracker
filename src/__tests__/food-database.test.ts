@@ -64,6 +64,14 @@ describe('food database storage', () => {
     expect(merged[0]).toMatchObject({ id: 'local', name: 'Corrected Cheese', calories: 200 });
   });
 
+  it('deduplicates equivalent UPC-A and EAN barcode forms', () => {
+    const upc = dbFood({ id: 'upc', barcode: '036000291452' });
+    const ean = dbFood({ id: 'ean', barcode: '0036000291452', name: 'Same product' });
+    const merged = upsertFoodDatabaseItem([upc], ean);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]).toMatchObject({ id: 'upc', name: 'Same product' });
+  });
+
   it('stores USDA barcode results with the correct source', () => {
     const item = barcodeFoodToFoodDatabaseItem({
       barcode: '1234567890123',

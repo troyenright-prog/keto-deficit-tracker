@@ -1,4 +1,4 @@
-import { normalizeBarcode, normalizeOpenFoodFactsProduct } from '../../src/lib/barcode';
+import { barcodeComparisonKey, barcodesEquivalent, normalizeBarcode, normalizeOpenFoodFactsProduct } from '../../src/lib/barcode';
 import { implausibleMacroMassMessage } from '../../src/lib/nutrition-validation';
 
 type Env = {
@@ -7,13 +7,17 @@ type Env = {
 };
 
 type UnknownRecord = Record<string, unknown>;
+type BarcodeResponseCache = {
+  match(request: Request): Promise<Response | undefined>;
+  put(request: Request, response: Response): Promise<void>;
+};
 
 const isRecord = (value: unknown): value is UnknownRecord => typeof value === 'object' && value !== null && !Array.isArray(value);
 const asText = (value: unknown): string | undefined => typeof value === 'string' && value.trim() ? value.trim() : undefined;
 const asNumber = (value: unknown): number | undefined => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
 
-function json(body: unknown, status = 200): Response {
-  const cacheControl = status >= 200 && status < 300 ? 'public, max-age=3600' : 'no-store';
+function json(body: unknown, status = 200, extraHeaders: Record<string, string> = {}): Response {
+  const cacheControl = status >= 200 && status < 300 ? 'public, max-age=3600, s-maxage=604800' : 'no-store';
   return new Response(JSON.stringify(body), {
     status,
     headers: {
@@ -22,8 +26,38 @@ function json(body: unknown, status = 200): Response {
       // Allow the native (Capacitor) app, whose WebView origin is
       // https://localhost, to call this public read-only endpoint cross-origin.
       'access-control-allow-origin': '*',
+      ...extraHeaders,
     },
   });
+}
+
+function barcodeCacheKey(code: string): Request {
+  return new Request(`https://barcode-cache.keto.invalid/products/${barcodeComparisonKey(code)}`);
+}
+
+async function cachedBarcodeResponse(cache: BarcodeResponseCache | undefined, code: string): Promise<Response | null> {
+  if (!cache) return null;
+  try {
+    const cached = (await cache.match(barcodeCacheKey(code))) ?? null;
+    if (!cached) return null;
+    const headers = new Headers(cached.headers);
+    headers.set('x-barcode-cache', 'hit');
+    return new Response(cached.body, { status: cached.status, statusText: cached.statusText, headers });
+  } catch {
+    return null;
+  }
+}
+
+function storeBarcodeResponse(
+  cache: BarcodeResponseCache | undefined,
+  code: string,
+  response: Response,
+  waitUntil?: (promise: Promise<unknown>) => void,
+): void {
+  if (!cache || !response.ok) return;
+  const write = cache.put(barcodeCacheKey(code), response.clone()).catch(() => undefined);
+  if (waitUntil) waitUntil(write);
+  else void write;
 }
 
 function nutrient(food: UnknownRecord, names: string[]): number {
@@ -43,7 +77,7 @@ function normalizeFoodDataCentralSearch(value: unknown, barcode: string) {
   if (!isRecord(value) || !Array.isArray(value.foods)) return null;
   const food = value.foods.find((candidate) => {
     if (!isRecord(candidate)) return false;
-    return normalizeBarcode(asText(candidate.gtinUpc) ?? '') === barcode;
+    return barcodesEquivalent(asText(candidate.gtinUpc), barcode);
   }) ?? value.foods.find(isRecord);
   if (!isRecord(food)) return null;
 
@@ -141,26 +175,58 @@ async function lookupFoodDataCentral(code: string, env: Env, fetcher: typeof fet
   };
 }
 
-export async function handleLookupBarcode(request: Request, env: Env = {}, fetcher: typeof fetch = fetch): Promise<Response> {
+export async function handleLookupBarcode(
+  request: Request,
+  env: Env = {},
+  fetcher: typeof fetch = fetch,
+  cache?: BarcodeResponseCache,
+  waitUntil?: (promise: Promise<unknown>) => void,
+): Promise<Response> {
   if (request.method !== 'GET') return json({ error: 'Use GET for barcode lookup.' }, 405);
 
   const url = new URL(request.url);
   const code = normalizeBarcode(url.searchParams.get('code') ?? '');
   if (!code) return json({ error: 'Enter a valid barcode number.' }, 400);
 
+  const cached = await cachedBarcodeResponse(cache, code);
+  if (cached) return cached;
+
+  let upstreamUnavailable = false;
   try {
     const openFoodFacts = await lookupOpenFoodFacts(code, env, fetcher);
-    if (openFoodFacts.status === 'found') return json(openFoodFacts.food);
-    if (openFoodFacts.status === 'limited') return json({ error: 'Barcode lookup is temporarily rate-limited. Try again shortly.' }, 502);
-
-    const foodDataCentral = await lookupFoodDataCentral(code, env, fetcher);
-    if (foodDataCentral.status === 'found') return json(foodDataCentral.food);
-    if (foodDataCentral.status === 'limited') return json({ error: 'Barcode lookup is temporarily rate-limited. Try again shortly.' }, 502);
+    if (openFoodFacts.status === 'found') {
+      const response = json(openFoodFacts.food, 200, { 'x-barcode-source': 'open-food-facts', 'x-barcode-cache': 'miss' });
+      storeBarcodeResponse(cache, code, response, waitUntil);
+      return response;
+    }
+    if (openFoodFacts.status === 'limited' || openFoodFacts.status === 'failed') upstreamUnavailable = true;
   } catch {
-    return json({ error: 'Could not reach the barcode database. Check your connection and try again.' }, 502);
+    upstreamUnavailable = true;
   }
+
+  try {
+    const foodDataCentral = await lookupFoodDataCentral(code, env, fetcher);
+    if (foodDataCentral.status === 'found') {
+      const response = json(foodDataCentral.food, 200, { 'x-barcode-source': 'food-data-central', 'x-barcode-cache': 'miss' });
+      storeBarcodeResponse(cache, code, response, waitUntil);
+      return response;
+    }
+    if (foodDataCentral.status === 'limited' || foodDataCentral.status === 'failed') upstreamUnavailable = true;
+  } catch {
+    upstreamUnavailable = true;
+  }
+
+
+  if (upstreamUnavailable) return json({ error: 'The barcode databases are temporarily unavailable. Try again shortly.' }, 502);
 
   return json({ error: 'No food was found for that barcode.' }, 404);
 }
 
-export const onRequestGet = ({ request, env }: { request: Request; env: Env }) => handleLookupBarcode(request, env);
+export const onRequestGet = ({ request, env, waitUntil }: {
+  request: Request;
+  env: Env;
+  waitUntil: (promise: Promise<unknown>) => void;
+}) => {
+  const runtimeCache = (globalThis.caches as CacheStorage & { default?: BarcodeResponseCache } | undefined)?.default;
+  return handleLookupBarcode(request, env, fetch, runtimeCache, waitUntil);
+};

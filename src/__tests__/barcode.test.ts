@@ -3,8 +3,11 @@ import {
   applyBarcodeNutritionToEntry,
   barcodeFoodToLogEntry,
   barcodeFoodToSavedFood,
+  barcodesEquivalent,
   barcodeLookupUrls,
   entryNeedsNutritionRepair,
+  expandUpce,
+  hasValidGtinCheckDigit,
   lookupBarcodeFood,
   hasPositiveNutrition,
   normalizeBarcode,
@@ -98,6 +101,17 @@ const zeroNutritionResponse = {
 describe('barcode food mapping', () => {
   it('normalizes typed or scanned barcode text', () => {
     expect(normalizeBarcode(' 9300-6750 51132 ')).toBe('9300675051132');
+  });
+
+  it('matches equivalent UPC-A, EAN-13, and GTIN container forms', () => {
+    expect(barcodesEquivalent('036000291452', '0036000291452')).toBe(true);
+    expect(barcodesEquivalent('036000291452', '00036000291452')).toBe(true);
+    expect(hasValidGtinCheckDigit('036000291452')).toBe(true);
+    expect(hasValidGtinCheckDigit('036000291453')).toBe(false);
+  });
+
+  it('expands scanner UPC-E values to their UPC-A equivalent', () => {
+    expect(expandUpce('04210005')).toBe('042000001005');
   });
 
   it('tries the app lookup endpoint before the direct Open Food Facts fallback', () => {
@@ -196,10 +210,10 @@ describe('barcode food mapping', () => {
     });
   });
 
-  it('falls through to the direct source when the app lookup endpoint misses', async () => {
+  it('falls through to the direct source when the app lookup endpoint is unavailable', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
-      if (url.startsWith('/api/lookup-barcode')) return Response.json({ error: 'Not found' }, { status: 404 });
+      if (url.startsWith('/api/lookup-barcode')) return Response.json({ error: 'Unavailable' }, { status: 502 });
       return Response.json(openFoodFactsResponse);
     }) as unknown as typeof fetch;
 
@@ -214,7 +228,7 @@ describe('barcode food mapping', () => {
     const fetcher = vi.fn(async () => Response.json({ error: 'Not found' }, { status: 404 })) as unknown as typeof fetch;
 
     await expect(lookupBarcodeFood('0000000000000', fetcher)).rejects.toThrow('No food was found');
-    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
   it('does not blame the connection when a fetch fails while online', async () => {

@@ -932,7 +932,53 @@ input:disabled {
 .log-item-edit {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
+  padding: 12px;
+}
+
+.log-item-edit-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.log-item-edit-header strong {
+  font-size: 14px;
+}
+
+.log-edit-options {
+  border-top: 1px solid var(--gray-200);
+  padding-top: 4px;
+}
+
+.log-edit-options summary {
+  cursor: pointer;
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 0;
+}
+
+.log-edit-options-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 2px 0 4px;
+}
+
+.log-edit-options-content .meal-select-label {
+  align-items: flex-start;
+  flex-direction: column;
+}
+
+.log-edit-options-content .meal-select-label select {
+  width: 100%;
+}
+
+.log-edit-options-content .day-move > span:first-child {
+  flex-basis: 100%;
+  font-weight: 600;
 }
 
 /* ── Saved foods ── */

@@ -26,6 +26,7 @@
     "version:bug": "npm version patch -m \"fix: release v%s\""
   },
   "dependencies": {
+    "@capacitor-mlkit/barcode-scanning": "^8.0.0",
     "@capacitor/android": "^8.4.1",
     "@capacitor/app": "^8.1.0",
     "@capacitor/core": "^8.4.1",
