@@ -1025,7 +1025,7 @@ function App() {
             onDelete={handleDeleteEntry}
             onEdit={handleEditEntry}
             onMove={handleMoveEntries}
-            onDuplicate={(entry, targetDate) => handleAddEntry(duplicateLogEntry(entry, targetDate))}
+            onDuplicate={(entry, targetDate, targetMeal) => handleAddEntry(duplicateLogEntry(entry, targetDate, targetMeal))}
             onSaveFood={handleSaveFood}
             onRepairScannedNutrition={handleRepairScannedNutrition}
             onAddFood={() => setScreen('barcode')}

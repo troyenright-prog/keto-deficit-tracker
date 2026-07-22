@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { DailyLog } from '../screens/DailyLog';
 import { todayDateString } from '../lib/nutrition';
 import { addLocalDays } from '../lib/date';
@@ -156,7 +156,6 @@ describe('DailyLog move to another day', () => {
     fireEvent.click(screen.getByText(entry.name));
     expect(screen.queryByRole('button', { name: '← Yesterday' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
-    fireEvent.click(screen.getByText('Meal & date'));
     fireEvent.click(screen.getByRole('button', { name: '← Yesterday' }));
 
     expect(onMove).toHaveBeenCalledWith(['e1'], yesterday);
@@ -170,7 +169,6 @@ describe('DailyLog move to another day', () => {
 
     fireEvent.click(screen.getByText(a.name));
     fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
-    fireEvent.click(screen.getByText('Meal & date'));
     expect(screen.getByText('Moves all 2 meal items together')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: '← Yesterday' }));
 
@@ -190,5 +188,47 @@ describe('DailyLog move to another day', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Show macros & nutrients' }));
     expect(screen.getByLabelText('Calories')).toBeTruthy();
+  });
+
+  it('shows meal and date controls immediately when editing', () => {
+    const entry = makeEntry({ meal: 'lunch' });
+    renderLog([entry]);
+
+    fireEvent.click(screen.getByText(entry.name));
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+
+    expect(screen.getByText('Meal & date')).toBeTruthy();
+    expect((screen.getByLabelText(`Meal for ${entry.name}`) as HTMLSelectElement).value).toBe('lunch');
+    expect(screen.getByRole('button', { name: '← Yesterday' })).toBeTruthy();
+  });
+});
+
+describe('DailyLog duplicate destination', () => {
+  it('prompts for both date and meal before duplicating', () => {
+    const yesterday = addLocalDays(today, -1);
+    const entry = makeEntry({ meal: 'breakfast' });
+    const onDuplicate = vi.fn(() => true);
+    render(
+      <DailyLog
+        log={[entry]}
+        savedFoods={[]}
+        onDelete={vi.fn()}
+        onEdit={vi.fn(() => true)}
+        onMove={vi.fn(() => true)}
+        onDuplicate={onDuplicate}
+        onSaveFood={vi.fn(() => true)}
+        onAddFood={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByText(entry.name));
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicate' }));
+
+    const prompt = screen.getByRole('group', { name: `Duplicate ${entry.name}` });
+    fireEvent.change(within(prompt).getByLabelText('Duplicate date'), { target: { value: yesterday } });
+    fireEvent.change(within(prompt).getByLabelText('Duplicate meal'), { target: { value: 'dinner' } });
+    fireEvent.click(within(prompt).getByRole('button', { name: 'Duplicate' }));
+
+    expect(onDuplicate).toHaveBeenCalledWith(entry, yesterday, 'dinner');
   });
 });

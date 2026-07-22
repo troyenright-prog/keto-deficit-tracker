@@ -35,8 +35,12 @@ export function recentFoodsFromLog(log: FoodLogEntry[], limit = 8): FoodItem[] {
   return result;
 }
 
-export function duplicateLogEntry(entry: FoodLogEntry, targetDate = entry.date): FoodLogEntry {
-  return { ...entry, id: nanoid(), date: targetDate, loggedAt: new Date().toISOString() };
+export function duplicateLogEntry(
+  entry: FoodLogEntry,
+  targetDate = entry.date,
+  targetMeal = entry.meal,
+): FoodLogEntry {
+  return { ...entry, id: nanoid(), date: targetDate, meal: targetMeal, loggedAt: new Date().toISOString() };
 }
 
 export function copyLogEntries(entries: FoodLogEntry[], targetDate: string): FoodLogEntry[] {
@@ -96,8 +100,8 @@ export function buildQuickAddGroups(options: {
 
   const groups: QuickAddGroup[] = [
     { key: 'favourites', label: 'Favourites', items: favourites.map((food) => ({ kind: 'favourite', id: food.id, name: food.name, food })) },
-    { key: 'recent', label: 'Recent foods', items: recent.map((food) => ({ kind: 'recent', id: food.id, name: food.name, food })) },
     { key: 'shortcuts', label: 'Meal shortcuts', items: shortcuts.map((template) => ({ kind: 'template', id: template.id, name: template.name, template })) },
+    { key: 'recent', label: 'Recent foods', items: recent.map((food) => ({ kind: 'recent', id: food.id, name: food.name, food })) },
   ];
   if (query) groups.push(
     { key: 'saved', label: 'Saved foods', items: saved.map((food) => ({ kind: 'saved', id: food.id, name: food.name, food })) },

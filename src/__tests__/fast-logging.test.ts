@@ -38,9 +38,11 @@ describe('fast logging helpers', () => {
 
   it('copies and duplicates entries with new IDs without mutating originals', () => {
     const original = entry();
-    const duplicate = duplicateLogEntry(original);
+    const duplicate = duplicateLogEntry(original, '2026-01-05', 'dinner');
     const copied = copyLogEntries([original], '2026-01-04')[0];
     expect(duplicate.id).not.toBe(original.id);
+    expect(duplicate.date).toBe('2026-01-05');
+    expect(duplicate.meal).toBe('dinner');
     expect(copied.id).not.toBe(original.id);
     expect(copied.date).toBe('2026-01-04');
     expect(copied.calories).toBe(original.calories);
@@ -66,7 +68,7 @@ describe('unified quick-add grouping', () => {
 
   it('surfaces favourites, recent foods, and meal shortcuts without a search', () => {
     const groups = buildQuickAddGroups({ query: '', savedFoods: [favourite, saved], recentFoods: [food()], recipes: [recipe], templates: [shortcut], starterFoods: [] });
-    expect(groups.map((group) => group.key)).toEqual(['favourites', 'recent', 'shortcuts']);
+    expect(groups.map((group) => group.key)).toEqual(['favourites', 'shortcuts', 'recent']);
   });
 
   it('searches and groups all reusable sources by name', () => {

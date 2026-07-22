@@ -14,7 +14,7 @@ interface DailyLogProps {
   onDelete: (id: string) => void;
   onEdit: (entry: FoodLogEntry) => boolean;
   onMove: (ids: string[], targetDate: string) => boolean;
-  onDuplicate: (entry: FoodLogEntry, targetDate?: string) => boolean;
+  onDuplicate: (entry: FoodLogEntry, targetDate?: string, targetMeal?: MealSlot) => boolean;
   onSaveFood: (food: FoodItem) => boolean;
   onRepairScannedNutrition?: () => Promise<RepairResult>;
   onAddFood: () => void;
@@ -30,6 +30,11 @@ export function DailyLog({ log, onDelete, onEdit, onMove, onDuplicate, onRepairS
   const [selectedDate, setSelectedDate] = useState(todayDateString());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [duplicateDestination, setDuplicateDestination] = useState<{
+    entryId: string;
+    date: string;
+    meal: MealSlot;
+  } | null>(null);
   const [message, setMessage] = useState<{ text: string; tone: 'success' | 'error' } | null>(null);
   const [repairing, setRepairing] = useState(false);
 
@@ -132,6 +137,18 @@ export function DailyLog({ log, onDelete, onEdit, onMove, onDuplicate, onRepairS
     }
   }
 
+  function openDuplicatePrompt(entry: FoodLogEntry) {
+    setDuplicateDestination({ entryId: entry.id, date: selectedDate, meal: entryMeal(entry) });
+  }
+
+  function confirmDuplicate(entry: FoodLogEntry) {
+    if (!duplicateDestination || duplicateDestination.entryId !== entry.id) return;
+    if (onDuplicate(entry, duplicateDestination.date, duplicateDestination.meal)) {
+      showMessage(`Duplicated "${entry.name}" to ${mealLabel(duplicateDestination.meal)}.`);
+      setDuplicateDestination(null);
+    }
+  }
+
   return (
     <div className="screen">
       <div className="screen-header">
@@ -219,8 +236,8 @@ export function DailyLog({ log, onDelete, onEdit, onMove, onDuplicate, onRepairS
                                 submitLabel="Save changes"
                                 compact
                               />
-                              <details className="log-edit-options">
-                                <summary>Meal &amp; date</summary>
+                              <section className="log-edit-options" aria-labelledby={`meal-date-${entry.id}`}>
+                                <strong id={`meal-date-${entry.id}`} className="log-edit-options-title">Meal &amp; date</strong>
                                 <div className="log-edit-options-content">
                                   <label className="meal-select-label">
                                     <span>Meal</span>
@@ -254,7 +271,7 @@ export function DailyLog({ log, onDelete, onEdit, onMove, onDuplicate, onRepairS
                                     )}
                                   </div>
                                 </div>
-                              </details>
+                              </section>
                             </div>
                           ) : (
                             <>
@@ -287,9 +304,8 @@ export function DailyLog({ log, onDelete, onEdit, onMove, onDuplicate, onRepairS
                                   </span>
                                   <button
                                     className="btn btn--secondary btn--sm"
-                                    onClick={() => {
-                                      if (onDuplicate(entry, selectedDate)) showMessage(`Duplicated "${entry.name}".`);
-                                    }}
+                                    aria-expanded={duplicateDestination?.entryId === entry.id}
+                                    onClick={() => openDuplicatePrompt(entry)}
                                   >
                                     Duplicate
                                   </button>
@@ -307,6 +323,45 @@ export function DailyLog({ log, onDelete, onEdit, onMove, onDuplicate, onRepairS
                                   >
                                     Delete
                                   </button>
+                                  {duplicateDestination?.entryId === entry.id && (
+                                    <div className="duplicate-destination" role="group" aria-label={`Duplicate ${entry.name}`}>
+                                      <strong>Duplicate to</strong>
+                                      <div className="duplicate-destination-fields">
+                                        <label>
+                                          <span>Date</span>
+                                          <input
+                                            type="date"
+                                            aria-label="Duplicate date"
+                                            value={duplicateDestination.date}
+                                            max={todayDateString()}
+                                            onChange={(event) => setDuplicateDestination((current) => current && ({
+                                              ...current,
+                                              date: event.target.value,
+                                            }))}
+                                          />
+                                        </label>
+                                        <label>
+                                          <span>Meal</span>
+                                          <select
+                                            aria-label="Duplicate meal"
+                                            value={duplicateDestination.meal}
+                                            onChange={(event) => setDuplicateDestination((current) => current && ({
+                                              ...current,
+                                              meal: event.target.value as MealSlot,
+                                            }))}
+                                          >
+                                            {MEAL_SLOTS.map((slot) => (
+                                              <option key={slot.id} value={slot.id}>{mealLabel(slot.id)}</option>
+                                            ))}
+                                          </select>
+                                        </label>
+                                      </div>
+                                      <div className="duplicate-destination-actions">
+                                        <button className="btn btn--ghost btn--sm" onClick={() => setDuplicateDestination(null)}>Cancel</button>
+                                        <button className="btn btn--primary btn--sm" onClick={() => confirmDuplicate(entry)}>Duplicate</button>
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </>
