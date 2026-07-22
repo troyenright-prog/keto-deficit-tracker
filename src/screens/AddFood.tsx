@@ -31,6 +31,15 @@ interface AddFoodProps {
 
 const QUICK_AMOUNTS = [0.5, 1, 1.5, 2];
 
+// One-tap date jumps so logging a meal you forgot yesterday (or the day
+// before) doesn't need the date picker. Computed on click so they stay correct
+// across a midnight rollover while the screen is open.
+const DATE_SHORTCUTS = [
+  { label: 'Today', date: () => todayDateString() },
+  { label: 'Yesterday', date: () => addLocalDays(todayDateString(), -1) },
+  { label: '2 days ago', date: () => addLocalDays(todayDateString(), -2) },
+] as const;
+
 export function AddFood({ savedFoods, foodDatabase, log, recipes, templates, onAdd, onAddEntries, onSaveFood, onSaveFoodDatabaseItem, onScanBarcode }: AddFoodProps) {
   const [date, setDate] = useState(todayDateString());
   const [meal, setMeal] = useState(inferMealSlot());
@@ -196,6 +205,21 @@ export function AddFood({ savedFoods, foodDatabase, log, recipes, templates, onA
 
       <div className="form-group">
         <label htmlFor="quick-date">Add to date</label>
+        <div className="date-shortcuts">
+          {DATE_SHORTCUTS.map((shortcut) => {
+            const target = shortcut.date();
+            return (
+              <button
+                key={shortcut.label}
+                type="button"
+                className={`serving-chip${date === target ? ' serving-chip--active' : ''}`}
+                onClick={() => { setDate(target); setSelected(null); setDateError(''); }}
+              >
+                {shortcut.label}
+              </button>
+            );
+          })}
+        </div>
         <input id="quick-date" type="date" value={date} max={todayDateString()} onChange={(event) => { setDate(event.target.value); setSelected(null); setDateError(''); }} />
         {dateError && <span className="form-error" role="alert">{dateError}</span>}
       </div>

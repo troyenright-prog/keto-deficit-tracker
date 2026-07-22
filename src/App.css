@@ -2071,6 +2071,14 @@ input:disabled {
 .serving-chip--active { border-color: var(--blue); background: var(--blue); color: var(--white); }
 .serving-options input { width: 72px !important; padding: 6px 8px !important; }
 
+.date-shortcuts {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.date-shortcuts .serving-chip { cursor: pointer; }
+
 .quick-nutrition-preview {
   display: flex;
   flex-wrap: wrap;
