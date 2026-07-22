@@ -86,6 +86,34 @@ const capturedAlmondDrinkResponse = {
   },
 };
 
+// Captured from Open Food Facts for YoPRO Perform strawberry yoghurt
+// 9344962004135. The record has no ordinary nutrient fields; all label values
+// are stored under the prepared variant despite this being a ready-to-eat tub.
+const preparedOnlyYoghurtResponse = {
+  code: '9344962004135',
+  product: {
+    code: '9344962004135',
+    product_name: 'STRAWBERRY YOGHURT',
+    brands: 'YoPRO PERFORM',
+    serving_size: '1 portion (175 g)',
+    nutrition_data_prepared: 'on',
+    nutriments: {
+      'energy-kcal_prepared_100g': 69,
+      'energy-kcal_prepared_serving': 121,
+      proteins_prepared_100g: 11.5,
+      proteins_prepared_serving: 20.1,
+      fat_prepared_100g: 0.7,
+      fat_prepared_serving: 1.22,
+      carbohydrates_prepared_100g: 3.9,
+      carbohydrates_prepared_serving: 6.83,
+      sodium_prepared_100g: 0.052,
+      sodium_prepared_serving: 0.091,
+      calcium_prepared_100g: 0.252,
+      calcium_prepared_serving: 0.441,
+    },
+  },
+};
+
 const zeroNutritionResponse = {
   code: '9311770608800',
   product: {
@@ -160,6 +188,23 @@ describe('barcode food mapping', () => {
       calciumMg: 120, // 0.12 g
       vitaminDMcg: 0.75, // 7.5e-7 g, despite _unit "µg"
       vitaminB12Mcg: 0.38, // 3.8e-7 g
+    });
+  });
+
+  it('falls back to prepared nutrition when a product has no standard nutrient fields', () => {
+    const food = normalizeOpenFoodFactsProduct(preparedOnlyYoghurtResponse);
+    expect(food).toMatchObject({
+      barcode: '9344962004135',
+      name: 'STRAWBERRY YOGHURT',
+      brand: 'YoPRO PERFORM',
+      servingSize: '1 portion (175 g)',
+      dataBasis: 'serving',
+      calories: 121,
+      proteinG: 20.1,
+      fatG: 1.22,
+      totalCarbsG: 6.83,
+      sodiumMg: 91,
+      calciumMg: 441,
     });
   });
 

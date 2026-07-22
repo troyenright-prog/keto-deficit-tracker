@@ -89,13 +89,26 @@ export function expandUpce(raw: string): string {
   return `${numberSystem}${manufacturer}${product}${check}`;
 }
 
-function nutrient(nutriments: UnknownRecord, key: string, basis: 'serving' | '100g'): number {
-  return safeNonNegative(nutriments[`${key}_${basis}`]);
+type NutritionVariant = 'standard' | 'prepared';
+
+function nutrient(
+  nutriments: UnknownRecord,
+  key: string,
+  basis: 'serving' | '100g',
+  variant: NutritionVariant = 'standard',
+): number {
+  const suffix = variant === 'prepared' ? `_prepared_${basis}` : `_${basis}`;
+  return safeNonNegative(nutriments[`${key}${suffix}`]);
 }
 
-function firstNutrient(nutriments: UnknownRecord, keys: string[], basis: 'serving' | '100g'): number {
+function firstNutrient(
+  nutriments: UnknownRecord,
+  keys: string[],
+  basis: 'serving' | '100g',
+  variant: NutritionVariant = 'standard',
+): number {
   for (const key of keys) {
-    const value = nutrient(nutriments, key, basis);
+    const value = nutrient(nutriments, key, basis, variant);
     if (value > 0) return value;
   }
   return 0;
@@ -120,8 +133,9 @@ function gramsNutrientAs(
   key: string,
   basis: 'serving' | '100g',
   targetUnit: 'mg' | 'mcg' | 'g',
+  variant: NutritionVariant = 'standard',
 ): number | undefined {
-  const grams = nutrient(nutriments, key, basis);
+  const grams = nutrient(nutriments, key, basis, variant);
   if (grams === 0) return undefined;
   const converted = targetUnit === 'g' ? grams : targetUnit === 'mg' ? grams * 1000 : grams * 1_000_000;
   return converted > 0 ? roundFloat(converted) : undefined;
@@ -159,11 +173,15 @@ const OFF_MICRONUTRIENTS: Array<{
   { appKey: 'omega6G', offKeys: ['omega-6-fat'], targetUnit: 'g' },
 ];
 
-function nutrimentMicros(nutriments: UnknownRecord, basis: 'serving' | '100g'): Micronutrients {
+function nutrimentMicros(
+  nutriments: UnknownRecord,
+  basis: 'serving' | '100g',
+  variant: NutritionVariant = 'standard',
+): Micronutrients {
   const result: Micronutrients = {};
   for (const field of OFF_MICRONUTRIENTS) {
     for (const offKey of field.offKeys) {
-      const value = gramsNutrientAs(nutriments, offKey, basis, field.targetUnit);
+      const value = gramsNutrientAs(nutriments, offKey, basis, field.targetUnit, variant);
       if (value !== undefined) {
         result[field.appKey] = value;
         break;
@@ -211,8 +229,21 @@ export function normalizeOpenFoodFactsProduct(value: unknown, barcodeFallback = 
   }
 
   const coreNutritionKeys = ['energy-kcal', 'proteins', 'fat', 'carbohydrates'];
-  const hasServingNutrition = coreNutritionKeys.some((key) => asNumber(nutriments[`${key}_serving`]) !== undefined);
-  const has100gNutrition = coreNutritionKeys.some((key) => asNumber(nutriments[`${key}_100g`]) !== undefined);
+  const hasStandardNutrition = coreNutritionKeys.some((key) => (
+    asNumber(nutriments[`${key}_serving`]) !== undefined || asNumber(nutriments[`${key}_100g`]) !== undefined
+  ));
+  const hasPreparedNutrition = coreNutritionKeys.some((key) => (
+    asNumber(nutriments[`${key}_prepared_serving`]) !== undefined || asNumber(nutriments[`${key}_prepared_100g`]) !== undefined
+  ));
+  // Some packaged products are entered in Open Food Facts solely under its
+  // "prepared" nutrition fields even though they are ready to eat (for
+  // example YoPRO yoghurt 9344962004135). Prefer ordinary label values when
+  // present, but fall back to prepared values instead of returning a named
+  // product with an entirely zero nutrition panel.
+  const variant: NutritionVariant = !hasStandardNutrition && hasPreparedNutrition ? 'prepared' : 'standard';
+  const variantPart = variant === 'prepared' ? '_prepared' : '';
+  const hasServingNutrition = coreNutritionKeys.some((key) => asNumber(nutriments[`${key}${variantPart}_serving`]) !== undefined);
+  const has100gNutrition = coreNutritionKeys.some((key) => asNumber(nutriments[`${key}${variantPart}_100g`]) !== undefined);
   const basis: 'serving' | '100g' = hasServingNutrition || !has100gNutrition ? 'serving' : '100g';
 
   return {
@@ -221,16 +252,16 @@ export function normalizeOpenFoodFactsProduct(value: unknown, barcodeFallback = 
     brand: asText(product.brands),
     servingSize: basis === 'serving' ? servingSize : '100g',
     dataBasis: basis,
-    calories: firstNutrient(nutriments, ['energy-kcal'], basis),
-    proteinG: nutrient(nutriments, 'proteins', basis),
-    fatG: nutrient(nutriments, 'fat', basis),
-    totalCarbsG: nutrient(nutriments, 'carbohydrates', basis),
-    fibreG: firstNutrient(nutriments, ['fiber', 'fibre'], basis),
-    sugarAlcoholsG: firstNutrient(nutriments, ['polyols', 'sugar-alcohol', 'sugar-alcohols'], basis),
-    sodiumMg: gramsNutrientAs(nutriments, 'sodium', basis, 'mg') ?? 0,
-    potassiumMg: gramsNutrientAs(nutriments, 'potassium', basis, 'mg') ?? 0,
-    magnesiumMg: gramsNutrientAs(nutriments, 'magnesium', basis, 'mg') ?? 0,
-    ...nutrimentMicros(nutriments, basis),
+    calories: firstNutrient(nutriments, ['energy-kcal'], basis, variant),
+    proteinG: nutrient(nutriments, 'proteins', basis, variant),
+    fatG: nutrient(nutriments, 'fat', basis, variant),
+    totalCarbsG: nutrient(nutriments, 'carbohydrates', basis, variant),
+    fibreG: firstNutrient(nutriments, ['fiber', 'fibre'], basis, variant),
+    sugarAlcoholsG: firstNutrient(nutriments, ['polyols', 'sugar-alcohol', 'sugar-alcohols'], basis, variant),
+    sodiumMg: gramsNutrientAs(nutriments, 'sodium', basis, 'mg', variant) ?? 0,
+    potassiumMg: gramsNutrientAs(nutriments, 'potassium', basis, 'mg', variant) ?? 0,
+    magnesiumMg: gramsNutrientAs(nutriments, 'magnesium', basis, 'mg', variant) ?? 0,
+    ...nutrimentMicros(nutriments, basis, variant),
     attribution: asText(product.attribution),
     attributionUrl: asText(product.attributionUrl),
     sourceUrl: asText(product.url),

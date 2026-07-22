@@ -1,4 +1,4 @@
-import { barcodeComparisonKey, barcodesEquivalent, normalizeBarcode, normalizeOpenFoodFactsProduct } from '../../src/lib/barcode';
+import { barcodeComparisonKey, barcodesEquivalent, hasPositiveNutrition, normalizeBarcode, normalizeOpenFoodFactsProduct } from '../../src/lib/barcode';
 import { implausibleMacroMassMessage } from '../../src/lib/nutrition-validation';
 
 type Env = {
@@ -32,7 +32,9 @@ function json(body: unknown, status = 200, extraHeaders: Record<string, string> 
 }
 
 function barcodeCacheKey(code: string): Request {
-  return new Request(`https://barcode-cache.keto.invalid/products/${barcodeComparisonKey(code)}`);
+  // Version the normalized response cache so fixes to provider field mapping
+  // cannot be masked by an older cached payload.
+  return new Request(`https://barcode-cache.keto.invalid/v2/products/${barcodeComparisonKey(code)}`);
 }
 
 async function cachedBarcodeResponse(cache: BarcodeResponseCache | undefined, code: string): Promise<Response | null> {
@@ -196,7 +198,7 @@ export async function handleLookupBarcode(
     const openFoodFacts = await lookupOpenFoodFacts(code, env, fetcher);
     if (openFoodFacts.status === 'found') {
       const response = json(openFoodFacts.food, 200, { 'x-barcode-source': 'open-food-facts', 'x-barcode-cache': 'miss' });
-      storeBarcodeResponse(cache, code, response, waitUntil);
+      if (hasPositiveNutrition(openFoodFacts.food)) storeBarcodeResponse(cache, code, response, waitUntil);
       return response;
     }
     if (openFoodFacts.status === 'limited' || openFoodFacts.status === 'failed') upstreamUnavailable = true;
@@ -208,7 +210,7 @@ export async function handleLookupBarcode(
     const foodDataCentral = await lookupFoodDataCentral(code, env, fetcher);
     if (foodDataCentral.status === 'found') {
       const response = json(foodDataCentral.food, 200, { 'x-barcode-source': 'food-data-central', 'x-barcode-cache': 'miss' });
-      storeBarcodeResponse(cache, code, response, waitUntil);
+      if (hasPositiveNutrition(foodDataCentral.food)) storeBarcodeResponse(cache, code, response, waitUntil);
       return response;
     }
     if (foodDataCentral.status === 'limited' || foodDataCentral.status === 'failed') upstreamUnavailable = true;

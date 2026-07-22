@@ -104,6 +104,31 @@ describe('barcode lookup endpoint', () => {
     });
   });
 
+  it('does not cache name-only products with no nutrition', async () => {
+    const cache = {
+      match: vi.fn(async () => undefined),
+      put: vi.fn(async () => undefined),
+    };
+    const pending: Promise<unknown>[] = [];
+    const fetcher = vi.fn(async () => Response.json({
+      code: '9311770608800',
+      product: {
+        code: '9311770608800',
+        product_name: 'Mens multivitamin',
+        nutriments: {},
+      },
+    })) as unknown as typeof fetch;
+
+    const response = await handleLookupBarcode(
+      new Request('https://example.com/api/lookup-barcode?code=9311770608800'),
+      {}, fetcher, cache, (promise) => pending.push(promise),
+    );
+
+    expect(response.status).toBe(200);
+    await Promise.all(pending);
+    expect(cache.put).not.toHaveBeenCalled();
+  });
+
   it('falls back to USDA FoodData Central and converts per-100g nutrition to per-serving', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
