@@ -919,6 +919,16 @@ input:disabled {
   font-size: 12px;
 }
 
+.day-move {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  font-size: 10px;
+  color: var(--gray-500);
+}
+.day-move .dim { font-size: 10px; }
+
 .log-item-edit {
   display: flex;
   flex-direction: column;

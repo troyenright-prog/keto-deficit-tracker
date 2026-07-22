@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { FoodLogEntry, FoodItem, MealSlot } from '../types';
 import { calcNetCarbs, safePositive, todayDateString } from '../lib/nutrition';
+import { addLocalDays } from '../lib/date';
 import { FoodForm, type FoodFormValues } from '../components/FoodForm';
 import { entryMeal, mealLabel, MEAL_SLOTS } from '../lib/meals';
 import { entryNeedsNutritionRepair, type RepairResult } from '../lib/barcode';
@@ -13,6 +14,7 @@ interface DailyLogProps {
   savedFoods: FoodItem[];
   onDelete: (id: string) => void;
   onEdit: (entry: FoodLogEntry) => boolean;
+  onMove: (ids: string[], targetDate: string) => boolean;
   onDuplicate: (entry: FoodLogEntry, targetDate?: string) => boolean;
   onSaveFood: (food: FoodItem) => boolean;
   onRepairScannedNutrition?: () => Promise<RepairResult>;
@@ -25,7 +27,7 @@ function formatLoggedTime(iso: string): string {
   return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
 }
 
-export function DailyLog({ log, savedFoods, onDelete, onEdit, onDuplicate, onSaveFood, onRepairScannedNutrition, onAddFood }: DailyLogProps) {
+export function DailyLog({ log, savedFoods, onDelete, onEdit, onMove, onDuplicate, onSaveFood, onRepairScannedNutrition, onAddFood }: DailyLogProps) {
   const [selectedDate, setSelectedDate] = useState(todayDateString());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -130,6 +132,25 @@ export function DailyLog({ log, savedFoods, onDelete, onEdit, onDuplicate, onSav
       magnesiumMg: entry.magnesiumMg / divisor,
       ...scaleMicronutrients(entry, 1 / divisor),
     };
+  }
+
+  // Meal-template items logged together share a templateId; treat them as one
+  // group so shifting a meal to another day carries every item, not 1x1.
+  function entryGroupIds(entry: FoodLogEntry): string[] {
+    if (!entry.templateId) return [entry.id];
+    const group = dayEntries.filter((e) => e.templateId === entry.templateId && entryMeal(e) === entryMeal(entry));
+    return group.length > 0 ? group.map((e) => e.id) : [entry.id];
+  }
+
+  function moveEntryDay(entry: FoodLogEntry, deltaDays: number) {
+    const targetDate = addLocalDays(entry.date, deltaDays);
+    if (targetDate > todayDateString()) return;
+    const ids = entryGroupIds(entry);
+    if (onMove(ids, targetDate)) {
+      const dayLabel = targetDate === todayDateString() ? 'today' : targetDate;
+      showMessage(ids.length > 1 ? `Moved ${ids.length} items to ${dayLabel}.` : `Moved "${entry.name}" to ${dayLabel}.`);
+      setExpandedId(null);
+    }
   }
 
   return (
@@ -262,6 +283,25 @@ export function DailyLog({ log, savedFoods, onDelete, onEdit, onDuplicate, onSav
                                       {MEAL_SLOTS.map((slot) => <option key={slot.id} value={slot.id}>{mealLabel(slot.id)}</option>)}
                                     </select>
                                   </label>
+                                  <div className="day-move" aria-label={`Move ${entry.name} to another day`}>
+                                    <span>Day</span>
+                                    <button
+                                      className="btn btn--secondary btn--sm"
+                                      onClick={() => moveEntryDay(entry, -1)}
+                                    >
+                                      ← {entry.date === todayDateString() ? 'Yesterday' : 'Prev day'}
+                                    </button>
+                                    <button
+                                      className="btn btn--secondary btn--sm"
+                                      disabled={entry.date >= todayDateString()}
+                                      onClick={() => moveEntryDay(entry, 1)}
+                                    >
+                                      Next day →
+                                    </button>
+                                    {entryGroupIds(entry).length > 1 && (
+                                      <span className="dim">moves all {entryGroupIds(entry).length} meal items</span>
+                                    )}
+                                  </div>
                                   <button
                                     className="btn btn--secondary btn--sm"
                                     onClick={() => {

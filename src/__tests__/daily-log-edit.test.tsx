@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { DailyLog } from '../screens/DailyLog';
 import { todayDateString } from '../lib/nutrition';
+import { addLocalDays } from '../lib/date';
 import type { FoodLogEntry } from '../types';
 
 // DailyLog defaults its date picker to today, so the fixture must log against
@@ -40,6 +41,7 @@ function openAndSaveUnchanged(entry: FoodLogEntry, onEdit: (e: FoodLogEntry) => 
       savedFoods={[]}
       onDelete={vi.fn()}
       onEdit={onEdit}
+      onMove={vi.fn(() => true)}
       onDuplicate={vi.fn(() => true)}
       onSaveFood={vi.fn(() => true)}
       onAddFood={vi.fn()}
@@ -108,7 +110,7 @@ describe('DailyLog edit preserves fractional-serving totals', () => {
     let current = entry;
     const onEdit = vi.fn((updated: FoodLogEntry) => { current = updated; return true; });
     const { unmount } = render(
-      <DailyLog log={[current]} savedFoods={[]} onDelete={vi.fn()} onEdit={onEdit} onDuplicate={vi.fn(() => true)} onSaveFood={vi.fn(() => true)} onAddFood={vi.fn()} />,
+      <DailyLog log={[current]} savedFoods={[]} onDelete={vi.fn()} onEdit={onEdit} onMove={vi.fn(() => true)} onDuplicate={vi.fn(() => true)} onSaveFood={vi.fn(() => true)} onAddFood={vi.fn()} />,
     );
     fireEvent.click(screen.getByText(entry.name));
     fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
@@ -117,7 +119,7 @@ describe('DailyLog edit preserves fractional-serving totals', () => {
 
     // Re-render with the entry as the app would after persisting the first edit.
     render(
-      <DailyLog log={[current]} savedFoods={[]} onDelete={vi.fn()} onEdit={onEdit} onDuplicate={vi.fn(() => true)} onSaveFood={vi.fn(() => true)} onAddFood={vi.fn()} />,
+      <DailyLog log={[current]} savedFoods={[]} onDelete={vi.fn()} onEdit={onEdit} onMove={vi.fn(() => true)} onDuplicate={vi.fn(() => true)} onSaveFood={vi.fn(() => true)} onAddFood={vi.fn()} />,
     );
     fireEvent.click(screen.getByText(entry.name));
     fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
@@ -125,5 +127,48 @@ describe('DailyLog edit preserves fractional-serving totals', () => {
 
     expect(current.calories).toBe(140);
     expect(current.potassiumMg).toBe(245);
+  });
+});
+
+describe('DailyLog move to another day', () => {
+  const yesterday = addLocalDays(today, -1);
+
+  function renderLog(log: FoodLogEntry[], onMove = vi.fn(() => true)) {
+    render(
+      <DailyLog
+        log={log}
+        savedFoods={[]}
+        onDelete={vi.fn()}
+        onEdit={vi.fn(() => true)}
+        onMove={onMove}
+        onDuplicate={vi.fn(() => true)}
+        onSaveFood={vi.fn(() => true)}
+        onAddFood={vi.fn()}
+      />,
+    );
+  }
+
+  it('moves a single entry to the previous day', () => {
+    const onMove = vi.fn(() => true);
+    const entry = makeEntry();
+    renderLog([entry], onMove);
+
+    fireEvent.click(screen.getByText(entry.name));
+    fireEvent.click(screen.getByRole('button', { name: '← Yesterday' }));
+
+    expect(onMove).toHaveBeenCalledWith(['e1'], yesterday);
+  });
+
+  it('moves every item of a meal template together as one group', () => {
+    const onMove = vi.fn(() => true);
+    const a = makeEntry({ id: 't1', name: 'Steak & Ghee — Beef', templateId: 'tmpl', meal: 'breakfast' });
+    const b = makeEntry({ id: 't2', name: 'Steak & Ghee — Ghee', templateId: 'tmpl', meal: 'breakfast' });
+    renderLog([a, b], onMove);
+
+    fireEvent.click(screen.getByText(a.name));
+    expect(screen.getByText('moves all 2 meal items')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '← Yesterday' }));
+
+    expect(onMove).toHaveBeenCalledWith(['t1', 't2'], yesterday);
   });
 });

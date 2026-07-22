@@ -59,6 +59,7 @@ describe('DailyLog source visibility', () => {
         savedFoods={[]}
         onDelete={vi.fn()}
         onEdit={vi.fn(() => true)}
+        onMove={vi.fn(() => true)}
         onDuplicate={vi.fn(() => true)}
         onSaveFood={vi.fn(() => true)}
         onAddFood={vi.fn()}

@@ -581,6 +581,18 @@ function App() {
     return ok;
   }, [persist, autoPushNutrition]);
 
+  // Move one or more entries to another day in a single write so a meal
+  // template's items travel together as one group instead of one save each.
+  const handleMoveEntries = useCallback((ids: string[], targetDate: string) => {
+    const moving = new Set(ids);
+    const ok = persist(
+      foodLogRef.current.map((e) => moving.has(e.id) ? { ...e, date: targetDate } : e),
+      foodLogRef, setFoodLog, saveFoodLog,
+    );
+    if (ok) autoPushNutrition();
+    return ok;
+  }, [persist, autoPushNutrition]);
+
   // ── Saved foods ────────────────────────────────────────────────────────────
 
   const handleSaveFood = useCallback((food: FoodItem) => {
@@ -1012,6 +1024,7 @@ function App() {
             savedFoods={savedFoods}
             onDelete={handleDeleteEntry}
             onEdit={handleEditEntry}
+            onMove={handleMoveEntries}
             onDuplicate={(entry, targetDate) => handleAddEntry(duplicateLogEntry(entry, targetDate))}
             onSaveFood={handleSaveFood}
             onRepairScannedNutrition={handleRepairScannedNutrition}
