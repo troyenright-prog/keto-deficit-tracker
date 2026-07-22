@@ -86,11 +86,11 @@ export function FoodForm({
   const [texts, setTexts] = useState<Record<string, string>>(() => seedTexts({ ...EMPTY, ...initial }));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [selectedSaved, setSelectedSaved] = useState('');
-  // null = no explicit user choice yet - defer to whether any micronutrient
-  // already has a value. Once the user clicks the toggle, their choice
-  // (true/false) overrides that default, so "Hide" works even when the food
-  // already carries micronutrient data.
-  const [showMicro, setShowMicro] = useState<boolean | null>(null);
+  // null = no explicit user choice yet - defer to whether the food already
+  // carries electrolyte/micronutrient data. Once the user clicks the toggle,
+  // their choice (true/false) overrides that default, so it stays collapsed for
+  // a quick manual add yet auto-opens when editing a food that already has them.
+  const [showExtras, setShowExtras] = useState<boolean | null>(null);
 
   function num(key: keyof FoodFormValues, val: string) {
     setTexts((t) => ({ ...t, [key]: val }));
@@ -164,8 +164,9 @@ export function FoodForm({
   }
 
   const previewNetCarbs = calcNetCarbs(values.totalCarbsG, values.fibreG, values.sugarAlcoholsG);
-  const hasMicro = hasAnyMicronutrients(values);
-  const microVisible = showMicro ?? hasMicro;
+  const hasElectrolytes = values.sodiumMg > 0 || values.potassiumMg > 0 || values.magnesiumMg > 0;
+  const hasExtras = hasElectrolytes || hasAnyMicronutrients(values);
+  const extrasVisible = showExtras ?? hasExtras;
 
   // The macro/electrolyte/micronutrient fields above are always per-serving;
   // "Servings" scales them at log time. Preview that scaled total live so
@@ -302,34 +303,35 @@ export function FoodForm({
         Net carbs: <strong>{previewNetCarbs.toFixed(1)}g</strong>
       </div>
 
-      <div className="form-section-title">Electrolytes</div>
-      <div className="form-row">
-        <div className="form-group">
-          <label htmlFor="sodium">Sodium (mg)</label>
-          <input id="sodium" type="number" min="0" placeholder="0" value={texts.sodiumMg} onChange={(e) => num('sodiumMg', e.target.value)} />
-        </div>
-        <div className="form-group">
-          <label htmlFor="potassium">Potassium (mg)</label>
-          <input id="potassium" type="number" min="0" placeholder="0" value={texts.potassiumMg} onChange={(e) => num('potassiumMg', e.target.value)} />
-        </div>
-      </div>
-      <div className="form-row">
-        <div className="form-group">
-          <label htmlFor="magnesium">Magnesium (mg)</label>
-          <input id="magnesium" type="number" min="0" placeholder="0" value={texts.magnesiumMg} onChange={(e) => num('magnesiumMg', e.target.value)} />
-        </div>
-      </div>
-
       <button
         type="button"
         className="btn btn--ghost btn--sm micro-toggle"
-        onClick={() => setShowMicro(!microVisible)}
+        onClick={() => setShowExtras(!extrasVisible)}
+        aria-expanded={extrasVisible}
       >
-        {microVisible ? 'Hide' : 'Show'} micronutrients
+        {extrasVisible ? 'Hide' : 'Add'} electrolytes & micronutrients
       </button>
 
-      {microVisible && (
+      {extrasVisible && (
         <>
+          <div className="form-section-title">Electrolytes</div>
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="sodium">Sodium (mg)</label>
+              <input id="sodium" type="number" min="0" placeholder="0" value={texts.sodiumMg} onChange={(e) => num('sodiumMg', e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label htmlFor="potassium">Potassium (mg)</label>
+              <input id="potassium" type="number" min="0" placeholder="0" value={texts.potassiumMg} onChange={(e) => num('potassiumMg', e.target.value)} />
+            </div>
+          </div>
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="magnesium">Magnesium (mg)</label>
+              <input id="magnesium" type="number" min="0" placeholder="0" value={texts.magnesiumMg} onChange={(e) => num('magnesiumMg', e.target.value)} />
+            </div>
+          </div>
+
           <div className="form-section-title">Micronutrients (optional)</div>
           <div className="form-row form-row--wrap">
             {MICRONUTRIENT_FIELDS.map((field) => (

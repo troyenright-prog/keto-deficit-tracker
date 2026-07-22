@@ -43,7 +43,7 @@ describe('micronutrient snapshots', () => {
     render(createElement(FoodForm, { onSubmit }));
 
     fireEvent.change(screen.getByLabelText('Food name *'), { target: { value: 'Multivitamin' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Show micronutrients' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add electrolytes & micronutrients' }));
     fireEvent.change(screen.getByLabelText('Vitamin C (mg)'), { target: { value: '90' } });
     fireEvent.change(screen.getByLabelText('Folate (mcg)'), { target: { value: '400' } });
     fireEvent.change(screen.getByLabelText('Iodine (mcg)'), { target: { value: '150' } });

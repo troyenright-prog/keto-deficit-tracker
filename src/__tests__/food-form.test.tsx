@@ -64,16 +64,29 @@ describe('FoodForm validation', () => {
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ name: 'Water', calories: 0 }));
   });
 
-  it('lets "Hide micronutrients" collapse the section even when a micronutrient already has a value', () => {
-    render(<FoodForm onSubmit={vi.fn()} initial={{ calciumMg: 120 }} />);
+  it('keeps electrolytes and micronutrients collapsed for a fresh manual add', () => {
+    render(<FoodForm onSubmit={vi.fn()} />);
 
-    // A logged micronutrient auto-expands the section without an explicit click.
-    expect(screen.getByLabelText('Calcium (mg)')).toBeTruthy();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Hide micronutrients' }));
+    // Core macro fields stay visible; the extras hide behind the toggle so Save
+    // sits right below the macros without scrolling.
+    expect(screen.getByLabelText('Calories')).toBeTruthy();
+    expect(screen.queryByLabelText('Sodium (mg)')).toBeNull();
     expect(screen.queryByLabelText('Calcium (mg)')).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show micronutrients' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add electrolytes & micronutrients' }));
+    expect(screen.getByLabelText('Sodium (mg)')).toBeTruthy();
     expect(screen.getByLabelText('Calcium (mg)')).toBeTruthy();
+  });
+
+  it('auto-expands the extras when editing a food that already carries them', () => {
+    render(<FoodForm onSubmit={vi.fn()} initial={{ calciumMg: 120, sodiumMg: 300 }} />);
+
+    // Logged electrolytes/micronutrients auto-open the section without a click.
+    expect(screen.getByLabelText('Calcium (mg)')).toBeTruthy();
+    expect(screen.getByLabelText('Sodium (mg)')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hide electrolytes & micronutrients' }));
+    expect(screen.queryByLabelText('Calcium (mg)')).toBeNull();
+    expect(screen.queryByLabelText('Sodium (mg)')).toBeNull();
   });
 });
