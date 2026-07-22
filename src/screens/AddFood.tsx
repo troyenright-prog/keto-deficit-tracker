@@ -301,7 +301,7 @@ export function AddFood({ savedFoods, foodDatabase, log, recipes, templates, onA
 
       <details className="manual-entry">
         <summary>Enter food manually</summary>
-        <FoodForm onSubmit={handleSubmit} onSaveAsFood={handleSaveFood} savedFoods={savedFoods} />
+        <FoodForm onSubmit={handleSubmit} onSaveAsFood={handleSaveFood} compact />
       </details>
     </div>
   );

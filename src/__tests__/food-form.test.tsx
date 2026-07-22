@@ -89,4 +89,30 @@ describe('FoodForm validation', () => {
     expect(screen.queryByLabelText('Calcium (mg)')).toBeNull();
     expect(screen.queryByLabelText('Sodium (mg)')).toBeNull();
   });
+
+  it('compact mode shows only name/serving/servings and hides the saved-food picker', () => {
+    render(
+      <FoodForm
+        onSubmit={vi.fn()}
+        compact
+        savedFoods={[{ id: 'f1', name: 'Steak', servingSize: '300g' } as never]}
+        initial={{ name: 'Steak', calories: 620, proteinG: 60, fatG: 42 }}
+      />,
+    );
+
+    // The quick-log essentials stay visible…
+    expect(screen.getByLabelText('Food name *')).toBeTruthy();
+    expect(screen.getByLabelText('Serving size')).toBeTruthy();
+    expect(screen.getByLabelText('Servings')).toBeTruthy();
+    // …but the saved-food picker and all nutrition fields are hidden by default,
+    // even though the food already carries macros.
+    expect(screen.queryByLabelText('Load saved food')).toBeNull();
+    expect(screen.queryByLabelText('Calories')).toBeNull();
+    expect(screen.queryByLabelText('Sodium (mg)')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show macros & nutrients' }));
+    expect(screen.getByLabelText('Calories')).toBeTruthy();
+    expect(screen.getByLabelText('Sodium (mg)')).toBeTruthy();
+    expect(screen.getByLabelText('Calcium (mg)')).toBeTruthy();
+  });
 });
