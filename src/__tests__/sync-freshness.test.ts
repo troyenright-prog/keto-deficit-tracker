@@ -103,8 +103,16 @@ describe('local freshness marker', () => {
 });
 
 describe('Troy meal-template repair', () => {
+  // The repair exists for an established install that lost its templates. Seeding a
+  // fresh client instead would stamp a new modified marker and make the device look
+  // like it holds user data, so the older remote bundle gets refused and the client
+  // later pushes its near-empty state over the user's real data.
+  const giveTroyExistingData = () =>
+    localStorage.setItem('keto_production_troy_keto_saved_foods', JSON.stringify([{ id: 'food-1', name: 'Steak' }]));
+
   it('restores the requested shortcuts once with the intended serving quantities', () => {
     configureStorageScope({ environment: 'production', userKey: 'troy' });
+    giveTroyExistingData();
 
     expect(ensureTroyMealTemplates('troy')).toBe(true);
     expect(loadMealTemplates()).toEqual(expect.arrayContaining([
@@ -129,6 +137,15 @@ describe('Troy meal-template repair', () => {
     expect(getLocalDataModifiedAt()).not.toBe('');
     expect(ensureTroyMealTemplates('troy')).toBe(false);
     expect(loadMealTemplates()).toHaveLength(2);
+  });
+
+  it('does not seed a fresh install, so remote data can still hydrate', () => {
+    configureStorageScope({ environment: 'production', userKey: 'troy' });
+
+    expect(ensureTroyMealTemplates('troy')).toBe(false);
+    expect(loadMealTemplates()).toEqual([]);
+    expect(getLocalDataModifiedAt()).toBe('');
+    expect(remoteBundleShouldReplaceLocal('2026-07-02T10:00:00.000Z', getLocalDataModifiedAt(), hasLocalUserData())).toBe(true);
   });
 
   it('does not seed another user', () => {

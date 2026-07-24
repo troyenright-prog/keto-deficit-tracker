@@ -108,6 +108,13 @@ export function ensureTroyMealTemplates(userKey: string): boolean {
   } catch {
     return false;
   }
+  // Only restore onto an established install. On a fresh client there is nothing to
+  // restore yet and the templates will arrive with the remote bundle anyway — while
+  // seeding here would make the device look like it holds user data AND stamp a
+  // brand-new modified marker, so the (necessarily older) remote bundle gets refused.
+  // The client would then sit empty behind a "Synced" pill and push its near-empty
+  // state over the user's real data on the first edit.
+  if (!hasUserData()) return false;
 
   const foods = getStarterFoodOptions();
   const byName = (name: string) => foods.find((food) => food.name === name);
