@@ -35,7 +35,7 @@ describe('validateAppBundle', () => {
   // populated. Rejecting those made readRemoteAppData return null and silently
   // turned sync push-only — remote edits could never reach the device.
   it('accepts a bundle whose empty collections were stripped by Firebase', () => {
-    const bundle = exportAppData() as Record<string, unknown>;
+    const bundle = exportAppData() as unknown as Record<string, unknown>;
     delete bundle.recipes;
     delete bundle.shoppingList;
     delete bundle.mealPlan;
@@ -43,7 +43,7 @@ describe('validateAppBundle', () => {
   });
 
   it('restores stripped collections as empty arrays', () => {
-    const bundle = exportAppData() as Record<string, unknown>;
+    const bundle = exportAppData() as unknown as Record<string, unknown>;
     delete bundle.recipes;
     delete bundle.shoppingList;
     delete bundle.mealPlan;
