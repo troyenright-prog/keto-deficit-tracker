@@ -29,6 +29,35 @@ describe('validateAppBundle', () => {
     const bundle = exportAppData();
     expect(validateAppBundle({ ...bundle, exportedAt: 'not-a-date' })).toBe(false);
   });
+
+  // Firebase RTDB drops keys whose value is an empty array, so a bundle that has
+  // round-tripped through sync arrives missing every collection the user has never
+  // populated. Rejecting those made readRemoteAppData return null and silently
+  // turned sync push-only — remote edits could never reach the device.
+  it('accepts a bundle whose empty collections were stripped by Firebase', () => {
+    const bundle = exportAppData() as Record<string, unknown>;
+    delete bundle.recipes;
+    delete bundle.shoppingList;
+    delete bundle.mealPlan;
+    expect(validateAppBundle(bundle)).toBe(true);
+  });
+
+  it('restores stripped collections as empty arrays', () => {
+    const bundle = exportAppData() as Record<string, unknown>;
+    delete bundle.recipes;
+    delete bundle.shoppingList;
+    delete bundle.mealPlan;
+    expect(importAppData(bundle)).toBe(true);
+    const restored = exportAppData();
+    expect(restored.recipes).toEqual([]);
+    expect(restored.shoppingList).toEqual([]);
+    expect(restored.mealPlan).toEqual([]);
+  });
+
+  it('still rejects a collection that is present but not an array', () => {
+    const bundle = exportAppData();
+    expect(validateAppBundle({ ...bundle, recipes: 'nope' })).toBe(false);
+  });
 });
 
 describe('exportAppData / importAppData round-trip', () => {

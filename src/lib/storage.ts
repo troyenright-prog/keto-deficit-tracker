@@ -831,9 +831,15 @@ function hasInvalidNumber(value: unknown): boolean {
 export function normalizeAppBundle(value: unknown): AppStateBundle | null {
   if (!isRecord(value) || typeof value.version !== 'number' || !Number.isInteger(value.version) || value.version < 0 || value.version > CURRENT_VERSION) return null;
   if (!isTimestamp(value.exportedAt) || !isRecord(value.profile) || !isRecord(value.targets) || hasInvalidNumber(value)) return null;
+  // Firebase RTDB does not store empty arrays — it drops the key entirely. A bundle
+  // round-tripped through sync is therefore legitimately missing any collection the
+  // user has never populated, so treat absent as empty rather than rejecting the whole
+  // bundle. Rejecting made readRemoteAppData return null, which silently disabled all
+  // remote reads and left sync push-only.
   for (const key of ['foodLog', 'savedFoods', 'weightEntries', 'mealTemplates', 'recipes', 'shoppingList', 'mealPlan']) {
-    if (!Array.isArray(value[key])) return null;
-    if (value[key].some((item: unknown) => !isRecord(item))) return null;
+    const collection = value[key] === undefined ? [] : value[key];
+    if (!Array.isArray(collection)) return null;
+    if (collection.some((item: unknown) => !isRecord(item))) return null;
   }
   const foodDatabaseValue = value.foodDatabase === undefined ? [] : value.foodDatabase;
   if (!Array.isArray(foodDatabaseValue) || foodDatabaseValue.some((item: unknown) => !isRecord(item))) return null;
